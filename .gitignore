@@ -68,3 +68,7 @@ tmp/
 .pytest_cache/
 htmlcov/
 .coverage
+
+# 키 파일
+ssh-key-2025-07-14.key
+ssh-key-2025-07-14.key.pub
