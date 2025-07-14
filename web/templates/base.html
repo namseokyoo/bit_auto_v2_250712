@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bitcoin Auto Trading v2{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .status-badge { font-size: 0.8em; }
+        .profit { color: #28a745; }
+        .loss { color: #dc3545; }
+        .sidebar { background-color: #2c3e50; min-height: 100vh; }
+        .sidebar a { color: #ecf0f1; text-decoration: none; }
+        .sidebar a:hover { background-color: #34495e; color: white; }
+        .content { padding: 20px; }
+        .card-header { background-color: #3498db; color: white; }
+        .emergency-btn { background-color: #e74c3c; border: none; }
+        .emergency-btn:hover { background-color: #c0392b; }
+        
+        /* 전략 분석 테이블 스타일 */
+        .table-row-success { 
+            background-color: #d4edda !important; 
+            border-left: 4px solid #28a745;
+        }
+        .table-row-danger { 
+            background-color: #f8d7da !important; 
+            border-left: 4px solid #dc3545;
+        }
+        .table-row-light { 
+            background-color: #f8f9fa !important; 
+            border-left: 4px solid #6c757d;
+        }
+        .table-hover tbody tr:hover.table-row-success {
+            background-color: #c3e6cb !important;
+        }
+        .table-hover tbody tr:hover.table-row-danger {
+            background-color: #f5c6cb !important;
+        }
+        .table-hover tbody tr:hover.table-row-light {
+            background-color: #e9ecef !important;
+        }
+        .strategy-analysis-table th {
+            background-color: #343a40 !important;
+            color: white !important;
+            font-weight: 600;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .strategy-analysis-table td {
+            vertical-align: middle;
+            font-size: 0.9rem;
+        }
+        .confidence-high { font-weight: bold; color: #155724; }
+        .confidence-medium { font-weight: bold; color: #856404; }
+        .confidence-low { font-weight: bold; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 사이드바 -->
+            <nav class="col-md-2 sidebar">
+                <div class="position-sticky pt-3">
+                    <h5 class="text-center text-light mb-4">
+                        <i class="fas fa-bitcoin"></i> BTC Auto Trading
+                    </h5>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link p-3" href="/">
+                                <i class="fas fa-tachometer-alt"></i> 대시보드
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link p-3" href="/trades">
+                                <i class="fas fa-exchange-alt"></i> 거래 내역
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link p-3" href="/settings">
+                                <i class="fas fa-cog"></i> 설정
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link p-3" href="/logs">
+                                <i class="fas fa-file-alt"></i> 로그
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <!-- 긴급 정지 버튼 -->
+                    <div class="mt-5 px-3">
+                        <button class="btn btn-danger w-100 emergency-btn" onclick="emergencyStop()">
+                            <i class="fas fa-stop"></i> 긴급 정지
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- 메인 컨텐츠 -->
+            <main class="col-md-10 content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 긴급 정지 함수
+        async function emergencyStop() {
+            if (confirm('정말로 긴급 정지하시겠습니까?')) {
+                try {
+                    const response = await fetch('/api/emergency_stop', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        alert(data.message);
+                        location.reload();
+                    } else {
+                        alert('오류: ' + data.message);
+                    }
+                } catch (error) {
+                    alert('오류 발생: ' + error.message);
+                }
+            }
+        }
+
+        // 시스템/거래 토글 함수
+        async function toggleSystem(action) {
+            try {
+                const response = await fetch('/api/system/toggle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: action})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('오류: ' + data.message);
+                }
+            } catch (error) {
+                alert('오류 발생: ' + error.message);
+            }
+        }
+
+        async function toggleTrading(action) {
+            try {
+                const response = await fetch('/api/trading/toggle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: action})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('오류: ' + data.message);
+                }
+            } catch (error) {
+                alert('오류 발생: ' + error.message);
+            }
+        }
+
+        // 자동 새로고침 (30초마다)
+        setInterval(() => {
+            if (window.location.pathname === '/') {
+                updateDashboard();
+            }
+        }, 30000);
+
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/api/dashboard_data');
+                const data = await response.json();
+                
+                // 대시보드 데이터 업데이트 (DOM 조작)
+                if (document.getElementById('total-trades')) {
+                    document.getElementById('total-trades').textContent = data.total_trades;
+                }
+                if (document.getElementById('today-trades')) {
+                    document.getElementById('today-trades').textContent = data.today_trades;
+                }
+                if (document.getElementById('total-pnl')) {
+                    const pnlElement = document.getElementById('total-pnl');
+                    pnlElement.textContent = data.total_pnl.toLocaleString() + ' KRW';
+                    pnlElement.className = data.total_pnl >= 0 ? 'profit' : 'loss';
+                }
+                if (document.getElementById('win-rate')) {
+                    document.getElementById('win-rate').textContent = data.win_rate.toFixed(1) + '%';
+                }
+            } catch (error) {
+                console.error('대시보드 업데이트 오류:', error);
+            }
+        }
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

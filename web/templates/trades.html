@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}거래 내역 - Bitcoin Auto Trading v2{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-exchange-alt"></i> 거래 내역</h1>
+    <div class="text-muted">
+        총 {{ trades|length }}개 거래
+    </div>
+</div>
+
+<!-- 필터링 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">전략</label>
+                <select name="strategy_id" class="form-select">
+                    <option value="">전체</option>
+                    {% for strategy in strategies %}
+                        <option value="{{ strategy }}" {{ 'selected' if current_strategy == strategy else '' }}>
+                            {{ strategy }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">상태</label>
+                <select name="status" class="form-select">
+                    <option value="">전체</option>
+                    <option value="open" {{ 'selected' if current_status == 'open' else '' }}>진행중</option>
+                    <option value="closed" {{ 'selected' if current_status == 'closed' else '' }}>완료</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">&nbsp;</label>
+                <div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> 검색
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 거래 내역 테이블 -->
+<div class="card">
+    <div class="card-body">
+        {% if trades %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>시간</th>
+                            <th>전략</th>
+                            <th>종목</th>
+                            <th>유형</th>
+                            <th>진입가</th>
+                            <th>청산가</th>
+                            <th>수량</th>
+                            <th>수익/손실</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for trade in trades %}
+                        <tr>
+                            <td>{{ trade.entry_time[:16] if trade.entry_time else '' }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ trade.strategy_id }}</span>
+                            </td>
+                            <td>{{ trade.symbol }}</td>
+                            <td>
+                                {% if trade.side == 'buy' or trade.side == 'bid' %}
+                                    <span class="text-success">매수</span>
+                                {% else %}
+                                    <span class="text-danger">매도</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ "{:,.0f}".format(trade.entry_price) if trade.entry_price else '-' }}</td>
+                            <td>{{ "{:,.0f}".format(trade.exit_price) if trade.exit_price else '-' }}</td>
+                            <td>{{ "{:.8f}".format(trade.quantity) if trade.quantity else '-' }}</td>
+                            <td>
+                                {% if trade.pnl %}
+                                    <span class="{{ 'profit' if trade.pnl >= 0 else 'loss' }}">
+                                        {{ "{:+,.0f}".format(trade.pnl) }}
+                                    </span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if trade.status == 'open' %}
+                                    <span class="badge bg-warning">진행중</span>
+                                {% elif trade.status == 'closed' %}
+                                    <span class="badge bg-success">완료</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ trade.status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 페이지네이션 -->
+            {% if total_pages > 1 %}
+            <nav aria-label="거래 내역 페이지">
+                <ul class="pagination justify-content-center mt-4">
+                    {% for page in range(1, total_pages + 1) %}
+                        <li class="page-item {{ 'active' if page == current_page else '' }}">
+                            <a class="page-link" href="?page={{ page }}{% if current_strategy %}&strategy_id={{ current_strategy }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
+                                {{ page }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </nav>
+            {% endif %}
+            
+        {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-info-circle fa-3x mb-3"></i>
+                <h5>거래 내역이 없습니다</h5>
+                <p>아직 거래가 실행되지 않았습니다.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

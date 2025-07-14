@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block title %}대시보드 - Bitcoin Auto Trading v2{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-tachometer-alt"></i> 대시보드</h1>
+    <div class="text-muted">
+        마지막 업데이트: {{ system_status.last_updated or '없음' }}
+    </div>
+</div>
+
+<!-- 시스템 상태 카드 -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-power-off"></i> 시스템 상태</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <label class="form-label">시스템</label>
+                            <div>
+                                {% if system_status.system_enabled %}
+                                    <span class="badge bg-success">활성화</span>
+                                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="toggleSystem('disable')">
+                                        비활성화
+                                    </button>
+                                {% else %}
+                                    <span class="badge bg-secondary">비활성화</span>
+                                    <button class="btn btn-sm btn-outline-success ms-2" onclick="toggleSystem('enable')">
+                                        활성화
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <label class="form-label">자동거래</label>
+                            <div>
+                                {% if system_status.trading_enabled %}
+                                    <span class="badge bg-success">활성화</span>
+                                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="toggleTrading('disable')">
+                                        비활성화
+                                    </button>
+                                {% else %}
+                                    <span class="badge bg-secondary">비활성화</span>
+                                    <button class="btn btn-sm btn-outline-success ms-2" onclick="toggleTrading('enable')">
+                                        활성화
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 모드 표시 제거 -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-wallet"></i> 현재 잔고</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="mb-2">
+                            <label class="form-label">KRW</label>
+                            <div class="h5">{{ "{:,.0f}".format(balances.KRW) }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mb-2">
+                            <label class="form-label">BTC</label>
+                            <div class="h5">{{ "{:.8f}".format(balances.BTC) }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">현재 BTC 가격</label>
+                    <div class="h5 text-info">
+                        {% if current_price %}
+                            {{ "{:,.0f}".format(current_price) }} KRW
+                        {% else %}
+                            조회 중...
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 통계 카드들 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">총 거래 수</h5>
+                <h2 class="text-primary" id="total-trades">{{ dashboard_data.total_trades }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">오늘 거래</h5>
+                <h2 class="text-info" id="today-trades">{{ dashboard_data.today_trades }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">총 수익/손실</h5>
+                <h2 class="{{ 'profit' if dashboard_data.total_pnl >= 0 else 'loss' }}" id="total-pnl">
+                    {{ "{:,.0f}".format(dashboard_data.total_pnl) }} KRW
+                </h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">승률</h5>
+                <h2 class="text-success" id="win-rate">{{ "{:.1f}".format(dashboard_data.win_rate) }}%</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 수동 거래 컨트롤 -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5><i class="fas fa-hand-pointer"></i> 수동 거래</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <button class="btn btn-info w-100 mb-2" onclick="manualAnalyze()">
+                    <i class="fas fa-search"></i> 전략 분석
+                </button>
+                <small class="text-muted">현재 전략들의 신호를 분석합니다</small>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-success w-100 mb-2" onclick="manualExecute('analyze_and_execute')">
+                    <i class="fas fa-magic"></i> 분석 후 실행
+                </button>
+                <small class="text-muted">분석 후 신호에 따라 자동 실행</small>
+            </div>
+            <div class="col-md-4">
+                <div class="btn-group w-100 mb-2">
+                    <button class="btn btn-outline-success" onclick="manualExecute('buy')">
+                        <i class="fas fa-plus"></i> 강제 매수
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="manualExecute('sell')">
+                        <i class="fas fa-minus"></i> 강제 매도
+                    </button>
+                </div>
+                <small class="text-muted">전략 무시하고 강제 실행</small>
+            </div>
+        </div>
+        
+        <!-- 분석 결과 표시 영역 -->
+        <div id="analysis-results" class="mt-3" style="display: none;">
+            <hr>
+            <h6><i class="fas fa-chart-line"></i> 분석 결과</h6>
+            <div id="analysis-content" class="bg-light p-3 rounded">
+                <!-- 분석 결과가 여기에 표시됩니다 -->
+            </div>
+        </div>
+        
+        <!-- 실행 결과 표시 영역 -->
+        <div id="execution-results" class="mt-3" style="display: none;">
+            <div class="alert alert-info" id="execution-message">
+                <!-- 실행 결과 메시지가 여기에 표시됩니다 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 백테스팅 컨트롤 -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5><i class="fas fa-chart-bar"></i> 백테스팅</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6><i class="fas fa-play"></i> 백테스트 실행</h6>
+                <div class="mb-3">
+                    <label class="form-label">분석 기간</label>
+                    <select class="form-select" id="backtest-period">
+                        <option value="7">최근 7일</option>
+                        <option value="14">최근 14일</option>
+                        <option value="30" selected>최근 30일</option>
+                        <option value="60">최근 60일</option>
+                        <option value="90">최근 90일</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100" onclick="runBacktest()">
+                    <i class="fas fa-rocket"></i> 백테스트 실행
+                </button>
+            </div>
+            <div class="col-md-6">
+                <h6><i class="fas fa-history"></i> 최근 백테스트 결과</h6>
+                <div id="backtest-history">
+                    <div class="text-center text-muted">
+                        <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 백테스트 결과 표시 영역 -->
+        <div id="backtest-results" class="mt-4" style="display: none;">
+            <hr>
+            <h6><i class="fas fa-chart-line"></i> 백테스트 결과</h6>
+            <div id="backtest-content" class="bg-light p-3 rounded">
+                <!-- 백테스트 결과가 여기에 표시됩니다 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 최근 거래 내역 -->
+<div class="card">
+    <div class="card-header">
+        <h5><i class="fas fa-history"></i> 최근 거래 내역</h5>
+    </div>
+    <div class="card-body">
+        {% if dashboard_data.recent_trades %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>시간</th>
+                            <th>전략</th>
+                            <th>종목</th>
+                            <th>유형</th>
+                            <th>가격</th>
+                            <th>수익/손실</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for trade in dashboard_data.recent_trades %}
+                        <tr>
+                            <td>{{ trade.entry_time[:16] if trade.entry_time else '' }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ trade.strategy_id }}</span>
+                            </td>
+                            <td>{{ trade.symbol }}</td>
+                            <td>
+                                {% if trade.side == 'buy' or trade.side == 'bid' %}
+                                    <span class="text-success">매수</span>
+                                {% else %}
+                                    <span class="text-danger">매도</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ "{:,.0f}".format(trade.entry_price) }}</td>
+                            <td>
+                                {% if trade.pnl %}
+                                    <span class="{{ 'profit' if trade.pnl >= 0 else 'loss' }}">
+                                        {{ "{:,.0f}".format(trade.pnl) }}
+                                    </span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if trade.status == 'open' %}
+                                    <span class="badge bg-warning">진행중</span>
+                                {% elif trade.status == 'closed' %}
+                                    <span class="badge bg-success">완료</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ trade.status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-info-circle"></i> 거래 내역이 없습니다.
+            </div>
+        {% endif %}
+        
+        <div class="text-center mt-3">
+            <a href="/trades" class="btn btn-outline-primary">
+                전체 거래 내역 보기 <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+{% endblock %}

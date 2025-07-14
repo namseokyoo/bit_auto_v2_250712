@@ -1,0 +1,802 @@
+{
+  "strategy_metadata": {
+    "version": "1.0",
+    "last_updated": "2025-07-11",
+    "total_strategies": 16
+  },
+  "strategies": {
+    "hourly_strategies": {
+      "ema_cross": {
+        "id": "h1",
+        "name": "이동평균선(EMA) 골든/데드크로스",
+        "timeframe": "1h",
+        "category": "trend_following",
+        "active": true,
+        "parameters": {
+          "short_ema": 12,
+          "long_ema": 26,
+          "filter_timeframe": "4h",
+          "filter_ema": 50,
+          "volume_multiplier": 1.5,
+          "volume_lookback": 10
+        },
+        "indicators": [
+          {"name": "EMA", "period": 12, "timeframe": "1h"},
+          {"name": "EMA", "period": 26, "timeframe": "1h"},
+          {"name": "EMA", "period": 50, "timeframe": "4h"},
+          {"name": "Volume", "timeframe": "1h"}
+        ],
+        "signals": {
+          "long_entry": {
+            "filter": "price > 4h_50ema",
+            "signal": "12ema > 26ema (golden_cross)",
+            "confirmation": "volume > avg_volume_10 * 1.5"
+          },
+          "short_entry": {
+            "filter": "price < 4h_50ema",
+            "signal": "12ema < 26ema (death_cross)",
+            "confirmation": "volume > avg_volume_10 * 1.5"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "opposite_cross",
+          "take_profit": "risk_reward_ratio_2:1",
+          "max_risk_per_trade": 0.02
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "ATR 기반 동적 손절매",
+          "거래량 프로파일 추가",
+          "시장 변동성 필터 (VIX 등가)",
+          "RSI 다이버전스 보조 확인"
+        ]
+      },
+      "rsi_divergence": {
+        "id": "h2",
+        "name": "RSI 상승/하락 다이버전스",
+        "timeframe": "1h",
+        "category": "reversal",
+        "active": true,
+        "parameters": {
+          "rsi_period": 14,
+          "stoch_k": 14,
+          "stoch_d": 3,
+          "stoch_smooth": 3,
+          "oversold": 20,
+          "overbought": 80
+        },
+        "indicators": [
+          {"name": "RSI", "period": 14, "timeframe": "1h"},
+          {"name": "Stochastic", "k": 14, "d": 3, "smooth": 3, "timeframe": "1h"},
+          {"name": "Support_Resistance", "timeframe": "4h"}
+        ],
+        "signals": {
+          "long_entry": {
+            "filter": "price near 4h_support",
+            "signal": "price lower_low AND rsi higher_low",
+            "confirmation": "stoch_k > 20"
+          },
+          "short_entry": {
+            "filter": "price near 4h_resistance",
+            "signal": "price higher_high AND rsi lower_high",
+            "confirmation": "stoch_k < 80"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "divergence_formation_point",
+          "take_profit": "opposite_support_resistance OR rsi_70_30",
+          "max_risk_per_trade": 0.015
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "MACD 히스토그램 다이버전스 추가",
+          "거래량 확산 분석",
+          "CCI 오실레이터 보조 신호",
+          "파라볼릭 SAR 트레일링 스탑"
+        ]
+      },
+      "pivot_points": {
+        "id": "h3",
+        "name": "피봇 포인트 지지/저항 반등",
+        "timeframe": ["15m", "1h"],
+        "category": "support_resistance",
+        "active": true,
+        "parameters": {
+          "pivot_type": "standard",
+          "pivot_period": "daily",
+          "levels": ["S1", "S2", "R1", "R2", "PP"]
+        },
+        "indicators": [
+          {"name": "Pivot_Points", "type": "daily"},
+          {"name": "Candlestick_Patterns", "timeframe": ["15m", "1h"]},
+          {"name": "Volume", "timeframe": "15m"}
+        ],
+        "signals": {
+          "long_entry": {
+            "signal": "price reach S1 OR S2",
+            "confirmation": "bullish_reversal_pattern"
+          },
+          "short_entry": {
+            "signal": "price reach R1 OR R2",
+            "confirmation": "bearish_reversal_pattern"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "pattern_invalidation_point",
+          "take_profit": "next_pivot_level",
+          "max_risk_per_trade": 0.01
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "Woodie 피봇 포인트 추가",
+          "DeMark 피봇 포인트 비교",
+          "시간대별 피봇 강도 가중치",
+          "Volume Profile POC 결합"
+        ]
+      },
+      "vwap_pullback": {
+        "id": "h4",
+        "name": "VWAP 되돌림",
+        "timeframe": ["5m", "15m"],
+        "category": "mean_reversion",
+        "active": true,
+        "parameters": {
+          "vwap_period": "daily",
+          "ema_period": 20,
+          "ema_timeframe": "1h",
+          "rsi_period": 14,
+          "rsi_threshold": 50
+        },
+        "indicators": [
+          {"name": "VWAP", "period": "daily"},
+          {"name": "EMA", "period": 20, "timeframe": "1h"},
+          {"name": "RSI", "period": 14, "timeframe": "15m"}
+        ],
+        "signals": {
+          "long_entry": {
+            "filter": "1h_20ema uptrend",
+            "signal": "price pullback to vwap AND support",
+            "confirmation": "15m_rsi >= 50"
+          },
+          "short_entry": {
+            "filter": "1h_20ema downtrend",
+            "signal": "price rally to vwap AND resistance",
+            "confirmation": "15m_rsi <= 50"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "vwap_break_close",
+          "take_profit": "daily_high_low OR risk_reward_2:1",
+          "max_risk_per_trade": 0.015
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "VWAP 표준편차 밴드 추가",
+          "Anchored VWAP 활용",
+          "거래량 가중 ROC",
+          "Intraday Momentum Index"
+        ]
+      },
+      "macd_zero_cross": {
+        "id": "h5",
+        "name": "MACD 오실레이터 0선 교차",
+        "timeframe": "1h",
+        "category": "momentum",
+        "active": true,
+        "parameters": {
+          "fast_ema": 12,
+          "slow_ema": 26,
+          "signal_period": 9,
+          "filter_ema": 50
+        },
+        "indicators": [
+          {"name": "MACD", "fast": 12, "slow": 26, "signal": 9, "timeframe": "1h"},
+          {"name": "EMA", "period": 50, "timeframe": "1h"},
+          {"name": "Volume", "timeframe": "1h"}
+        ],
+        "signals": {
+          "long_entry": {
+            "signal": "macd_histogram > 0",
+            "confirmation": "price > 1h_50ema",
+            "divergence": "price lower_low AND macd higher_low"
+          },
+          "short_entry": {
+            "signal": "macd_histogram < 0",
+            "confirmation": "price < 1h_50ema",
+            "divergence": "price higher_high AND macd lower_high"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "macd_signal_invalidation",
+          "take_profit": "histogram_weakness",
+          "max_risk_per_trade": 0.02
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "MACD-Histogram 기울기 분석",
+          "PPO (Percentage Price Oscillator)",
+          "MACD 컨버전스/다이버전스 스코어링",
+          "Adaptive MACD"
+        ]
+      },
+      "bollinger_band_strategy": {
+        "id": "h6",
+        "name": "볼린저 밴드 역추세/추세",
+        "timeframe": "1h",
+        "category": "volatility_adaptive",
+        "active": true,
+        "parameters": {
+          "bb_period": 20,
+          "bb_deviation": 2,
+          "adx_period": 14,
+          "adx_trend_threshold": 25,
+          "rsi_period": 14
+        },
+        "indicators": [
+          {"name": "Bollinger_Bands", "period": 20, "deviation": 2, "timeframe": "1h"},
+          {"name": "ADX", "period": 14, "timeframe": "1h"},
+          {"name": "RSI", "period": 14, "timeframe": "1h"}
+        ],
+        "signals": {
+          "ranging_long": {
+            "filter": "adx < 25",
+            "signal": "price touch lower_band AND return_inside",
+            "confirmation": "first_green_candle"
+          },
+          "trending_long": {
+            "filter": "adx > 25",
+            "signal": "price riding upper_band",
+            "confirmation": "pullback_to_middle_and_bounce"
+          },
+          "ranging_short": {
+            "filter": "adx < 25",
+            "signal": "price touch upper_band AND return_inside",
+            "confirmation": "first_red_candle"
+          },
+          "trending_short": {
+            "filter": "adx > 25",
+            "signal": "price riding lower_band",
+            "confirmation": "rally_to_middle_and_reject"
+          }
+        },
+        "risk_management": {
+          "stop_loss_ranging": "opposite_band",
+          "stop_loss_trending": "middle_band_break",
+          "take_profit_ranging": "opposite_band",
+          "max_risk_per_trade": 0.015
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "Bollinger Band Width (BBW) 동적 조정",
+          "Keltner Channel 결합",
+          "밴드 접촉 빈도 분석",
+          "변동성 조정 포지션 사이징"
+        ]
+      },
+      "open_interest": {
+        "id": "h7",
+        "name": "미체결 약정 증감",
+        "timeframe": "1h",
+        "category": "volume_analysis",
+        "active": true,
+        "parameters": {
+          "funding_rate_threshold": 0.01,
+          "oi_change_threshold": 0.05
+        },
+        "indicators": [
+          {"name": "Open_Interest", "timeframe": "1h"},
+          {"name": "Funding_Rate", "timeframe": "8h"},
+          {"name": "Volume", "timeframe": "1h"},
+          {"name": "Price", "timeframe": "1h"}
+        ],
+        "signals": {
+          "long_entry": {
+            "signal": "price_up AND oi_up",
+            "confirmation": "funding_rate not_excessive"
+          },
+          "short_entry": {
+            "signal": "price_down AND oi_up",
+            "confirmation": "funding_rate not_extreme_negative"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "oi_trend_reversal",
+          "take_profit": "risk_reward_2:1 OR major_level",
+          "max_risk_per_trade": 0.02
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "Long/Short Ratio 분석",
+          "Top Trader Position Ratio",
+          "Delta Neutral Hedging Ratio",
+          "OI Rate of Change 모멘텀"
+        ]
+      },
+      "flag_pennant": {
+        "id": "h8",
+        "name": "깃발/페넌트 패턴 돌파",
+        "timeframe": "1h",
+        "category": "continuation_pattern",
+        "active": true,
+        "parameters": {
+          "fibonacci_levels": [0.382, 0.5, 0.618],
+          "volume_spike_ratio": 2.0,
+          "pattern_max_duration": 20
+        },
+        "indicators": [
+          {"name": "Trendlines", "timeframe": "1h"},
+          {"name": "Fibonacci_Retracement", "timeframe": "1h"},
+          {"name": "Volume", "timeframe": "1h"},
+          {"name": "Moving_Average", "period": 20, "timeframe": "1h"}
+        ],
+        "signals": {
+          "long_entry": {
+            "setup": "strong_upward_flagpole",
+            "pattern": "flag_consolidation OR pennant_triangle",
+            "signal": "upper_trendline_break WITH volume_confirmation"
+          },
+          "short_entry": {
+            "setup": "strong_downward_flagpole",
+            "pattern": "inverted_flag_consolidation",
+            "signal": "lower_trendline_break WITH volume_confirmation"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "pattern_low_high",
+          "take_profit": "flagpole_length_projection",
+          "max_risk_per_trade": 0.015
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "패턴 유효성 스코어링 시스템",
+          "거래량 확산/수축 비율",
+          "시간 기반 패턴 만료",
+          "Elliott Wave 연계 분석"
+        ]
+      }
+    },
+    "daily_strategies": {
+      "weekly_daily_ma": {
+        "id": "d1",
+        "name": "주봉 필터링 + 일봉 50일선 눌림목",
+        "timeframe": "1d",
+        "category": "trend_following",
+        "active": true,
+        "parameters": {
+          "weekly_ma": 20,
+          "daily_ma": 50,
+          "ma_type": "SMA"
+        },
+        "indicators": [
+          {"name": "SMA", "period": 20, "timeframe": "1w"},
+          {"name": "SMA", "period": 50, "timeframe": "1d"},
+          {"name": "Candlestick_Patterns", "timeframe": "1d"}
+        ],
+        "signals": {
+          "long_entry": {
+            "filter": "weekly_price > weekly_20sma",
+            "signal": "daily_price pullback_to daily_50sma",
+            "confirmation": "bullish_reversal_pattern"
+          },
+          "short_entry": {
+            "filter": "weekly_price < weekly_20sma",
+            "signal": "daily_price rally_to daily_50sma",
+            "confirmation": "bearish_reversal_pattern"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "daily_50sma_close_below",
+          "take_profit": "50%_at_previous_high + trailing_stop",
+          "max_risk_per_trade": 0.03
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "EMA와 SMA 조합 테스트",
+          "상대강도 섹터 분석",
+          "거시경제 지표 필터링",
+          "계절성 패턴 분석"
+        ]
+      },
+      "ichimoku_cloud": {
+        "id": "d2",
+        "name": "일목균형표 구름대 돌파",
+        "timeframe": "1d",
+        "category": "trend_following",
+        "active": true,
+        "parameters": {
+          "tenkan_sen": 9,
+          "kijun_sen": 26,
+          "senkou_span_b": 52
+        },
+        "indicators": [
+          {"name": "Ichimoku", "tenkan": 9, "kijun": 26, "senkou_b": 52, "timeframe": "1d"},
+          {"name": "DMI", "period": 14, "timeframe": "1d"}
+        ],
+        "signals": {
+          "long_entry": {
+            "signal": "price break_above kumo_cloud",
+            "confirmation": "tenkan > kijun AND chikou > price_26_ago",
+            "alternative": "price pullback_to kumo_top AND bounce"
+          },
+          "short_entry": {
+            "signal": "price break_below kumo_cloud",
+            "confirmation": "tenkan < kijun AND chikou < price_26_ago"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "kumo_re_entry OR kijun_break",
+          "take_profit": "tenkan_kijun_cross OR major_resistance",
+          "max_risk_per_trade": 0.025
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "다중 시간대 Ichimoku 정렬",
+          "Kumo Twist 분석",
+          "치코우 스팬 강도 측정",
+          "구름대 두께 분석"
+        ]
+      },
+      "bbw_compression": {
+        "id": "d3",
+        "name": "볼린저 밴드 폭 수축 후 돌파",
+        "timeframe": "1d",
+        "category": "volatility_breakout",
+        "active": true,
+        "parameters": {
+          "bb_period": 20,
+          "bb_deviation": 2,
+          "bbw_lookback": 126,
+          "volume_multiplier": 2.0
+        },
+        "indicators": [
+          {"name": "Bollinger_Bands", "period": 20, "deviation": 2, "timeframe": "1d"},
+          {"name": "BBW", "timeframe": "1d"},
+          {"name": "Volume", "timeframe": "1d"}
+        ],
+        "signals": {
+          "long_entry": {
+            "filter": "bbw at_6month_low",
+            "signal": "close > upper_band",
+            "confirmation": "volume > 2x_average"
+          },
+          "short_entry": {
+            "filter": "bbw at_6month_low",
+            "signal": "close < lower_band",
+            "confirmation": "volume > 2x_average"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "middle_band_break",
+          "take_profit": "trend_weakness OR band_re_entry",
+          "max_risk_per_trade": 0.02
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "Historical Volatility 정규화",
+          "Average True Range 비교",
+          "변동성 클러스터링 분석",
+          "VIX equivalent 지표 생성"
+        ]
+      },
+      "fear_greed_rsi": {
+        "id": "d4",
+        "name": "공포 탐욕 지수 & RSI 결합",
+        "timeframe": "1d",
+        "category": "sentiment_contrarian",
+        "active": true,
+        "parameters": {
+          "rsi_period": 14,
+          "fear_threshold": 20,
+          "greed_threshold": 80,
+          "rsi_oversold": 30,
+          "rsi_overbought": 70
+        },
+        "indicators": [
+          {"name": "RSI", "period": 14, "timeframe": "1d"},
+          {"name": "Fear_Greed_Index", "source": "external_api"},
+          {"name": "Candlestick_Patterns", "timeframe": "1d"}
+        ],
+        "signals": {
+          "long_entry": {
+            "filter": "fear_greed_index < 20",
+            "signal": "rsi < 30",
+            "confirmation": "bullish_reversal_pattern"
+          },
+          "short_entry": {
+            "filter": "fear_greed_index > 80",
+            "signal": "rsi > 70",
+            "confirmation": "bearish_reversal_pattern"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "pattern_invalidation",
+          "take_profit": "fear_greed_index_recovery OR rsi_opposite_extreme",
+          "max_risk_per_trade": 0.025
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "소셜 미디어 감정 지수",
+          "Google Trends 통합",
+          "뉴스 감정 분석",
+          "VIX 상관관계 분석"
+        ]
+      },
+      "golden_cross": {
+        "id": "d5",
+        "name": "골든 크로스 후 첫 눌림목",
+        "timeframe": "1d",
+        "category": "trend_following",
+        "active": true,
+        "parameters": {
+          "short_ma": 50,
+          "long_ma": 200,
+          "fibonacci_levels": [0.382, 0.5, 0.618]
+        },
+        "indicators": [
+          {"name": "SMA", "period": 50, "timeframe": "1d"},
+          {"name": "SMA", "period": 200, "timeframe": "1d"},
+          {"name": "Fibonacci_Retracement", "timeframe": "1d"}
+        ],
+        "signals": {
+          "long_entry": {
+            "filter": "golden_cross_confirmed",
+            "signal": "first_pullback_to 50sma OR fib_0.382_0.5",
+            "confirmation": "bullish_candle_at_support"
+          },
+          "short_entry": {
+            "filter": "death_cross_confirmed",
+            "signal": "first_rally_to 50sma",
+            "confirmation": "bearish_candle_at_resistance"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "50sma_break",
+          "take_profit": "previous_major_high OR risk_reward_3:1",
+          "max_risk_per_trade": 0.03
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "이동평균선 기울기 분석",
+          "거래량 확인 강화",
+          "섹터 로테이션 분석",
+          "매크로 트렌드 필터링"
+        ]
+      },
+      "mvrv_z_score": {
+        "id": "d6",
+        "name": "MVRV Z-Score 가치 투자",
+        "timeframe": "1w",
+        "category": "fundamental_onchain",
+        "active": true,
+        "parameters": {
+          "buy_threshold": 0.1,
+          "sell_threshold": 7.0,
+          "dca_frequency": "weekly"
+        },
+        "indicators": [
+          {"name": "MVRV_Z_Score", "source": "onchain_data"},
+          {"name": "Market_Cap", "source": "onchain_data"},
+          {"name": "Realized_Cap", "source": "onchain_data"}
+        ],
+        "signals": {
+          "long_entry": {
+            "signal": "mvrv_z_score < 0.1",
+            "execution": "dca_weekly_buy"
+          },
+          "short_entry": {
+            "signal": "mvrv_z_score > 7.0",
+            "execution": "dca_weekly_sell"
+          }
+        },
+        "risk_management": {
+          "position_sizing": "time_based_dca",
+          "max_single_allocation": 0.1,
+          "rebalancing": "monthly"
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "SOPR (Spent Output Profit Ratio)",
+          "NVT Ratio",
+          "Puell Multiple",
+          "Stock-to-Flow 편차"
+        ]
+      },
+      "stoch_rsi": {
+        "id": "d7",
+        "name": "스토캐스틱 RSI 과매도 탈출",
+        "timeframe": "1d",
+        "category": "momentum_oscillator",
+        "active": true,
+        "parameters": {
+          "rsi_period": 14,
+          "stoch_period": 14,
+          "stoch_k": 3,
+          "stoch_d": 3,
+          "oversold": 20,
+          "overbought": 80
+        },
+        "indicators": [
+          {"name": "Stochastic_RSI", "rsi_period": 14, "stoch_period": 14, "timeframe": "1d"},
+          {"name": "SMA", "period": 200, "timeframe": "1d"},
+          {"name": "MACD", "fast": 12, "slow": 26, "signal": 9, "timeframe": "1d"}
+        ],
+        "signals": {
+          "long_entry": {
+            "filter": "price > 200sma",
+            "signal": "stoch_rsi in_oversold_zone",
+            "confirmation": "k_line cross_above d_line"
+          },
+          "short_entry": {
+            "filter": "price < 200sma",
+            "signal": "stoch_rsi in_overbought_zone",
+            "confirmation": "k_line cross_below d_line"
+          }
+        },
+        "risk_management": {
+          "stop_loss": "previous_swing_low_high",
+          "take_profit": "opposite_extreme_zone",
+          "max_risk_per_trade": 0.02
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "Williams %R 결합",
+          "상대 모멘텀 지수",
+          "다중 시간대 동조화",
+          "모멘텀 발산 분석"
+        ]
+      },
+      "adx_trend_filter": {
+        "id": "d8",
+        "name": "ADX 추세 강도 필터링",
+        "timeframe": "1d",
+        "category": "meta_strategy",
+        "active": true,
+        "parameters": {
+          "adx_period": 14,
+          "trend_threshold": 25,
+          "sideways_threshold": 20
+        },
+        "indicators": [
+          {"name": "ADX", "period": 14, "timeframe": "1d"},
+          {"name": "DMI", "period": 14, "timeframe": "1d"}
+        ],
+        "signals": {
+          "trend_mode": {
+            "condition": "adx > 25",
+            "direction": "plus_di > minus_di ? uptrend : downtrend",
+            "strategy_selection": ["golden_cross", "weekly_daily_ma", "ichimoku_cloud"]
+          },
+          "sideways_mode": {
+            "condition": "adx < 20",
+            "strategy_selection": ["bollinger_band_reversal", "support_resistance_trading"]
+          }
+        },
+        "risk_management": {
+          "dynamic_allocation": "based_on_trend_strength",
+          "strategy_switching": "adx_threshold_based"
+        },
+        "performance": {
+          "win_rate": null,
+          "avg_return": null,
+          "max_drawdown": null,
+          "sharpe_ratio": null,
+          "last_performance_check": null
+        },
+        "recommended_improvements": [
+          "Directional Movement Rating",
+          "Trend Intensity Index",
+          "Choppiness Index 추가",
+          "시장 체제 변화 감지"
+        ]
+      }
+    }
+  },
+  "strategy_management": {
+    "performance_thresholds": {
+      "min_win_rate": 0.45,
+      "min_sharpe_ratio": 0.8,
+      "max_drawdown": 0.15,
+      "min_trades_for_evaluation": 30
+    },
+    "auto_disable_conditions": {
+      "consecutive_losses": 5,
+      "drawdown_threshold": 0.12,
+      "win_rate_below": 0.35
+    },
+    "optimization_schedule": {
+      "daily_performance_check": true,
+      "weekly_parameter_optimization": true,
+      "monthly_strategy_review": true
+    }
+  }
+}

@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}설정 - Bitcoin Auto Trading v2{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-cog"></i> 설정</h1>
+    <button class="btn btn-primary" onclick="saveSettings()">
+        <i class="fas fa-save"></i> 설정 저장
+    </button>
+</div>
+
+<form id="settings-form">
+    <!-- 거래 설정 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="fas fa-chart-line"></i> 거래 설정</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">최대 거래 금액 (KRW)</label>
+                        <input type="number" class="form-control" name="trading.max_trade_amount" 
+                               value="{{ trading_config.max_trade_amount }}" min="10000" step="10000">
+                        <div class="form-text">단일 거래당 최대 금액</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <!-- 빈 공간 -->
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">긴급 정지 손실 (KRW)</label>
+                        <input type="number" class="form-control" name="trading.emergency_stop_loss" 
+                               value="{{ trading_config.emergency_stop_loss }}" min="0" step="10000">
+                        <div class="form-text">이 금액 이상 손실 시 자동 정지</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">일일 손실 한도 (KRW)</label>
+                        <input type="number" class="form-control" name="trading.daily_loss_limit" 
+                               value="{{ trading_config.daily_loss_limit }}" min="0" step="10000">
+                        <div class="form-text">하루 최대 손실 한도</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">최대 동시 포지션</label>
+                        <input type="number" class="form-control" name="trading.max_positions" 
+                               value="{{ trading_config.max_positions }}" min="1" max="10">
+                        <div class="form-text">동시에 보유할 수 있는 최대 포지션 수</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">거래 주기 (분)</label>
+                        <input type="number" class="form-control" name="trading.trade_interval_minutes" 
+                               value="{{ trading_config.trade_interval_minutes }}" min="1" max="1440">
+                        <div class="form-text">신호 체크 간격</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 리스크 관리 설정 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="fas fa-shield-alt"></i> 리스크 관리</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">최대 포지션 크기 (%)</label>
+                        <input type="number" class="form-control" name="risk_management.max_position_size_percent" 
+                               value="{{ risk_config.max_position_size_percent }}" min="1" max="100" step="0.1">
+                        <div class="form-text">잔고 대비 최대 포지션 크기</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">손절매 (%)</label>
+                        <input type="number" class="form-control" name="risk_management.stop_loss_percent" 
+                               value="{{ risk_config.stop_loss_percent }}" min="0.1" max="20" step="0.1">
+                        <div class="form-text">손절매 퍼센트</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">익절 (%)</label>
+                        <input type="number" class="form-control" name="risk_management.take_profit_percent" 
+                               value="{{ risk_config.take_profit_percent }}" min="0.1" max="50" step="0.1">
+                        <div class="form-text">익절 퍼센트</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">일일 최대 거래 횟수</label>
+                        <input type="number" class="form-control" name="risk_management.max_daily_trades" 
+                               value="{{ risk_config.max_daily_trades }}" min="1" max="100">
+                        <div class="form-text">하루 최대 거래 수</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">손실 후 대기 시간 (분)</label>
+                        <input type="number" class="form-control" name="risk_management.cooldown_after_loss_minutes" 
+                               value="{{ risk_config.cooldown_after_loss_minutes }}" min="0" max="1440">
+                        <div class="form-text">손실 후 다음 거래까지 대기 시간</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="risk_management.trailing_stop_enabled" 
+                               {{ 'checked' if risk_config.trailing_stop_enabled else '' }}>
+                        <label class="form-check-label">
+                            트레일링 스탑 활성화
+                        </label>
+                        <div class="form-text">수익이 날 때 자동으로 손절매 라인을 올림</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 전략 설정 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="fas fa-brain"></i> 전략 설정</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">최소 신호 강도</label>
+                        <input type="number" class="form-control" name="strategies.min_signal_strength" 
+                               value="{{ strategy_config.min_signal_strength }}" min="0.1" max="1.0" step="0.1">
+                        <div class="form-text">0.1 ~ 1.0 사이 값 (높을수록 보수적)</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">신호 타임아웃 (분)</label>
+                        <input type="number" class="form-control" name="strategies.signal_timeout_minutes" 
+                               value="{{ strategy_config.signal_timeout_minutes }}" min="1" max="60">
+                        <div class="form-text">신호 발생 후 유효 시간</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">활성 전략</label>
+                <div class="form-text mb-2">현재 사용할 전략들을 선택하세요</div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>시간 단위 전략</h6>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active_strategies" value="h1" 
+                                   {{ 'checked' if 'h1' in strategy_config.active_strategies else '' }}>
+                            <label class="form-check-label">h1 - EMA 골든/데드크로스</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active_strategies" value="h2" 
+                                   {{ 'checked' if 'h2' in strategy_config.active_strategies else '' }}>
+                            <label class="form-check-label">h2 - RSI 다이버전스</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active_strategies" value="h3" 
+                                   {{ 'checked' if 'h3' in strategy_config.active_strategies else '' }}>
+                            <label class="form-check-label">h3 - 피봇 포인트</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active_strategies" value="h4" 
+                                   {{ 'checked' if 'h4' in strategy_config.active_strategies else '' }}>
+                            <label class="form-check-label">h4 - VWAP 되돌림</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6>일 단위 전략</h6>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active_strategies" value="d1" 
+                                   {{ 'checked' if 'd1' in strategy_config.active_strategies else '' }}>
+                            <label class="form-check-label">d1 - 주봉+일봉 눌림목</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active_strategies" value="d2" 
+                                   {{ 'checked' if 'd2' in strategy_config.active_strategies else '' }}>
+                            <label class="form-check-label">d2 - 일목균형표</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active_strategies" value="d3" 
+                                   {{ 'checked' if 'd3' in strategy_config.active_strategies else '' }}>
+                            <label class="form-check-label">d3 - 볼린저 밴드 폭</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active_strategies" value="d4" 
+                                   {{ 'checked' if 'd4' in strategy_config.active_strategies else '' }}>
+                            <label class="form-check-label">d4 - 공포탐욕지수</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function saveSettings() {
+    const form = document.getElementById('settings-form');
+    const formData = new FormData(form);
+    const settings = {};
+    
+    // 일반 input 데이터 처리
+    for (let [key, value] of formData.entries()) {
+        if (key === 'active_strategies') {
+            continue; // 체크박스는 별도 처리
+        }
+        
+        // 숫자 타입 변환
+        if (value && !isNaN(value)) {
+            if (value.includes('.')) {
+                settings[key] = parseFloat(value);
+            } else {
+                settings[key] = parseInt(value);
+            }
+        } else if (value === 'on') {
+            settings[key] = true;
+        } else {
+            settings[key] = value;
+        }
+    }
+    
+    // 체크박스 처리 (활성 전략)
+    const activeStrategies = [];
+    const strategyChecks = document.querySelectorAll('input[name="active_strategies"]:checked');
+    strategyChecks.forEach(check => activeStrategies.push(check.value));
+    settings['strategies.active_strategies'] = activeStrategies;
+    
+    // 체크박스 처리 (트레일링 스탑)
+    const trailingStopCheck = document.querySelector('input[name="risk_management.trailing_stop_enabled"]');
+    settings['risk_management.trailing_stop_enabled'] = trailingStopCheck.checked;
+    
+    try {
+        const response = await fetch('/api/settings/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(settings)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('설정이 저장되었습니다.');
+        } else {
+            alert('오류: ' + data.message);
+        }
+    } catch (error) {
+        alert('오류 발생: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

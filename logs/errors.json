@@ -1,0 +1,12 @@
+[
+  {
+    "timestamp": "2025-07-14T19:23:53.493482",
+    "module": "TestModule",
+    "error_type": "ValueError",
+    "error_message": "테스트 에러입니다",
+    "traceback": "Traceback (most recent call last):\n  File \"/Users/namseokyoo/project/bit_auto_v2_250712/utils/error_logger.py\", line 257, in <module>\n    raise ValueError(\"테스트 에러입니다\")\nValueError: 테스트 에러입니다\n",
+    "context": {
+      "test_context": "에러 로깅 테스트"
+    }
+  }
+]

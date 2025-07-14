@@ -1,0 +1,12 @@
+[
+  {
+    "timestamp": "2025-07-14T19:23:53.495587",
+    "action": "buy",
+    "symbol": "KRW-BTC",
+    "amount": 50000,
+    "price": 95000000,
+    "strategy": "test_strategy",
+    "success": true,
+    "message": "테스트 거래"
+  }
+]
