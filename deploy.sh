@@ -92,6 +92,7 @@ source venv/bin/activate
 # 의존성 설치
 log_info "Python 패키지 설치 중..."
 pip install --upgrade pip
+pip install setuptools wheel
 pip install -r requirements.txt
 
 # 환경 변수 파일 템플릿 생성
