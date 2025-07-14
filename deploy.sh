@@ -25,21 +25,51 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# 운영체제 감지
+if [ -f /etc/oracle-release ]; then
+    OS="oracle"
+    PKG_MGR="yum"
+elif [ -f /etc/ubuntu-release ] || [ -f /etc/debian_version ]; then
+    OS="ubuntu"
+    PKG_MGR="apt"
+else
+    log_error "지원하지 않는 운영체제입니다"
+    exit 1
+fi
+
+log_info "감지된 OS: $OS"
+
 # 시스템 업데이트
 log_info "시스템 패키지 업데이트 중..."
-sudo yum update -y
+if [ "$OS" = "oracle" ]; then
+    sudo yum update -y
+else
+    sudo apt update && sudo apt upgrade -y
+fi
 
-# Python 3.11 설치 (Oracle Linux)
+# Python 3.11 설치
 log_info "Python 3.11 설치 중..."
-sudo yum install -y python3 python3-pip python3-dev build-essential
+if [ "$OS" = "oracle" ]; then
+    sudo yum install -y python3 python3-pip python3-dev build-essential
+else
+    sudo apt install -y python3 python3-pip python3-venv python3-dev build-essential
+fi
 
-# Git 설치 (소스 다운로드용)
+# Git 설치
 log_info "Git 설치 중..."
-sudo yum install -y git
+if [ "$OS" = "oracle" ]; then
+    sudo yum install -y git
+else
+    sudo apt install -y git
+fi
 
 # 필요한 시스템 패키지 설치
 log_info "시스템 의존성 설치 중..."
-sudo yum install -y gcc gcc-c++ make sqlite-dev libffi-dev openssl-dev
+if [ "$OS" = "oracle" ]; then
+    sudo yum install -y gcc gcc-c++ make sqlite-dev libffi-dev openssl-dev
+else
+    sudo apt install -y gcc g++ make libsqlite3-dev libffi-dev libssl-dev
+fi
 
 # 프로젝트 디렉토리 생성
 PROJECT_DIR="/opt/bitcoin_auto_trading"
@@ -81,10 +111,15 @@ EOF
 log_info "필수 디렉토리 생성 중..."
 mkdir -p logs data backtesting/results
 
-# 방화벽 설정 (Oracle Cloud)
+# 방화벽 설정
 log_info "방화벽 포트 9000 개방 중..."
-sudo firewall-cmd --permanent --add-port=9000/tcp
-sudo firewall-cmd --reload
+if [ "$OS" = "oracle" ]; then
+    sudo firewall-cmd --permanent --add-port=9000/tcp
+    sudo firewall-cmd --reload
+else
+    sudo ufw allow 9000/tcp
+    sudo ufw --force enable
+fi
 
 # systemd 서비스 파일 생성
 log_info "systemd 서비스 파일 생성 중..."
