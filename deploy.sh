@@ -77,6 +77,12 @@ log_info "프로젝트 디렉토리 생성: $PROJECT_DIR"
 sudo mkdir -p $PROJECT_DIR
 sudo chown -R $USER:$USER $PROJECT_DIR
 
+# 현재 디렉토리에서 프로젝트 파일 복사
+log_info "프로젝트 파일 복사 중..."
+CURRENT_DIR=$(pwd)
+sudo cp -r $CURRENT_DIR/* $PROJECT_DIR/
+sudo chown -R $USER:$USER $PROJECT_DIR
+
 # 가상환경 생성
 log_info "Python 가상환경 생성 중..."
 cd $PROJECT_DIR
@@ -133,7 +139,7 @@ Type=simple
 User=$USER
 WorkingDirectory=$PROJECT_DIR
 Environment=PATH=$PROJECT_DIR/venv/bin
-ExecStart=$PROJECT_DIR/venv/bin/gunicorn --bind 0.0.0.0:9000 --workers 2 --timeout 120 web.app:app
+ExecStart=$PROJECT_DIR/venv/bin/gunicorn --config $PROJECT_DIR/gunicorn.conf.py web.app:app
 Restart=always
 RestartSec=10
 
