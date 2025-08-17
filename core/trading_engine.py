@@ -200,8 +200,9 @@ class TradingEngine:
         # 매일 0시에 일일 전략 실행
         schedule.every().day.at("00:00").do(self.execute_daily_strategies)
         
-        # 5분마다 포지션 모니터링
-        schedule.every(5).minutes.do(self.monitor_positions)
+        # 설정 기반 포지션 모니터링 간격
+        monitoring_interval = self.config.get_monitoring_config().get('position_monitoring', {}).get('check_interval_seconds', 30)
+        schedule.every(monitoring_interval // 60 if monitoring_interval >= 60 else 1).minutes.do(self.monitor_positions)
         
         # 매일 성능 체크
         schedule.every().day.at("23:59").do(self.strategy_manager.daily_performance_check)
@@ -227,7 +228,9 @@ class TradingEngine:
         """스케줄러 실행"""
         while self.running:
             schedule.run_pending()
-            time.sleep(60)  # 1분마다 체크
+            # 설정 기반 스케줄러 체크 간격
+            scheduler_interval = min(60, self.config.get_trading_config().get('trade_interval_minutes', 10) * 60 // 10)
+            time.sleep(scheduler_interval)
 
     def _main_loop(self):
         """메인 모니터링 루프"""
@@ -238,7 +241,9 @@ class TradingEngine:
                     self.monitor_positions()
                     self.process_pending_orders()
                 
-                time.sleep(30)  # 30초마다 체크
+                # 설정 기반 체크 간격
+                check_interval = self.config.get_monitoring_config().get('position_monitoring', {}).get('check_interval_seconds', 30)
+                time.sleep(check_interval)
                 
             except KeyboardInterrupt:
                 self.logger.info("사용자에 의해 중단됨")
@@ -632,12 +637,16 @@ class TradingEngine:
             # 골든크로스/데드크로스 체크
             if prev_ema12 <= prev_ema26 and current_ema12 > current_ema26:
                 # 골든크로스 - 매수 신호
+                # 설정 기반 거래 금액 계산
+                max_trade_amount = self.config.get_trading_config().get('max_trade_amount', 100000)
+                suggested_amount = max_trade_amount * 0.5  # 최대 금액의 50%
+                
                 return TradingSignal(
                     strategy_id="h1",
                     action='buy',
                     confidence=0.7,
                     price=market_data.price,
-                    suggested_amount=50000,
+                    suggested_amount=int(suggested_amount),
                     reasoning=f"EMA 골든크로스 (12: {current_ema12:,.0f}, 26: {current_ema26:,.0f})",
                     timestamp=datetime.now(),
                     timeframe="1h"
@@ -706,12 +715,16 @@ class TradingEngine:
             if rsi[-1] < 30:  # 과매도 구간
                 # 가격은 더 낮은데 RSI는 더 높으면 상승 다이버전스
                 if df['low'].iloc[-1] < df['low'].iloc[-10] and rsi[-1] > rsi[-10]:
+                    # 설정 기반 거래 금액 계산
+                    max_trade_amount = self.config.get_trading_config().get('max_trade_amount', 100000)
+                    suggested_amount = max_trade_amount * 0.4  # 최대 금액의 40%
+                    
                     return TradingSignal(
                         strategy_id="h2",
                         action='buy',
                         confidence=0.65,
                         price=current_price,
-                        suggested_amount=40000,
+                        suggested_amount=int(suggested_amount),
                         reasoning=f"RSI 상승 다이버전스 (RSI: {rsi[-1]:.1f})",
                         timestamp=datetime.now(),
                         timeframe="1h"
@@ -753,12 +766,16 @@ class TradingEngine:
             # MACD 히스토그램 0선 교차
             if macdhist[-2] < 0 and macdhist[-1] > 0:
                 # 매수 신호
+                # 설정 기반 거래 금액 계산
+                max_trade_amount = self.config.get_trading_config().get('max_trade_amount', 100000)
+                suggested_amount = max_trade_amount * 0.45  # 최대 금액의 45%
+                
                 return TradingSignal(
                     strategy_id="h5",
                     action='buy',
                     confidence=0.65,
                     price=current_price,
-                    suggested_amount=45000,
+                    suggested_amount=int(suggested_amount),
                     reasoning=f"MACD 골든크로스 (Hist: {macdhist[-1]:.0f})",
                     timestamp=datetime.now(),
                     timeframe="1h"
@@ -802,18 +819,26 @@ class TradingEngine:
             s2 = pivot - (prev_high - prev_low)
             
             # 지지/저항 근처에서 반등 신호
-            if abs(current_price - s1) / current_price < 0.005:  # S1 근처 (0.5% 이내)
+            # 설정 기반 임계값
+            poc_threshold = self.config.get_risk_management_config().get('volume_profile', {}).get('poc_distance_threshold', 0.02)
+            pivot_threshold = poc_threshold / 4  # 피봇 포인트는 더 타이트한 임계값 사용
+            
+            if abs(current_price - s1) / current_price < pivot_threshold:  # S1 근처
+                # 설정 기반 거래 금액 계산
+                max_trade_amount = self.config.get_trading_config().get('max_trade_amount', 100000)
+                suggested_amount = max_trade_amount * 0.35  # 최대 금액의 35%
+                
                 return TradingSignal(
                     strategy_id="h3",
                     action='buy',
                     confidence=0.6,
                     price=current_price,
-                    suggested_amount=35000,
+                    suggested_amount=int(suggested_amount),
                     reasoning=f"S1 지지선 반등 (S1: {s1:,.0f})",
                     timestamp=datetime.now(),
                     timeframe="1h"
                 )
-            elif abs(current_price - r1) / current_price < 0.005:  # R1 근처
+            elif abs(current_price - r1) / current_price < pivot_threshold:  # R1 근처
                 return TradingSignal(
                     strategy_id="h3",
                     action='sell',
@@ -854,7 +879,7 @@ class TradingEngine:
                     action='buy',
                     confidence=0.6,
                     price=current_price,
-                    suggested_amount=35000,
+                    suggested_amount=int(self.config.get_trading_config().get('max_trade_amount', 100000) * 0.35),
                     reasoning=f"VWAP 하단 매수 기회 (VWAP: {current_vwap:,.0f})",
                     timestamp=datetime.now(),
                     timeframe="1h"
@@ -894,7 +919,7 @@ class TradingEngine:
                         action='buy',
                         confidence=0.6,
                         price=current_price,
-                        suggested_amount=30000,
+                        suggested_amount=int(self.config.get_trading_config().get('max_trade_amount', 100000) * 0.3),
                         reasoning=f"거래량 급증 + 가격 상승",
                         timestamp=datetime.now(),
                         timeframe="1h"
@@ -926,7 +951,7 @@ class TradingEngine:
                     action='buy',
                     confidence=0.58,
                     price=current_price,
-                    suggested_amount=25000,
+                    suggested_amount=int(self.config.get_trading_config().get('max_trade_amount', 100000) * 0.25),
                     reasoning="상승 깃발 패턴",
                     timestamp=datetime.now(),
                     timeframe="1h"
@@ -954,7 +979,7 @@ class TradingEngine:
                         action='buy',
                         confidence=0.62,
                         price=current_price,
-                        suggested_amount=60000,
+                        suggested_amount=int(self.config.get_trading_config().get('max_trade_amount', 100000) * 0.6),
                         reasoning=f"50일선 지지 (SMA50: {sma50[-1]:,.0f})",
                         timestamp=datetime.now(),
                         timeframe="1d"
@@ -968,7 +993,7 @@ class TradingEngine:
                         action='buy',
                         confidence=0.61,
                         price=current_price,
-                        suggested_amount=40000,
+                        suggested_amount=int(self.config.get_trading_config().get('max_trade_amount', 100000) * 0.4),
                         reasoning=f"극도의 공포 구간 (RSI: {rsi[-1]:.1f})",
                         timestamp=datetime.now(),
                         timeframe="1d"

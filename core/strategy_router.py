@@ -21,6 +21,10 @@ class StrategyRouter:
         self.config = config or {}
         self.logger = logging.getLogger('StrategyRouter')
         
+        # 거래 설정 가져오기
+        self.max_trade_amount = self.config.get('trading', {}).get('max_trade_amount', 100000)
+        self.base_trade_amount = self.max_trade_amount * 0.5  # 기본 거래 금액은 최대의 50%
+        
         # 전략 분석기 초기화
         self.professional_analyzer = ProfessionalStrategyAnalyzer(config)
         self.enhanced_analyzer = EnhancedStrategyAnalyzer()
@@ -162,12 +166,16 @@ class StrategyRouter:
         ).iloc[-1]
         
         if rsi < 30:  # Extreme fear
+            # 공포 지수가 낮을수록 더 큰 금액
+            amount_multiplier = (30 - rsi) / 30  # 0 ~ 1
+            suggested_amount = self.base_trade_amount * (0.4 + 0.3 * amount_multiplier)
+            
             return TradingSignal(
                 strategy_id=strategy_id,
                 action='buy',
                 confidence=0.65,
                 price=df['close'].iloc[-1],
-                suggested_amount=40000,
+                suggested_amount=int(suggested_amount),
                 reasoning=f"Extreme Fear (RSI: {rsi:.1f})",
                 timestamp=datetime.now(),
                 timeframe='1d'
@@ -196,12 +204,15 @@ class StrategyRouter:
         
         # 골든크로스 체크
         if ma50.iloc[-2] <= ma200.iloc[-2] and ma50.iloc[-1] > ma200.iloc[-1]:
+            # 설정 기반 거래 금액 계산 (기본 금액의 60%)
+            suggested_amount = self.base_trade_amount * 0.6
+            
             return TradingSignal(
                 strategy_id=strategy_id,
                 action='buy',
                 confidence=0.75,
                 price=df['close'].iloc[-1],
-                suggested_amount=60000,
+                suggested_amount=int(suggested_amount),
                 reasoning="Golden Cross Detected",
                 timestamp=datetime.now(),
                 timeframe='1d'
@@ -220,12 +231,17 @@ class StrategyRouter:
         mvrv_ratio = current_price / avg_price_30d
         
         if mvrv_ratio < 0.8:  # Undervalued
+            # MVRV 비율에 따른 동적 금액 계산
+            # 저평가 정도가 클수록 더 큰 금액
+            undervalue_factor = (0.8 - mvrv_ratio) / 0.2  # 0 ~ 1
+            suggested_amount = self.base_trade_amount * (0.3 + 0.2 * undervalue_factor)
+            
             return TradingSignal(
                 strategy_id=strategy_id,
                 action='buy',
                 confidence=0.70,
                 price=current_price,
-                suggested_amount=50000,
+                suggested_amount=int(suggested_amount),
                 reasoning=f"MVRV Undervalued ({mvrv_ratio:.2f})",
                 timestamp=datetime.now(),
                 timeframe='1d'

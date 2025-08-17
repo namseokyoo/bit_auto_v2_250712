@@ -94,33 +94,48 @@ function updateTradingToggleUI(enabled) {
 // 카운트다운 관련 변수
 let countdownInterval = null;
 let nextTradeTime = null;
+let tradeIntervalMinutes = 10; // 기본값, API에서 가져옴
+
+// 거래 설정 가져오기
+async function fetchTradingConfig() {
+    try {
+        const response = await fetch('/api/trading_config');
+        const data = await response.json();
+        if (data.success) {
+            tradeIntervalMinutes = data.trade_interval_minutes;
+            // 거래 간격 표시 업데이트
+            const intervalElement = document.getElementById('trading-interval');
+            if (intervalElement) {
+                intervalElement.textContent = `${tradeIntervalMinutes}분마다 분석`;
+            }
+        }
+    } catch (error) {
+        console.error('거래 설정 로드 오류:', error);
+    }
+}
 
 // 다음 거래 시간 계산
 function calculateNextTradeTime() {
     const now = new Date();
-    const currentMinute = now.getMinutes();
-    const currentHour = now.getHours();
+    const lastExecutionTime = localStorage.getItem('lastTradeExecution');
     
-    // 시간봉 전략: 매시 정각 실행
-    const nextHourlyTrade = new Date(now);
-    if (currentMinute === 0) {
-        // 방금 실행되었다면 다음 시간
-        nextHourlyTrade.setHours(currentHour + 1, 0, 0, 0);
+    let nextTime = new Date(now);
+    
+    if (lastExecutionTime) {
+        // 마지막 실행 시간이 있으면 그 시간부터 계산
+        const lastTime = new Date(parseInt(lastExecutionTime));
+        nextTime = new Date(lastTime.getTime() + tradeIntervalMinutes * 60 * 1000);
+        
+        // 이미 지난 시간이면 다음 주기로
+        while (nextTime <= now) {
+            nextTime = new Date(nextTime.getTime() + tradeIntervalMinutes * 60 * 1000);
+        }
     } else {
-        // 다음 정각
-        nextHourlyTrade.setHours(currentHour + 1, 0, 0, 0);
+        // 처음이면 현재 시간부터 다음 주기
+        nextTime = new Date(now.getTime() + tradeIntervalMinutes * 60 * 1000);
     }
     
-    // 일봉 전략: 매일 자정 실행
-    const nextDailyTrade = new Date(now);
-    if (currentHour === 0 && currentMinute === 0) {
-        // 방금 실행되었다면 다음날
-        nextDailyTrade.setDate(nextDailyTrade.getDate() + 1);
-    }
-    nextDailyTrade.setHours(24, 0, 0, 0);
-    
-    // 더 빨리 오는 시간 선택
-    return nextHourlyTrade < nextDailyTrade ? nextHourlyTrade : nextDailyTrade;
+    return nextTime;
 }
 
 // 카운트다운 시작
@@ -865,9 +880,12 @@ function displayStrategyDetails(details) {
 }
 
 // 페이지 로드 시 실행
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     // 백테스트 히스토리 로드
     loadBacktestHistory();
+    
+    // 거래 설정 가져오기
+    await fetchTradingConfig();
     
     // 자동거래 상태 확인 및 타이머 시작
     checkTradingStatusAndStartTimer();

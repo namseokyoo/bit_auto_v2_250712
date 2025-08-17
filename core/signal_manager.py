@@ -316,7 +316,7 @@ if __name__ == "__main__":
             action='buy',
             confidence=0.8,
             price=50000000,
-            suggested_amount=100000,
+            suggested_amount=config_manager.get_trading_config().get('max_trade_amount', 100000),
             reasoning='EMA 골든크로스',
             timestamp=datetime.now(),
             timeframe='1h'
@@ -326,7 +326,7 @@ if __name__ == "__main__":
             action='buy',
             confidence=0.6,
             price=50000000,
-            suggested_amount=80000,
+            suggested_amount=int(config_manager.get_trading_config().get('max_trade_amount', 100000) * 0.8),
             reasoning='VWAP 지지',
             timestamp=datetime.now(),
             timeframe='1h'

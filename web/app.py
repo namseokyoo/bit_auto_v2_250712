@@ -305,6 +305,20 @@ def api_dashboard_data():
         logger.error(f"대시보드 데이터 조회 오류: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/trading_config')
+def api_trading_config():
+    """거래 설정 조회 API"""
+    try:
+        trading_config = config_manager.get_config('trading')
+        return jsonify({
+            'success': True,
+            'trade_interval_minutes': trading_config.get('trade_interval_minutes', 10),
+            'auto_trade_enabled': trading_config.get('auto_trade_enabled', False)
+        })
+    except Exception as e:
+        logger.error(f"거래 설정 조회 오류: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @app.route('/api/manual_trading/analyze', methods=['POST'])
 def api_manual_analyze():
     """수동 전략 분석 실행"""
@@ -497,7 +511,7 @@ def api_manual_analyze():
             result['consolidated_signal'] = {
                 'action': consolidated_action,
                 'confidence': round(consolidated_confidence, 3),
-                'suggested_amount': 70000 if consolidated_action == 'buy' else 0,
+                'suggested_amount': int(trading_config.get('max_trade_amount', 100000) * 0.7) if consolidated_action == 'buy' else 0,
                 'reasoning': reasoning,
                 'contributing_strategies': contributing_strategies,
                 'market_condition': 'trending_up' if market_data.price > market_data.prev_close else 'trending_down',
@@ -517,7 +531,7 @@ def api_manual_analyze():
                 signal_recorder.record_consolidated_signal({
                     'action': consolidated_action,
                     'confidence': consolidated_confidence,
-                    'suggested_amount': 70000 if consolidated_action == 'buy' else 0,
+                    'suggested_amount': int(trading_config.get('max_trade_amount', 100000) * 0.7) if consolidated_action == 'buy' else 0,
                     'reasoning': reasoning,
                     'contributing_strategies': contributing_strategies,
                     'market_condition': 'trending_up' if market_data.price > market_data.prev_close else 'trending_down',

@@ -276,7 +276,7 @@ class Backtester:
             return ConsolidatedSignal(
                 action='buy',
                 confidence=final_buy_score,
-                suggested_amount=50000,
+                suggested_amount=int(self.config.get('trading', {}).get('max_trade_amount', 100000) * 0.5),
                 contributing_strategies=[s.strategy_id for s in buy_signals],
                 reasoning=f"매수 신호 우세 (점수: {final_buy_score:.3f})"
             )
