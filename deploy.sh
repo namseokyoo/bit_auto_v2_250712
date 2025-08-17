@@ -89,10 +89,38 @@ cd $PROJECT_DIR
 python3 -m venv venv
 source venv/bin/activate
 
+# TA-Lib 시스템 라이브러리 설치
+log_info "TA-Lib 시스템 라이브러리 설치 중..."
+if [ "$OS" = "oracle" ]; then
+    # Oracle Linux에서 TA-Lib 설치
+    cd /tmp
+    wget -q http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+    tar -xzf ta-lib-0.4.0-src.tar.gz
+    cd ta-lib/
+    ./configure --prefix=/usr
+    make
+    sudo make install
+    cd $PROJECT_DIR
+else
+    # Ubuntu에서 TA-Lib 설치
+    cd /tmp
+    wget -q http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+    tar -xzf ta-lib-0.4.0-src.tar.gz
+    cd ta-lib/
+    ./configure --prefix=/usr
+    make
+    sudo make install
+    cd $PROJECT_DIR
+fi
+
+# ldconfig 실행 (라이브러리 캐시 업데이트)
+sudo ldconfig
+
 # 의존성 설치
 log_info "Python 패키지 설치 중..."
 pip install --upgrade pip
 pip install setuptools wheel
+pip install numpy  # TA-Lib 설치 전에 numpy 먼저 설치
 pip install -r requirements.txt
 
 # 환경 변수 파일 템플릿 생성
