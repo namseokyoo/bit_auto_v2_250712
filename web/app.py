@@ -7,6 +7,10 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# .env 파일 로드를 가장 먼저 수행
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_cors import CORS
 import json
