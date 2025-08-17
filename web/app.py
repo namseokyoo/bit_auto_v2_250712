@@ -41,15 +41,40 @@ def dashboard():
         # 대시보드 데이터
         dashboard_data = db.get_dashboard_data()
         
-        # 현재 잔고 (실거래)
-        api = UpbitAPI(paper_trading=False)
-        balances = {
-            'KRW': api.get_balance('KRW'),
-            'BTC': api.get_balance('BTC')
-        }
-        
-        # 현재 BTC 가격
-        current_price = api.get_current_price('KRW-BTC')
+        # 현재 잔고 (실거래) - .env 파일에서 API 키 로드
+        try:
+            # 모드 확인
+            mode = config_manager.get_config('system.mode')
+            is_paper_trading = (mode == 'paper_trading')
+            
+            # API 초기화 (.env 파일의 키 자동 사용)
+            api = UpbitAPI(paper_trading=is_paper_trading)
+            
+            # 잔고 조회
+            balances = {
+                'KRW': api.get_balance('KRW'),
+                'BTC': api.get_balance('BTC')
+            }
+            
+            # 현재 BTC 가격
+            current_price = api.get_current_price('KRW-BTC')
+            
+            # BTC 평가금액 계산
+            btc_value = balances['BTC'] * current_price if current_price else 0
+            total_value = balances['KRW'] + btc_value
+            
+            balances['btc_value'] = btc_value
+            balances['total_value'] = total_value
+            
+        except Exception as e:
+            logger.error(f"잔고 조회 오류: {e}")
+            balances = {
+                'KRW': 0,
+                'BTC': 0,
+                'btc_value': 0,
+                'total_value': 0
+            }
+            current_price = 0
         
         return render_template('dashboard.html',
                              system_status=system_status,

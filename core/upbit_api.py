@@ -60,20 +60,33 @@ class RateLimiter:
 
 class UpbitAPI:
     def __init__(self, access_key: str = None, secret_key: str = None, paper_trading: bool = False):
+        # 로거 먼저 설정
+        self.logger = self._setup_logger()
+        
         # 환경 변수에서 키 로드 (우선순위)
         self.access_key = access_key or os.getenv('UPBIT_ACCESS_KEY')
         self.secret_key = secret_key or os.getenv('UPBIT_SECRET_KEY')
         
-        if not self.access_key or not self.secret_key:
-            if paper_trading:
-                self.logger.warning("API 키가 없어 모의투자 모드로 전환됩니다.")
-            else:
-                raise ValueError("Upbit API 키가 설정되지 않았습니다. .env 파일 또는 환경변수를 확인하세요.")
+        # 키 존재 여부 로깅 (보안상 키 값은 로깅하지 않음)
+        has_access_key = bool(self.access_key and self.access_key != 'your_access_key_here')
+        has_secret_key = bool(self.secret_key and self.secret_key != 'your_secret_key_here')
         
-        self.paper_trading = paper_trading
+        self.logger.info(f"API 키 상태 - Access: {has_access_key}, Secret: {has_secret_key}")
+        
+        if not has_access_key or not has_secret_key:
+            if paper_trading:
+                self.logger.warning("API 키가 없거나 기본값이어서 모의투자 모드로 전환됩니다.")
+                self.paper_trading = True
+            else:
+                self.logger.error("Upbit API 키가 설정되지 않았습니다.")
+                # 실거래 모드에서도 일단 paper_trading으로 설정하여 에러 방지
+                self.paper_trading = True
+                self.logger.warning("API 키 없음 - 임시로 모의투자 모드로 설정")
+        else:
+            self.paper_trading = paper_trading
+        
         self.base_url = "https://api.upbit.com"
         self.rate_limiter = RateLimiter()
-        self.logger = self._setup_logger()
         
         # Paper trading용 가상 잔고
         self.paper_balance = {
@@ -82,7 +95,7 @@ class UpbitAPI:
         }
         self.paper_orders = []
         
-        self.logger.info(f"Upbit API 초기화 완료 - {'모의투자' if paper_trading else '실거래'} 모드")
+        self.logger.info(f"Upbit API 초기화 완료 - {'모의투자' if self.paper_trading else '실거래'} 모드")
 
     def _setup_logger(self) -> logging.Logger:
         logger = logging.getLogger('UpbitAPI')
@@ -157,6 +170,28 @@ class UpbitAPI:
             ]
         
         return self._make_request('GET', '/v1/accounts')
+    
+    def get_balance(self, currency: str = 'KRW') -> float:
+        """특정 화폐의 잔고 조회"""
+        try:
+            accounts = self.get_accounts()
+            if not accounts:
+                self.logger.warning(f"{currency} 잔고 조회 실패 - 계좌 정보 없음")
+                return 0.0
+            
+            for account in accounts:
+                if account.get('currency') == currency:
+                    balance = float(account.get('balance', 0))
+                    locked = float(account.get('locked', 0))
+                    total = balance + locked
+                    self.logger.info(f"{currency} 잔고: {total:,.2f} (가용: {balance:,.2f}, 잠김: {locked:,.2f})")
+                    return total
+            
+            self.logger.info(f"{currency} 잔고 없음")
+            return 0.0
+        except Exception as e:
+            self.logger.error(f"{currency} 잔고 조회 중 오류: {e}")
+            return 0.0
 
     def get_current_price(self, market: str = "KRW-BTC") -> Optional[float]:
         """현재가 조회"""

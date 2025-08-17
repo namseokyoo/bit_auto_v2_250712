@@ -70,25 +70,45 @@
                 <div class="row">
                     <div class="col-6">
                         <div class="mb-2">
-                            <label class="form-label">KRW</label>
-                            <div class="h5">{{ "{:,.0f}".format(balances.KRW) }}</div>
+                            <label class="form-label">원화 (KRW)</label>
+                            <div class="h5">₩ {{ "{:,.0f}".format(balances.KRW if balances.KRW else 0) }}</div>
                         </div>
                     </div>
                     <div class="col-6">
                         <div class="mb-2">
-                            <label class="form-label">BTC</label>
-                            <div class="h5">{{ "{:.8f}".format(balances.BTC) }}</div>
+                            <label class="form-label">비트코인 (BTC)</label>
+                            <div class="h5">{{ "{:.8f}".format(balances.BTC if balances.BTC else 0) }}</div>
+                            {% if balances.btc_value %}
+                            <small class="text-muted">≈ ₩ {{ "{:,.0f}".format(balances.btc_value) }}</small>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
-                <div class="mb-2">
-                    <label class="form-label">현재 BTC 가격</label>
-                    <div class="h5 text-info">
-                        {% if current_price %}
-                            {{ "{:,.0f}".format(current_price) }} KRW
-                        {% else %}
-                            조회 중...
-                        {% endif %}
+                <hr>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="mb-2">
+                            <label class="form-label">현재 BTC 가격</label>
+                            <div class="h6 text-info">
+                                {% if current_price %}
+                                    ₩ {{ "{:,.0f}".format(current_price) }}
+                                {% else %}
+                                    조회 중...
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mb-2">
+                            <label class="form-label">총 평가금액</label>
+                            <div class="h5 text-primary">
+                                {% if balances.total_value %}
+                                    ₩ {{ "{:,.0f}".format(balances.total_value) }}
+                                {% else %}
+                                    ₩ 0
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
