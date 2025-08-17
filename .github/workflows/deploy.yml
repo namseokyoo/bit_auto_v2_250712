@@ -1,0 +1,53 @@
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploy to Oracle Cloud
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.ORACLE_HOST }}
+        username: ${{ secrets.ORACLE_USER }}
+        key: ${{ secrets.ORACLE_SSH_KEY }}
+        script: |
+          echo "🚀 배포 시작: $(date)"
+          
+          # 프로젝트 디렉토리로 이동
+          cd /opt/btc-trading || { echo "❌ 프로젝트 디렉토리 없음"; exit 1; }
+          
+          # Git pull (권한 문제 해결)
+          echo "📥 코드 업데이트 중..."
+          sudo git fetch origin main
+          sudo git reset --hard origin/main
+          
+          # 의존성 설치
+          echo "📦 의존성 설치 중..."
+          if [ -f "requirements.txt" ]; then
+            sudo /opt/btc-trading/venv/bin/pip install -r requirements.txt
+          fi
+          
+          # 설정 파일 백업
+          echo "💾 설정 파일 백업..."
+          sudo cp config/trading_config.json config/trading_config.backup.json
+          
+          # 서비스 재시작
+          echo "♻️ 서비스 재시작 중..."
+          sudo systemctl restart btc-trading-engine
+          sudo systemctl restart btc-trading-web
+          
+          # 상태 확인
+          sleep 3
+          echo "📊 서비스 상태:"
+          sudo systemctl is-active btc-trading-engine && echo "✅ 트레이딩 엔진: 정상" || echo "❌ 트레이딩 엔진: 실패"
+          sudo systemctl is-active btc-trading-web && echo "✅ 웹 서버: 정상" || echo "❌ 웹 서버: 실패"
+          
+          echo "🎉 배포 완료: $(date)"
