@@ -506,6 +506,18 @@ class TradingEngine:
                 enhanced_signal = self.enhanced_strategy_analyzer.enhanced_ema_cross_strategy(df)
             elif strategy_id == "h6":  # 볼린저 밴드 스퀴즈 전략
                 enhanced_signal = self.enhanced_strategy_analyzer.enhanced_bollinger_squeeze_strategy(df)
+            elif strategy_id == "h2":  # RSI 다이버전스 전략
+                return self._rsi_divergence_signal(df, strategy)
+            elif strategy_id == "h3":  # 피봇 포인트 전략
+                return self._pivot_point_signal(df, strategy)
+            elif strategy_id == "h5":  # MACD 전략
+                return self._macd_signal(df, strategy)
+            elif strategy_id == "h7":  # 미체결 약정 전략 (OI)
+                return self._open_interest_signal(df, strategy)
+            elif strategy_id == "h8":  # 깃발/페넌트 패턴
+                return self._flag_pattern_signal(df, strategy)
+            elif strategy_id.startswith("d"):  # 일봉 전략들
+                return self._daily_strategy_signal(strategy_id, strategy)
             
             # EnhancedSignal을 TradingSignal로 변환
             if enhanced_signal:
@@ -545,79 +557,442 @@ class TradingEngine:
             return None
 
     def _ema_cross_signal(self, market_data: MarketData, strategy: Dict) -> TradingSignal:
-        """EMA 크로스 신호 생성 (간단한 구현)"""
-        # 실제로는 더 복잡한 기술적 분석이 필요
-        current_price = market_data.price
-        
-        # 임시 로직: 가격이 이전 고점 대비 2% 상승하면 매수 신호
-        if current_price > market_data.prev_close * 1.02:
-            return TradingSignal(
-                strategy_id="h1",
-                action='buy',
-                confidence=0.7,
-                price=current_price,
-                suggested_amount=50000,
-                reasoning="EMA 골든크로스 패턴 감지",
-                timestamp=datetime.now()
-            )
-        
-        # 2% 하락하면 매도 신호
-        elif current_price < market_data.prev_close * 0.98:
-            return TradingSignal(
-                strategy_id="h1",
-                action='sell',
-                confidence=0.6,
-                price=current_price,
-                suggested_amount=0,
-                reasoning="EMA 데드크로스 패턴 감지",
-                timestamp=datetime.now()
-            )
-        
+        """EMA 크로스 신호 생성 - 실제 데이터 기반"""
+        try:
+            # 실제 캔들 데이터 가져오기
+            df = self._get_market_dataframe("KRW-BTC", period=50)
+            if df is None or len(df) < 26:
+                return self._default_hold_signal("h1", market_data.price, "데이터 부족")
+            
+            # EMA 계산
+            df['ema12'] = talib.EMA(df['close'].values, timeperiod=12)
+            df['ema26'] = talib.EMA(df['close'].values, timeperiod=26)
+            
+            # 현재와 이전 값
+            current_ema12 = df['ema12'].iloc[-1]
+            current_ema26 = df['ema26'].iloc[-1]
+            prev_ema12 = df['ema12'].iloc[-2]
+            prev_ema26 = df['ema26'].iloc[-2]
+            
+            # 골든크로스/데드크로스 체크
+            if prev_ema12 <= prev_ema26 and current_ema12 > current_ema26:
+                # 골든크로스 - 매수 신호
+                return TradingSignal(
+                    strategy_id="h1",
+                    action='buy',
+                    confidence=0.7,
+                    price=market_data.price,
+                    suggested_amount=50000,
+                    reasoning=f"EMA 골든크로스 (12: {current_ema12:,.0f}, 26: {current_ema26:,.0f})",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            elif prev_ema12 >= prev_ema26 and current_ema12 < current_ema26:
+                # 데드크로스 - 매도 신호
+                return TradingSignal(
+                    strategy_id="h1",
+                    action='sell',
+                    confidence=0.6,
+                    price=market_data.price,
+                    suggested_amount=0,
+                    reasoning=f"EMA 데드크로스 (12: {current_ema12:,.0f}, 26: {current_ema26:,.0f})",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            
+            # 추세 방향에 따른 약한 신호
+            if current_ema12 > current_ema26:
+                confidence = min(0.5 + abs(current_ema12 - current_ema26) / market_data.price * 10, 0.65)
+                return TradingSignal(
+                    strategy_id="h1",
+                    action='hold',
+                    confidence=confidence,
+                    price=market_data.price,
+                    suggested_amount=0,
+                    reasoning=f"상승 추세 유지 (EMA12 > EMA26)",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            
+            return self._default_hold_signal("h1", market_data.price, "EMA 크로스 신호 없음")
+            
+        except Exception as e:
+            self.logger.error(f"EMA 신호 생성 오류: {e}")
+            return self._default_hold_signal("h1", market_data.price, f"오류: {e}")
+    
+    def _default_hold_signal(self, strategy_id: str, price: float, reason: str) -> TradingSignal:
+        """기본 홀드 신호"""
         return TradingSignal(
-            strategy_id="h1",
+            strategy_id=strategy_id,
             action='hold',
             confidence=0.5,
-            price=current_price,
+            price=price,
             suggested_amount=0,
-            reasoning="신호 없음",
-            timestamp=datetime.now()
+            reasoning=reason,
+            timestamp=datetime.now(),
+            timeframe="1h"
         )
 
-    def _vwap_signal(self, market_data: MarketData, strategy: Dict) -> TradingSignal:
-        """VWAP 신호 생성 (간단한 구현)"""
-        # 임시 구현
-        return TradingSignal(
-            strategy_id="h4",
-            action='hold',
-            confidence=0.5,
-            price=market_data.price,
-            suggested_amount=0,
-            reasoning="VWAP 분석 중",
-            timestamp=datetime.now()
-        )
-    
-    def _get_market_dataframe(self, symbol: str, period: int = 100) -> Optional[pd.DataFrame]:
-        """시장 데이터를 DataFrame으로 가져오기"""
+    def _rsi_divergence_signal(self, df: pd.DataFrame, strategy: Dict) -> TradingSignal:
+        """RSI 다이버전스 신호 생성"""
         try:
-            # 실제로는 Upbit API에서 캔들 데이터를 가져와야 함
-            # 여기서는 간단한 예시 구현
-            market_data = self.api.get_market_data(symbol)
-            if not market_data:
+            if len(df) < 30:
+                return self._default_hold_signal("h2", df['close'].iloc[-1], "데이터 부족")
+            
+            # RSI 계산
+            rsi = talib.RSI(df['close'].values, timeperiod=14)
+            current_price = df['close'].iloc[-1]
+            
+            # 최근 20봉에서 고점/저점 찾기
+            recent_high_idx = df['high'].iloc[-20:].idxmax()
+            recent_low_idx = df['low'].iloc[-20:].idxmin()
+            
+            # RSI 다이버전스 체크
+            if rsi[-1] < 30:  # 과매도 구간
+                # 가격은 더 낮은데 RSI는 더 높으면 상승 다이버전스
+                if df['low'].iloc[-1] < df['low'].iloc[-10] and rsi[-1] > rsi[-10]:
+                    return TradingSignal(
+                        strategy_id="h2",
+                        action='buy',
+                        confidence=0.65,
+                        price=current_price,
+                        suggested_amount=40000,
+                        reasoning=f"RSI 상승 다이버전스 (RSI: {rsi[-1]:.1f})",
+                        timestamp=datetime.now(),
+                        timeframe="1h"
+                    )
+            elif rsi[-1] > 70:  # 과매수 구간
+                # 가격은 더 높은데 RSI는 더 낮으면 하락 다이버전스
+                if df['high'].iloc[-1] > df['high'].iloc[-10] and rsi[-1] < rsi[-10]:
+                    return TradingSignal(
+                        strategy_id="h2",
+                        action='sell',
+                        confidence=0.6,
+                        price=current_price,
+                        suggested_amount=0,
+                        reasoning=f"RSI 하락 다이버전스 (RSI: {rsi[-1]:.1f})",
+                        timestamp=datetime.now(),
+                        timeframe="1h"
+                    )
+            
+            return self._default_hold_signal("h2", current_price, f"RSI: {rsi[-1]:.1f} - 신호 없음")
+            
+        except Exception as e:
+            self.logger.error(f"RSI 신호 생성 오류: {e}")
+            return self._default_hold_signal("h2", df['close'].iloc[-1], f"오류: {e}")
+    
+    def _macd_signal(self, df: pd.DataFrame, strategy: Dict) -> TradingSignal:
+        """MACD 신호 생성"""
+        try:
+            if len(df) < 35:
+                return self._default_hold_signal("h5", df['close'].iloc[-1], "데이터 부족")
+            
+            # MACD 계산
+            macd, macdsignal, macdhist = talib.MACD(df['close'].values, 
+                                                    fastperiod=12, 
+                                                    slowperiod=26, 
+                                                    signalperiod=9)
+            
+            current_price = df['close'].iloc[-1]
+            
+            # MACD 히스토그램 0선 교차
+            if macdhist[-2] < 0 and macdhist[-1] > 0:
+                # 매수 신호
+                return TradingSignal(
+                    strategy_id="h5",
+                    action='buy',
+                    confidence=0.65,
+                    price=current_price,
+                    suggested_amount=45000,
+                    reasoning=f"MACD 골든크로스 (Hist: {macdhist[-1]:.0f})",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            elif macdhist[-2] > 0 and macdhist[-1] < 0:
+                # 매도 신호
+                return TradingSignal(
+                    strategy_id="h5",
+                    action='sell',
+                    confidence=0.6,
+                    price=current_price,
+                    suggested_amount=0,
+                    reasoning=f"MACD 데드크로스 (Hist: {macdhist[-1]:.0f})",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            
+            return self._default_hold_signal("h5", current_price, f"MACD Hist: {macdhist[-1]:.0f}")
+            
+        except Exception as e:
+            self.logger.error(f"MACD 신호 생성 오류: {e}")
+            return self._default_hold_signal("h5", df['close'].iloc[-1], f"오류: {e}")
+    
+    def _pivot_point_signal(self, df: pd.DataFrame, strategy: Dict) -> TradingSignal:
+        """피봇 포인트 신호 생성"""
+        try:
+            if len(df) < 2:
+                return self._default_hold_signal("h3", df['close'].iloc[-1], "데이터 부족")
+            
+            # 전일 데이터로 피봇 포인트 계산
+            prev_high = df['high'].iloc[-2]
+            prev_low = df['low'].iloc[-2]
+            prev_close = df['close'].iloc[-2]
+            current_price = df['close'].iloc[-1]
+            
+            # 피봇 포인트 계산
+            pivot = (prev_high + prev_low + prev_close) / 3
+            r1 = 2 * pivot - prev_low
+            r2 = pivot + (prev_high - prev_low)
+            s1 = 2 * pivot - prev_high
+            s2 = pivot - (prev_high - prev_low)
+            
+            # 지지/저항 근처에서 반등 신호
+            if abs(current_price - s1) / current_price < 0.005:  # S1 근처 (0.5% 이내)
+                return TradingSignal(
+                    strategy_id="h3",
+                    action='buy',
+                    confidence=0.6,
+                    price=current_price,
+                    suggested_amount=35000,
+                    reasoning=f"S1 지지선 반등 (S1: {s1:,.0f})",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            elif abs(current_price - r1) / current_price < 0.005:  # R1 근처
+                return TradingSignal(
+                    strategy_id="h3",
+                    action='sell',
+                    confidence=0.55,
+                    price=current_price,
+                    suggested_amount=0,
+                    reasoning=f"R1 저항선 도달 (R1: {r1:,.0f})",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            
+            return self._default_hold_signal("h3", current_price, 
+                                            f"PP: {pivot:,.0f}, S1: {s1:,.0f}, R1: {r1:,.0f}")
+            
+        except Exception as e:
+            self.logger.error(f"피봇 포인트 신호 생성 오류: {e}")
+            return self._default_hold_signal("h3", df['close'].iloc[-1], f"오류: {e}")
+    
+    def _vwap_signal(self, market_data: MarketData, strategy: Dict) -> TradingSignal:
+        """VWAP 신호 생성"""
+        try:
+            df = self._get_market_dataframe("KRW-BTC", period=30)
+            if df is None or len(df) < 10:
+                return self._default_hold_signal("h4", market_data.price, "데이터 부족")
+            
+            # VWAP 계산
+            typical_price = (df['high'] + df['low'] + df['close']) / 3
+            vwap = (typical_price * df['volume']).cumsum() / df['volume'].cumsum()
+            current_vwap = vwap.iloc[-1]
+            current_price = df['close'].iloc[-1]
+            
+            # 가격과 VWAP 관계
+            distance = (current_price - current_vwap) / current_vwap
+            
+            if distance < -0.01:  # VWAP 아래 1%
+                return TradingSignal(
+                    strategy_id="h4",
+                    action='buy',
+                    confidence=0.6,
+                    price=current_price,
+                    suggested_amount=35000,
+                    reasoning=f"VWAP 하단 매수 기회 (VWAP: {current_vwap:,.0f})",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            elif distance > 0.015:  # VWAP 위 1.5%
+                return TradingSignal(
+                    strategy_id="h4",
+                    action='sell',
+                    confidence=0.55,
+                    price=current_price,
+                    suggested_amount=0,
+                    reasoning=f"VWAP 상단 매도 신호 (VWAP: {current_vwap:,.0f})",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            
+            return self._default_hold_signal("h4", current_price, 
+                                            f"VWAP: {current_vwap:,.0f}, 거리: {distance:.1%}")
+            
+        except Exception as e:
+            self.logger.error(f"VWAP 신호 생성 오류: {e}")
+            return self._default_hold_signal("h4", market_data.price, f"오류: {e}")
+    
+    def _open_interest_signal(self, df: pd.DataFrame, strategy: Dict) -> TradingSignal:
+        """미체결 약정 신호 (간단 구현)"""
+        try:
+            current_price = df['close'].iloc[-1]
+            # OI 데이터는 실제로 별도 API가 필요함
+            # 여기서는 거래량 기반 간단 시뮬레이션
+            volume_ma = df['volume'].rolling(20).mean().iloc[-1]
+            current_volume = df['volume'].iloc[-1]
+            
+            if current_volume > volume_ma * 2:
+                if df['close'].iloc[-1] > df['close'].iloc[-2]:
+                    return TradingSignal(
+                        strategy_id="h7",
+                        action='buy',
+                        confidence=0.6,
+                        price=current_price,
+                        suggested_amount=30000,
+                        reasoning=f"거래량 급증 + 가격 상승",
+                        timestamp=datetime.now(),
+                        timeframe="1h"
+                    )
+            
+            return self._default_hold_signal("h7", current_price, "OI 신호 없음")
+        except Exception as e:
+            return self._default_hold_signal("h7", df['close'].iloc[-1], f"오류: {e}")
+    
+    def _flag_pattern_signal(self, df: pd.DataFrame, strategy: Dict) -> TradingSignal:
+        """깃발 패턴 신호 (간단 구현)"""
+        try:
+            current_price = df['close'].iloc[-1]
+            # 실제로는 복잡한 패턴 인식 필요
+            # 여기서는 간단한 추세 지속 패턴
+            
+            if len(df) < 20:
+                return self._default_hold_signal("h8", current_price, "데이터 부족")
+            
+            # 최근 20봉 추세
+            trend = (df['close'].iloc[-1] - df['close'].iloc[-20]) / df['close'].iloc[-20]
+            
+            # 최근 5봉 횡보
+            recent_range = (df['high'].iloc[-5:].max() - df['low'].iloc[-5:].min()) / df['close'].iloc[-5].mean()
+            
+            if trend > 0.05 and recent_range < 0.02:  # 상승 추세 후 횡보
+                return TradingSignal(
+                    strategy_id="h8",
+                    action='buy',
+                    confidence=0.58,
+                    price=current_price,
+                    suggested_amount=25000,
+                    reasoning="상승 깃발 패턴",
+                    timestamp=datetime.now(),
+                    timeframe="1h"
+                )
+            
+            return self._default_hold_signal("h8", current_price, "패턴 미형성")
+        except Exception as e:
+            return self._default_hold_signal("h8", df['close'].iloc[-1], f"오류: {e}")
+    
+    def _daily_strategy_signal(self, strategy_id: str, strategy: Dict) -> TradingSignal:
+        """일봉 전략 신호 (통합 간단 구현)"""
+        try:
+            # 일봉 데이터 가져오기
+            df = self._get_daily_dataframe("KRW-BTC", period=50)
+            if df is None or len(df) < 20:
+                return self._default_hold_signal(strategy_id, 0, "일봉 데이터 부족")
+            
+            current_price = df['close'].iloc[-1]
+            
+            if strategy_id == "d1":  # 주봉 필터링 + 50일선
+                sma50 = talib.SMA(df['close'].values, timeperiod=min(50, len(df)-1))
+                if sma50[-1] > 0 and abs(current_price - sma50[-1]) / sma50[-1] < 0.01:
+                    return TradingSignal(
+                        strategy_id="d1",
+                        action='buy',
+                        confidence=0.62,
+                        price=current_price,
+                        suggested_amount=60000,
+                        reasoning=f"50일선 지지 (SMA50: {sma50[-1]:,.0f})",
+                        timestamp=datetime.now(),
+                        timeframe="1d"
+                    )
+            
+            elif strategy_id == "d4":  # 공포탐욕 RSI
+                rsi = talib.RSI(df['close'].values, timeperiod=14)
+                if rsi[-1] < 30:
+                    return TradingSignal(
+                        strategy_id="d4",
+                        action='buy',
+                        confidence=0.61,
+                        price=current_price,
+                        suggested_amount=40000,
+                        reasoning=f"극도의 공포 구간 (RSI: {rsi[-1]:.1f})",
+                        timestamp=datetime.now(),
+                        timeframe="1d"
+                    )
+                elif rsi[-1] > 70:
+                    return TradingSignal(
+                        strategy_id="d4",
+                        action='sell',
+                        confidence=0.58,
+                        price=current_price,
+                        suggested_amount=0,
+                        reasoning=f"극도의 탐욕 구간 (RSI: {rsi[-1]:.1f})",
+                        timestamp=datetime.now(),
+                        timeframe="1d"
+                    )
+            
+            return self._default_hold_signal(strategy_id, current_price, "일봉 신호 없음")
+            
+        except Exception as e:
+            self.logger.error(f"일봉 전략 신호 생성 오류: {e}")
+            return self._default_hold_signal(strategy_id, 0, f"오류: {e}")
+    
+    def _get_daily_dataframe(self, symbol: str, period: int = 50) -> Optional[pd.DataFrame]:
+        """일봉 데이터 가져오기"""
+        try:
+            # 일봉 데이터는 1440분으로 요청
+            candles = self.api.get_candles(market=symbol, minutes=1440, count=period)
+            
+            if not candles or len(candles) < 10:
                 return None
             
-            # 임시 DataFrame 생성 (실제로는 API에서 과거 데이터 가져와야 함)
-            df = pd.DataFrame({
-                'high': [market_data.high_price] * period,
-                'low': [market_data.low_price] * period,
-                'close': [market_data.price] * period,
-                'volume': [market_data.volume] * period,
-                'open': [market_data.opening_price] * period
+            df = pd.DataFrame(candles)
+            df = df.rename(columns={
+                'opening_price': 'open',
+                'high_price': 'high', 
+                'low_price': 'low',
+                'trade_price': 'close',
+                'candle_acc_trade_volume': 'volume'
             })
             
-            # 약간의 변동성 추가 (실제 데이터처럼 보이게)
-            for col in ['high', 'low', 'close', 'open']:
-                noise = np.random.normal(0, market_data.price * 0.001, period)
-                df[col] = df[col] + noise
+            df = df[['open', 'high', 'low', 'close', 'volume']]
+            return df
+            
+        except Exception as e:
+            self.logger.error(f"일봉 데이터 가져오기 오류: {e}")
+            return None
+    
+    def _get_market_dataframe(self, symbol: str, period: int = 100) -> Optional[pd.DataFrame]:
+        """시장 데이터를 DataFrame으로 가져오기 - 실제 캔들 데이터 사용"""
+        try:
+            # Upbit API에서 실제 캔들 데이터 가져오기
+            # 시간봉 데이터 사용 (60분)
+            candles = self.api.get_candles(market=symbol, minutes=60, count=period)
+            
+            if not candles or len(candles) < 20:  # 최소 20개 이상의 데이터 필요
+                self.logger.warning(f"캔들 데이터 부족: {len(candles) if candles else 0}개")
+                return None
+            
+            # DataFrame 생성
+            df = pd.DataFrame(candles)
+            
+            # 컬럼명 변경 (Upbit API 응답 형식에 맞춤)
+            df = df.rename(columns={
+                'opening_price': 'open',
+                'high_price': 'high',
+                'low_price': 'low',
+                'trade_price': 'close',
+                'candle_acc_trade_volume': 'volume'
+            })
+            
+            # 필요한 컬럼만 선택
+            df = df[['open', 'high', 'low', 'close', 'volume']]
+            
+            # 인덱스를 시간으로 설정 (선택사항)
+            if 'candle_date_time_kst' in candles[0]:
+                df['timestamp'] = pd.to_datetime([c['candle_date_time_kst'] for c in candles])
+                df.set_index('timestamp', inplace=True)
+            
+            self.logger.info(f"실제 캔들 데이터 {len(df)}개 로드 완료")
             
             return df
             

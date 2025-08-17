@@ -171,6 +171,47 @@ class UpbitAPI:
         
         return self._make_request('GET', '/v1/accounts')
     
+    def get_candles(self, market: str = "KRW-BTC", minutes: int = 60, count: int = 100) -> Optional[List[Dict]]:
+        """캔들 데이터 조회
+        
+        Args:
+            market: 마켓 코드 (예: KRW-BTC)
+            minutes: 분 단위 (1, 3, 5, 15, 10, 30, 60, 240)
+            count: 캔들 개수 (최대 200)
+        """
+        if self.paper_trading:
+            # 모의투자 모드에서도 실제 캔들 데이터는 가져와야 함
+            pass
+        
+        try:
+            # 레이트 리미팅 없이 공개 API 호출
+            if minutes == 1440:  # 일봉
+                url = f"https://api.upbit.com/v1/candles/days"
+            elif minutes >= 60:  # 시간봉
+                url = f"https://api.upbit.com/v1/candles/minutes/{minutes}"
+            else:  # 분봉
+                url = f"https://api.upbit.com/v1/candles/minutes/{minutes}"
+            
+            params = {
+                'market': market,
+                'count': min(count, 200)  # 최대 200개
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                candles = response.json()
+                # 시간 역순으로 정렬 (오래된 것부터)
+                candles.reverse()
+                return candles
+            else:
+                self.logger.error(f"캔들 데이터 조회 실패: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"캔들 데이터 조회 오류: {e}")
+            return None
+    
     def get_balance(self, currency: str = 'KRW') -> float:
         """특정 화폐의 잔고 조회"""
         try:
