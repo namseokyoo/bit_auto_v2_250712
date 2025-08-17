@@ -40,7 +40,7 @@
                     <div class="col-6">
                         <div class="mb-3">
                             <label class="form-label">자동거래</label>
-                            <div>
+                            <div id="trading-status-container">
                                 {% if system_status.trading_enabled %}
                                     <span class="badge bg-success">활성화</span>
                                     <button class="btn btn-sm btn-outline-danger ms-2" onclick="toggleTrading('disable')">
@@ -53,10 +53,28 @@
                                     </button>
                                 {% endif %}
                             </div>
+                            <!-- 다음 거래 시간 표시 -->
+                            <div id="next-trade-timer" class="mt-2" style="display: none;">
+                                <small class="text-muted">
+                                    <i class="fas fa-clock"></i> 다음 분석: 
+                                    <span id="countdown-display" class="text-primary fw-bold">계산 중...</span>
+                                </small>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <!-- 모드 표시 제거 -->
+                <hr>
+                <div class="row">
+                    <div class="col-12">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            거래 간격: 
+                            <span id="trading-interval" class="badge bg-info">
+                                시간봉: 1시간 | 일봉: 24시간
+                            </span>
+                        </small>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

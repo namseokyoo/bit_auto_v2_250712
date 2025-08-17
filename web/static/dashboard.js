@@ -59,7 +59,9 @@ function toggleTrading(action) {
 
 // 자동거래 토글 UI 업데이트
 function updateTradingToggleUI(enabled) {
-    const tradingStatusElement = document.querySelector('.col-6:nth-child(2) .mb-3 div');
+    const tradingStatusElement = document.getElementById('trading-status-container');
+    const timerElement = document.getElementById('next-trade-timer');
+    
     if (tradingStatusElement) {
         if (enabled) {
             tradingStatusElement.innerHTML = `
@@ -68,6 +70,11 @@ function updateTradingToggleUI(enabled) {
                     비활성화
                 </button>
             `;
+            // 타이머 시작
+            if (timerElement) {
+                timerElement.style.display = 'block';
+                startTradingCountdown();
+            }
         } else {
             tradingStatusElement.innerHTML = `
                 <span class="badge bg-secondary">비활성화</span>
@@ -75,6 +82,110 @@ function updateTradingToggleUI(enabled) {
                     활성화
                 </button>
             `;
+            // 타이머 중지
+            if (timerElement) {
+                timerElement.style.display = 'none';
+                stopTradingCountdown();
+            }
+        }
+    }
+}
+
+// 카운트다운 관련 변수
+let countdownInterval = null;
+let nextTradeTime = null;
+
+// 다음 거래 시간 계산
+function calculateNextTradeTime() {
+    const now = new Date();
+    const currentMinute = now.getMinutes();
+    const currentHour = now.getHours();
+    
+    // 시간봉 전략: 매시 정각 실행
+    const nextHourlyTrade = new Date(now);
+    if (currentMinute === 0) {
+        // 방금 실행되었다면 다음 시간
+        nextHourlyTrade.setHours(currentHour + 1, 0, 0, 0);
+    } else {
+        // 다음 정각
+        nextHourlyTrade.setHours(currentHour + 1, 0, 0, 0);
+    }
+    
+    // 일봉 전략: 매일 자정 실행
+    const nextDailyTrade = new Date(now);
+    if (currentHour === 0 && currentMinute === 0) {
+        // 방금 실행되었다면 다음날
+        nextDailyTrade.setDate(nextDailyTrade.getDate() + 1);
+    }
+    nextDailyTrade.setHours(24, 0, 0, 0);
+    
+    // 더 빨리 오는 시간 선택
+    return nextHourlyTrade < nextDailyTrade ? nextHourlyTrade : nextDailyTrade;
+}
+
+// 카운트다운 시작
+function startTradingCountdown() {
+    // 기존 인터벌 정리
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+    
+    // 다음 거래 시간 계산
+    nextTradeTime = calculateNextTradeTime();
+    
+    // 1초마다 업데이트
+    countdownInterval = setInterval(updateCountdown, 1000);
+    updateCountdown(); // 즉시 첫 업데이트
+}
+
+// 카운트다운 중지
+function stopTradingCountdown() {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+}
+
+// 카운트다운 업데이트
+function updateCountdown() {
+    if (!nextTradeTime) {
+        nextTradeTime = calculateNextTradeTime();
+    }
+    
+    const now = new Date();
+    const diff = nextTradeTime - now;
+    
+    if (diff <= 0) {
+        // 시간이 지났으면 다시 계산
+        nextTradeTime = calculateNextTradeTime();
+        return;
+    }
+    
+    // 시간 계산
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    // 표시 형식 결정
+    let displayText = '';
+    if (hours > 0) {
+        displayText = `${hours}시간 ${minutes}분 ${seconds}초`;
+    } else if (minutes > 0) {
+        displayText = `${minutes}분 ${seconds}초`;
+    } else {
+        displayText = `${seconds}초`;
+    }
+    
+    // 10초 이하일 때 빨간색으로 강조
+    const countdownDisplay = document.getElementById('countdown-display');
+    if (countdownDisplay) {
+        countdownDisplay.textContent = displayText;
+        if (diff <= 10000) {
+            countdownDisplay.className = 'text-danger fw-bold animate-pulse';
+        } else if (diff <= 60000) {
+            countdownDisplay.className = 'text-warning fw-bold';
+        } else {
+            countdownDisplay.className = 'text-primary fw-bold';
         }
     }
 }
@@ -758,6 +869,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 백테스트 히스토리 로드
     loadBacktestHistory();
     
+    // 자동거래 상태 확인 및 타이머 시작
+    checkTradingStatusAndStartTimer();
+    
     // 전략 링크 클릭 이벤트 처리
     document.addEventListener('click', function(e) {
         if (e.target.closest('.strategy-link')) {
@@ -780,6 +894,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 30000);
 });
+
+// 자동거래 상태 확인 및 타이머 시작
+function checkTradingStatusAndStartTimer() {
+    const tradingStatusElement = document.querySelector('#trading-status-container .badge');
+    const timerElement = document.getElementById('next-trade-timer');
+    
+    if (tradingStatusElement && tradingStatusElement.classList.contains('bg-success')) {
+        // 자동거래가 활성화 상태면 타이머 시작
+        if (timerElement) {
+            timerElement.style.display = 'block';
+            startTradingCountdown();
+        }
+    }
+}
 
 // 대시보드 데이터 업데이트 (페이지 새로고침 없이)
 function updateDashboardData() {

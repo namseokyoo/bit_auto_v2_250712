@@ -45,7 +45,11 @@ def dashboard():
             'system_enabled': config_manager.is_system_enabled(),
             'trading_enabled': config_manager.is_trading_enabled(),
             'mode': config_manager.get_config('system.mode'),
-            'last_updated': current_time_kst
+            'last_updated': current_time_kst,
+            'trading_intervals': {
+                'hourly': '1시간',
+                'daily': '24시간'
+            }
         }
         
         # 대시보드 데이터
