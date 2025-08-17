@@ -24,6 +24,7 @@ from core.enhanced_strategy_implementation import EnhancedStrategyAnalyzer
 from core.strategy_router import StrategyRouter
 from core.data_collector import DataCollector
 from core.performance_monitor import PerformanceMonitor
+from core.signal_recorder import signal_recorder
 from strategy_manager import StrategyManager, TradeRecord
 import pandas as pd
 import numpy as np
@@ -530,6 +531,24 @@ class TradingEngine:
             
             # 전략 라우터를 통한 신호 생성
             signal = self.strategy_router.route_strategy(strategy_id, df, additional_data)
+            
+            # 신호 기록 (모든 신호를 기록, 실행 여부는 나중에 결정)
+            if signal:
+                try:
+                    signal_recorder.record_signal({
+                        'strategy_id': strategy_id,
+                        'action': signal.action,
+                        'confidence': signal.confidence,
+                        'price': signal.price,
+                        'suggested_amount': signal.suggested_amount,
+                        'reasoning': signal.reasoning,
+                        'market_data': {
+                            'current_price': df['close'].iloc[-1] if not df.empty else 0,
+                            'volume': df['volume'].iloc[-1] if not df.empty else 0
+                        }
+                    }, executed=False)
+                except Exception as e:
+                    self.logger.error(f"신호 기록 오류: {e}")
             
             # 성능 기록
             if signal and signal.action != 'hold':

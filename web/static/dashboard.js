@@ -45,7 +45,8 @@ function toggleTrading(action) {
     .then(data => {
         if (data.success) {
             showAlert('success', data.message);
-            setTimeout(() => location.reload(), 1000);
+            // 토글 상태만 업데이트하고 페이지는 새로고침하지 않음
+            updateTradingToggleUI(action === 'enable');
         } else {
             showAlert('danger', data.message);
         }
@@ -54,6 +55,28 @@ function toggleTrading(action) {
         console.error('Error:', error);
         showAlert('danger', '자동거래 토글 중 오류가 발생했습니다.');
     });
+}
+
+// 자동거래 토글 UI 업데이트
+function updateTradingToggleUI(enabled) {
+    const tradingStatusElement = document.querySelector('.col-6:nth-child(2) .mb-3 div');
+    if (tradingStatusElement) {
+        if (enabled) {
+            tradingStatusElement.innerHTML = `
+                <span class="badge bg-success">활성화</span>
+                <button class="btn btn-sm btn-outline-danger ms-2" onclick="toggleTrading('disable')">
+                    비활성화
+                </button>
+            `;
+        } else {
+            tradingStatusElement.innerHTML = `
+                <span class="badge bg-secondary">비활성화</span>
+                <button class="btn btn-sm btn-outline-success ms-2" onclick="toggleTrading('enable')">
+                    활성화
+                </button>
+            `;
+        }
+    }
 }
 
 // 수동 전략 분석

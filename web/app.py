@@ -16,11 +16,13 @@ from flask_cors import CORS
 import json
 from datetime import datetime, timedelta
 import logging
+import pytz
 
 from config.config_manager import config_manager
 from data.database import db
 from core.upbit_api import UpbitAPI
 from utils.error_logger import log_error, log_trade, log_system
+from core.signal_recorder import signal_recorder
 
 app = Flask(__name__)
 CORS(app)
@@ -34,12 +36,16 @@ logger = logging.getLogger(__name__)
 def dashboard():
     """메인 대시보드"""
     try:
+        # KST 시간으로 현재 시간 설정
+        kst = pytz.timezone('Asia/Seoul')
+        current_time_kst = datetime.now(kst).strftime('%Y-%m-%d %H:%M:%S KST')
+        
         # 시스템 상태
         system_status = {
             'system_enabled': config_manager.is_system_enabled(),
             'trading_enabled': config_manager.is_trading_enabled(),
             'mode': config_manager.get_config('system.mode'),
-            'last_updated': config_manager.get_config('system.last_updated')
+            'last_updated': current_time_kst
         }
         
         # 대시보드 데이터
@@ -424,6 +430,26 @@ def api_manual_analyze():
                     'price': signal.price
                 })
         
+        # 개별 신호를 데이터베이스에 저장
+        for signal_data in result['individual_signals']:
+            try:
+                signal_recorder.record_signal({
+                    'strategy_id': signal_data['strategy_id'],
+                    'action': signal_data['action'],
+                    'confidence': signal_data['confidence'],
+                    'price': signal_data['price'],
+                    'suggested_amount': signal_data['suggested_amount'],
+                    'reasoning': signal_data['reasoning'],
+                    'market_data': {
+                        'price': market_data.price,
+                        'volume': market_data.volume,
+                        'high': market_data.high,
+                        'low': market_data.low
+                    }
+                }, executed=False)  # 분석만 하고 실행하지 않음
+            except Exception as e:
+                logger.error(f"신호 저장 오류: {e}")
+        
         # 통합 신호 생성 (개선된 알고리즘)
         if strategy_signals:
             buy_signals = [s for s in strategy_signals.values() if s.action == 'buy']
@@ -481,6 +507,41 @@ def api_manual_analyze():
                 'final_sell_score': round(final_sell_score, 3),
                 'final_hold_score': round(final_hold_score, 3)
             }
+            
+            # 통합 신호도 데이터베이스에 저장
+            try:
+                signal_recorder.record_consolidated_signal({
+                    'action': consolidated_action,
+                    'confidence': consolidated_confidence,
+                    'suggested_amount': 70000 if consolidated_action == 'buy' else 0,
+                    'reasoning': reasoning,
+                    'contributing_strategies': contributing_strategies,
+                    'market_condition': 'trending_up' if market_data.price > market_data.prev_close else 'trending_down',
+                    'signal_distribution': {
+                        'buy_count': len(buy_signals),
+                        'sell_count': len(sell_signals),
+                        'hold_count': len(hold_signals)
+                    }
+                }, executed=False)
+            except Exception as e:
+                logger.error(f"통합 신호 저장 오류: {e}")
+        
+        # 분석 세션 기록
+        try:
+            session_id = signal_recorder.record_analysis_session({
+                'auto_trade_enabled': config_manager.is_trading_enabled(),
+                'strategies_analyzed': len(active_strategies),
+                'signals_generated': len(strategy_signals),
+                'decision': consolidated_action if 'consolidated_action' in locals() else 'hold',
+                'metadata': {
+                    'api_status': api_status,
+                    'market_price': market_data.price,
+                    'timestamp': datetime.now().isoformat()
+                }
+            })
+            logger.info(f"분석 세션 기록 완료: ID={session_id}")
+        except Exception as e:
+            logger.error(f"분석 세션 기록 오류: {e}")
         
         logger.info(f"수동 전략 분석 완료: {len(strategy_signals)}개 전략 분석")
         return jsonify({'success': True, 'data': result})
@@ -492,6 +553,41 @@ def api_manual_analyze():
             'user_action': 'manual_trading_analyze',
             'active_strategies_count': len(active_strategies) if 'active_strategies' in locals() else 0
         }, 'WebApp')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/signal_history')
+def api_signal_history():
+    """신호 히스토리 조회"""
+    try:
+        strategy_id = request.args.get('strategy_id')
+        days = request.args.get('days', 7, type=int)
+        
+        history = signal_recorder.get_signal_history(strategy_id, days)
+        performance = signal_recorder.analyze_signal_performance(days)
+        
+        return jsonify({
+            'success': True,
+            'history': history,
+            'performance': performance
+        })
+    except Exception as e:
+        logger.error(f"신호 히스토리 조회 오류: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/strategy_accuracy/<strategy_id>')
+def api_strategy_accuracy(strategy_id):
+    """전략 정확도 조회"""
+    try:
+        days = request.args.get('days', 30, type=int)
+        accuracy = signal_recorder.get_strategy_accuracy(strategy_id, days)
+        
+        return jsonify({
+            'success': True,
+            'strategy_id': strategy_id,
+            'accuracy': accuracy
+        })
+    except Exception as e:
+        logger.error(f"전략 정확도 조회 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/manual_trading/execute', methods=['POST'])
