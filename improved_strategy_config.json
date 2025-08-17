@@ -1,0 +1,308 @@
+{
+  "quant_improvements": {
+    "risk_management": {
+      "position_sizing": {
+        "method": "kelly_criterion_modified",
+        "kelly_fraction": 0.25,
+        "max_position_pct": 30,
+        "volatility_adjustment": true,
+        "atr_multiplier": 2.5
+      },
+      "stop_loss": {
+        "type": "dynamic_atr",
+        "atr_period": 14,
+        "atr_multiplier": 1.5,
+        "trailing_activation": 1.5,
+        "trailing_distance": 0.7
+      },
+      "correlation_filter": {
+        "max_correlated_positions": 2,
+        "correlation_threshold": 0.7,
+        "lookback_period": 60
+      },
+      "drawdown_control": {
+        "max_daily_loss": 5,
+        "max_weekly_loss": 10,
+        "max_monthly_loss": 15,
+        "equity_curve_ma": 20,
+        "stop_trading_below_ma": true
+      }
+    },
+    "market_microstructure": {
+      "slippage_model": {
+        "base_slippage_bps": 5,
+        "volume_impact": "sqrt(order_size / avg_volume)",
+        "urgency_multiplier": 1.5
+      },
+      "funding_rate_filter": {
+        "max_funding_rate": 0.05,
+        "min_funding_rate": -0.05,
+        "avoid_funding_payment": true
+      },
+      "liquidation_heatmap": {
+        "check_liquidation_levels": true,
+        "avoid_crowded_stops": true,
+        "distance_from_liquidation": 0.03
+      },
+      "exchange_arbitrage": {
+        "monitor_kimchi_premium": true,
+        "max_premium_threshold": 0.02,
+        "min_premium_threshold": -0.02
+      }
+    },
+    "enhanced_strategies": {
+      "ema_cross": {
+        "adaptive_periods": {
+          "fast_ema_range": [8, 13],
+          "slow_ema_range": [21, 34],
+          "optimization_method": "walk_forward",
+          "reoptimize_frequency": "weekly"
+        },
+        "filters": {
+          "volume_profile": {
+            "poc_distance": 0.02,
+            "value_area_position": "check"
+          },
+          "market_regime": {
+            "hurst_exponent": 0.5,
+            "fractal_dimension": 1.5
+          },
+          "volatility_filter": {
+            "min_atr": 0.015,
+            "max_atr": 0.08,
+            "volatility_percentile": [20, 80]
+          }
+        },
+        "entry_timing": {
+          "use_limit_orders": true,
+          "price_improvement": 0.001,
+          "max_chase_distance": 0.002,
+          "time_in_force": "IOC"
+        },
+        "exit_rules": {
+          "time_stop": 72,
+          "volatility_exit": "2.5 * ATR",
+          "mean_reversion_target": "VWAP",
+          "partial_profits": [
+            {"target": 1.5, "exit_pct": 30},
+            {"target": 2.5, "exit_pct": 30},
+            {"target": 4.0, "exit_pct": 40}
+          ]
+        }
+      },
+      "rsi_divergence": {
+        "enhanced_divergence": {
+          "min_divergence_bars": 5,
+          "max_divergence_bars": 20,
+          "divergence_strength_score": {
+            "price_move": 0.3,
+            "rsi_move": 0.3,
+            "volume_confirmation": 0.2,
+            "time_factor": 0.2
+          }
+        },
+        "multi_timeframe_confirmation": {
+          "timeframes": ["15m", "1h", "4h"],
+          "min_confirmations": 2,
+          "weight_by_timeframe": true
+        },
+        "hidden_divergence": {
+          "enabled": true,
+          "trend_filter": "ADX > 30"
+        },
+        "machine_learning_filter": {
+          "use_ml_scoring": true,
+          "features": [
+            "rsi_slope",
+            "volume_ratio",
+            "price_acceleration",
+            "market_breadth"
+          ],
+          "min_ml_score": 0.65
+        }
+      },
+      "bollinger_bands": {
+        "adaptive_bands": {
+          "lookback_period": 100,
+          "percentile_range": [10, 90],
+          "volatility_adjustment": "GARCH",
+          "regime_detection": "markov_switching"
+        },
+        "squeeze_detection": {
+          "keltner_channel_atr": 1.5,
+          "min_squeeze_bars": 6,
+          "breakout_confirmation": {
+            "volume_surge": 2.0,
+            "momentum_oscillator": "rising"
+          }
+        },
+        "mean_reversion_mode": {
+          "z_score_threshold": 2.5,
+          "mean_reversion_speed": "calculate",
+          "half_life_period": 24
+        },
+        "walk_the_bands": {
+          "trend_strength": "ADX > 35",
+          "consecutive_touches": 3,
+          "pullback_entry": "middle_band"
+        }
+      },
+      "vwap_strategy": {
+        "anchored_vwap": {
+          "anchor_points": [
+            "session_start",
+            "significant_high",
+            "significant_low",
+            "high_volume_node"
+          ],
+          "deviation_bands": [1.0, 2.0, 3.0],
+          "band_interaction_rules": "defined"
+        },
+        "volume_analysis": {
+          "cumulative_delta": true,
+          "delta_divergence": true,
+          "footprint_charts": true,
+          "absorption_detection": true
+        },
+        "institutional_flow": {
+          "large_trade_detection": true,
+          "sweep_detection": true,
+          "iceberg_order_detection": true
+        }
+      },
+      "order_flow": {
+        "orderbook_imbalance": {
+          "bid_ask_ratio": 2.0,
+          "depth_levels": 10,
+          "time_window": 60,
+          "min_size_filter": 10000
+        },
+        "aggressive_trades": {
+          "buy_sell_ratio": 1.5,
+          "large_trade_threshold": 50000,
+          "sweep_detection": true
+        },
+        "liquidation_clusters": {
+          "scan_range": 0.05,
+          "min_cluster_size": 1000000,
+          "trade_direction": "with_liquidations"
+        }
+      }
+    },
+    "backtesting_requirements": {
+      "minimum_data": {
+        "historical_bars": 10000,
+        "include_bear_market": true,
+        "include_bull_market": true,
+        "include_sideways": true
+      },
+      "validation": {
+        "in_sample": 0.6,
+        "out_sample": 0.2,
+        "forward_test": 0.2,
+        "monte_carlo_runs": 1000
+      },
+      "performance_metrics": {
+        "required": [
+          "sharpe_ratio",
+          "sortino_ratio",
+          "calmar_ratio",
+          "max_drawdown",
+          "recovery_time",
+          "profit_factor",
+          "expectancy",
+          "win_rate",
+          "avg_win_loss_ratio",
+          "consecutive_losses",
+          "var_95",
+          "cvar_95"
+        ],
+        "minimum_acceptable": {
+          "sharpe_ratio": 1.2,
+          "sortino_ratio": 1.5,
+          "profit_factor": 1.5,
+          "win_rate": 0.45,
+          "max_drawdown": 0.20
+        }
+      },
+      "stress_testing": {
+        "scenarios": [
+          "flash_crash",
+          "sustained_downtrend",
+          "high_volatility",
+          "low_volatility",
+          "exchange_outage",
+          "funding_spike"
+        ],
+        "survival_requirement": "no_bankruptcy"
+      }
+    },
+    "execution_optimization": {
+      "order_types": {
+        "entry": "limit_with_aggressive_repricing",
+        "exit": "adaptive_market_limit",
+        "stop_loss": "stop_limit_with_protection"
+      },
+      "timing": {
+        "avoid_news_events": true,
+        "avoid_funding_time": true,
+        "preferred_hours": "high_liquidity_periods",
+        "avoid_weekends": false
+      },
+      "smart_routing": {
+        "split_orders": true,
+        "iceberg_orders": true,
+        "time_weighted": true,
+        "minimize_market_impact": true
+      }
+    },
+    "portfolio_management": {
+      "diversification": {
+        "max_strategy_allocation": 0.25,
+        "min_active_strategies": 3,
+        "correlation_matrix_update": "daily"
+      },
+      "rebalancing": {
+        "frequency": "weekly",
+        "threshold": 0.1,
+        "method": "risk_parity"
+      },
+      "capital_preservation": {
+        "cash_reserve": 0.3,
+        "drawdown_reduction": "linear",
+        "recovery_acceleration": true
+      }
+    }
+  },
+  "crypto_specific": {
+    "defi_indicators": {
+      "tvl_trends": true,
+      "defi_dominance": true,
+      "yield_farming_rates": true,
+      "protocol_revenues": true
+    },
+    "on_chain_metrics": {
+      "network_value": ["NVT", "NVTS", "RVT"],
+      "holder_behavior": ["HODL_waves", "coin_days_destroyed"],
+      "miner_metrics": ["hash_rate", "mining_revenue", "difficulty"],
+      "exchange_flows": ["inflow", "outflow", "netflow", "reserves"]
+    },
+    "sentiment_analysis": {
+      "social_media": {
+        "twitter_sentiment": true,
+        "reddit_mentions": true,
+        "telegram_activity": true
+      },
+      "news_sentiment": {
+        "headline_analysis": true,
+        "sentiment_score": true,
+        "fud_detection": true
+      },
+      "whale_tracking": {
+        "large_transactions": true,
+        "whale_accumulation": true,
+        "distribution_patterns": true
+      }
+    }
+  }
+}

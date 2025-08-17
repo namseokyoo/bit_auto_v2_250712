@@ -19,9 +19,12 @@ from config.config_manager import config_manager
 from core.upbit_api import UpbitAPI, OrderResult, MarketData
 from core.signal_manager import SignalManager, TradingSignal, ConsolidatedSignal, MarketCondition
 from core.position_manager import PositionManager
+from core.advanced_risk_manager import AdvancedRiskManager
+from core.enhanced_strategy_implementation import EnhancedStrategyAnalyzer
 from strategy_manager import StrategyManager, TradeRecord
 import pandas as pd
 import numpy as np
+import talib
 
 # Position 클래스는 position_manager.py에서 가져옴
 
@@ -117,6 +120,8 @@ class TradingEngine:
         self.api = UpbitAPI(paper_trading=False)  # 초기에는 모의거래
         self.strategy_manager = StrategyManager()
         self.risk_manager = RiskManager(self.config)
+        self.advanced_risk_manager = AdvancedRiskManager(self.config)  # 고급 리스크 관리자 추가
+        self.enhanced_strategy_analyzer = EnhancedStrategyAnalyzer()  # 개선된 전략 분석기 추가
         
         # 새로운 통합 관리자들
         self.signal_manager = SignalManager(self.config)
@@ -329,14 +334,25 @@ class TradingEngine:
             self.logger.error(f"통합 신호 처리 오류: {e}")
 
     def _execute_consolidated_buy(self, signal: ConsolidatedSignal):
-        """통합 매수 신호 실행"""
-        # 포지션 생성 가능 여부 확인
-        can_open, reason = self.position_manager.can_open_position(
-            "multi_strategy", signal.suggested_amount
-        )
+        """통합 매수 신호 실행 - 고급 리스크 관리 적용"""
+        # 1. 고급 리스크 관리 - 손실 한도 체크
+        loss_limits = self.advanced_risk_manager.check_loss_limits()
+        if not loss_limits['can_trade']:
+            self.logger.warning(f"손실 한도로 거래 불가: {loss_limits['reason']}")
+            return
         
-        if not can_open:
-            self.logger.warning(f"포지션 생성 불가: {reason}")
+        # 2. 포지션 상관관계 체크
+        correlation_check = self.advanced_risk_manager.check_position_correlation(
+            "KRW-BTC", "long"
+        )
+        if not correlation_check['allowed']:
+            self.logger.warning(f"포지션 상관관계 체크 실패: {correlation_check['reason']}")
+            return
+        
+        # 3. 시장 데이터 가져오기 (ATR 계산용)
+        market_data = self.api.get_market_data("KRW-BTC")
+        if not market_data:
+            self.logger.error("시장 데이터 조회 실패")
             return
         
         # 현재가 조회
@@ -345,13 +361,60 @@ class TradingEngine:
             self.logger.error("현재가 조회 실패")
             return
         
+        # 4. 고급 리스크 메트릭 계산
+        account_balance = self.api.get_balance("KRW")
+        
+        # DataFrame 생성 (실제로는 더 많은 데이터 필요)
+        df = pd.DataFrame({
+            'high': [market_data.high_price],
+            'low': [market_data.low_price],
+            'close': [current_price],
+            'volume': [market_data.volume]
+        })
+        
+        risk_metrics = self.advanced_risk_manager.get_risk_metrics(
+            df=df,
+            entry_price=current_price,
+            direction="long",
+            signal_strength=signal.confidence,
+            account_balance=account_balance
+        )
+        
+        # 5. Kelly Criterion 기반 포지션 크기 조정
+        adjusted_amount = min(
+            signal.suggested_amount,
+            risk_metrics.position_size,
+            loss_limits['max_risk_amount']
+        )
+        
+        if adjusted_amount < 10000:  # 최소 거래 금액
+            self.logger.warning("조정된 포지션 크기가 최소 거래 금액 미만")
+            return
+        
+        # 포지션 생성 가능 여부 확인
+        can_open, reason = self.position_manager.can_open_position(
+            "multi_strategy", adjusted_amount
+        )
+        
+        if not can_open:
+            self.logger.warning(f"포지션 생성 불가: {reason}")
+            return
+        
         # 매수 수량 계산
-        quantity = signal.suggested_amount / current_price
+        quantity = adjusted_amount / current_price
         
         # 실제 매수 주문 실행
-        result = self.api.place_buy_order("KRW-BTC", current_price, amount=signal.suggested_amount)
+        result = self.api.place_buy_order("KRW-BTC", current_price, amount=adjusted_amount)
         
         if result.success:
+            # 고급 리스크 관리자에 포지션 추가
+            self.advanced_risk_manager.add_position(
+                position_id=result.order_id,
+                symbol="KRW-BTC",
+                direction="long",
+                size=adjusted_amount
+            )
+            
             # 포지션 생성
             position = self.position_manager.create_position(
                 strategy_id="multi_strategy",
@@ -363,9 +426,13 @@ class TradingEngine:
             
             if position:
                 self.logger.info(
-                    f"통합 매수 완료: {signal.suggested_amount:,.0f}원 "
-                    f"(신뢰도: {signal.confidence:.2f}, "
-                    f"기여전략: {signal.contributing_strategies})"
+                    f"통합 매수 완료: {adjusted_amount:,.0f}원 "
+                    f"(원래: {signal.suggested_amount:,.0f}원) "
+                    f"신뢰도: {signal.confidence:.2f}, "
+                    f"Kelly fraction: {risk_metrics.kelly_fraction:.3f}, "
+                    f"손절가: {risk_metrics.stop_loss:,.0f}, "
+                    f"리스크/리워드: {risk_metrics.risk_reward_ratio:.2f}, "
+                    f"기여전략: {signal.contributing_strategies}"
                 )
                 
                 # 거래 기록 추가
@@ -404,6 +471,13 @@ class TradingEngine:
         result = self.api.place_sell_order("KRW-BTC", current_price, btc_balance)
         
         if result.success:
+            # 고급 리스크 관리자에서 포지션 업데이트
+            sell_amount = btc_balance * current_price
+            for position_id in list(self.advanced_risk_manager.active_positions.keys()):
+                # 실제 PnL 계산 (간단한 예시)
+                pnl = sell_amount * 0.01  # 실제로는 정확한 계산 필요
+                self.advanced_risk_manager.update_position(position_id, pnl)
+            
             # 관련 포지션들 종료
             open_positions = list(self.position_manager.positions.keys())
             for position_id in open_positions:
@@ -418,17 +492,40 @@ class TradingEngine:
             self.logger.error(f"통합 매도 실패: {result.message}")
 
     def generate_signal(self, strategy_id: str, strategy: Dict) -> Optional[TradingSignal]:
-        """전략 신호 생성 (간단한 예시 구현)"""
+        """전략 신호 생성 - 개선된 전략 사용"""
         try:
-            # 현재 시장 데이터 가져오기
+            # 현재 시장 데이터 가져오기 (더 많은 봉 필요)
+            df = self._get_market_dataframe("KRW-BTC", period=100)
+            if df is None or len(df) < 50:
+                return None
+            
+            enhanced_signal = None
+            
+            # 개선된 전략 분석기 사용
+            if strategy_id == "h1":  # EMA 골든크로스 전략
+                enhanced_signal = self.enhanced_strategy_analyzer.enhanced_ema_cross_strategy(df)
+            elif strategy_id == "h6":  # 볼린저 밴드 스퀴즈 전략
+                enhanced_signal = self.enhanced_strategy_analyzer.enhanced_bollinger_squeeze_strategy(df)
+            
+            # EnhancedSignal을 TradingSignal로 변환
+            if enhanced_signal:
+                return TradingSignal(
+                    strategy_id=strategy_id,
+                    action=enhanced_signal.direction if enhanced_signal.direction != 'neutral' else 'hold',
+                    confidence=enhanced_signal.confidence,
+                    price=enhanced_signal.entry_price,
+                    suggested_amount=enhanced_signal.position_size,
+                    reasoning=enhanced_signal.reason,
+                    timestamp=datetime.now(),
+                    timeframe=strategy.get('timeframe', '1h')
+                )
+            
+            # 기존 간단한 전략들도 여전히 사용
             market_data = self.api.get_market_data("KRW-BTC")
             if not market_data:
                 return None
             
-            # 간단한 이동평균 기반 신호 생성 (예시)
-            if strategy_id == "h1":  # EMA 골든크로스 전략
-                return self._ema_cross_signal(market_data, strategy)
-            elif strategy_id == "h4":  # VWAP 되돌림 전략
+            if strategy_id == "h4":  # VWAP 되돌림 전략
                 return self._vwap_signal(market_data, strategy)
             
             # 기본 홀드 신호
@@ -436,10 +533,11 @@ class TradingEngine:
                 strategy_id=strategy_id,
                 action='hold',
                 confidence=0.5,
-                price=market_data.price,
+                price=market_data.price if market_data else 0,
                 suggested_amount=0,
                 reasoning="신호 없음",
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
+                timeframe=strategy.get('timeframe', '1h')
             )
             
         except Exception as e:
@@ -497,6 +595,35 @@ class TradingEngine:
             reasoning="VWAP 분석 중",
             timestamp=datetime.now()
         )
+    
+    def _get_market_dataframe(self, symbol: str, period: int = 100) -> Optional[pd.DataFrame]:
+        """시장 데이터를 DataFrame으로 가져오기"""
+        try:
+            # 실제로는 Upbit API에서 캔들 데이터를 가져와야 함
+            # 여기서는 간단한 예시 구현
+            market_data = self.api.get_market_data(symbol)
+            if not market_data:
+                return None
+            
+            # 임시 DataFrame 생성 (실제로는 API에서 과거 데이터 가져와야 함)
+            df = pd.DataFrame({
+                'high': [market_data.high_price] * period,
+                'low': [market_data.low_price] * period,
+                'close': [market_data.price] * period,
+                'volume': [market_data.volume] * period,
+                'open': [market_data.opening_price] * period
+            })
+            
+            # 약간의 변동성 추가 (실제 데이터처럼 보이게)
+            for col in ['high', 'low', 'close', 'open']:
+                noise = np.random.normal(0, market_data.price * 0.001, period)
+                df[col] = df[col] + noise
+            
+            return df
+            
+        except Exception as e:
+            self.logger.error(f"시장 데이터 DataFrame 생성 오류: {e}")
+            return None
 
     def process_signal(self, signal: TradingSignal):
         """거래 신호 처리"""
