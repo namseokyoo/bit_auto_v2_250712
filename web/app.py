@@ -980,7 +980,7 @@ if __name__ == '__main__':
     os.makedirs('web/templates', exist_ok=True)
     os.makedirs('web/static', exist_ok=True)
     
-    port = int(os.getenv('FLASK_PORT', 9000))
+    port = int(os.getenv('FLASK_PORT', 5000))
     print("=== Bitcoin Auto Trading 관리자 패널 ===")
     print("웹 서버 시작 중...")
     print(f"접속 주소: http://localhost:{port}")
