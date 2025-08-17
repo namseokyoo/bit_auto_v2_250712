@@ -21,6 +21,9 @@ from core.signal_manager import SignalManager, TradingSignal, ConsolidatedSignal
 from core.position_manager import PositionManager
 from core.advanced_risk_manager import AdvancedRiskManager
 from core.enhanced_strategy_implementation import EnhancedStrategyAnalyzer
+from core.strategy_router import StrategyRouter
+from core.data_collector import DataCollector
+from core.performance_monitor import PerformanceMonitor
 from strategy_manager import StrategyManager, TradeRecord
 import pandas as pd
 import numpy as np
@@ -122,6 +125,11 @@ class TradingEngine:
         self.risk_manager = RiskManager(self.config)
         self.advanced_risk_manager = AdvancedRiskManager(self.config)  # 고급 리스크 관리자 추가
         self.enhanced_strategy_analyzer = EnhancedStrategyAnalyzer()  # 개선된 전략 분석기 추가
+        
+        # 새로운 통합 시스템
+        self.strategy_router = StrategyRouter(self.config.get_all_config())
+        self.data_collector = DataCollector()
+        self.performance_monitor = PerformanceMonitor()
         
         # 새로운 통합 관리자들
         self.signal_manager = SignalManager(self.config)
@@ -492,32 +500,60 @@ class TradingEngine:
             self.logger.error(f"통합 매도 실패: {result.message}")
 
     def generate_signal(self, strategy_id: str, strategy: Dict) -> Optional[TradingSignal]:
-        """전략 신호 생성 - 개선된 전략 사용"""
+        """전략 신호 생성 - 통합 라우터 사용"""
         try:
-            # 현재 시장 데이터 가져오기 (더 많은 봉 필요)
-            df = self._get_market_dataframe("KRW-BTC", period=100)
+            # 히스토리컬 데이터 우선 사용 (데이터베이스에서)
+            df = self._get_historical_dataframe("KRW-BTC", strategy_id)
+            
             if df is None or len(df) < 50:
-                return None
+                # 실시간 데이터 폴백
+                df = self._get_market_dataframe("KRW-BTC", period=200)
+                if df is None or len(df) < 50:
+                    return None
             
-            enhanced_signal = None
+            # 추가 데이터 준비 (특정 전략용)
+            additional_data = {}
             
-            # 개선된 전략 분석기 사용
-            if strategy_id == "h1":  # EMA 골든크로스 전략
-                enhanced_signal = self.enhanced_strategy_analyzer.enhanced_ema_cross_strategy(df)
-            elif strategy_id == "h6":  # 볼린저 밴드 스퀴즈 전략
-                enhanced_signal = self.enhanced_strategy_analyzer.enhanced_bollinger_squeeze_strategy(df)
-            elif strategy_id == "h2":  # RSI 다이버전스 전략
-                return self._rsi_divergence_signal(df, strategy)
-            elif strategy_id == "h3":  # 피봇 포인트 전략
-                return self._pivot_point_signal(df, strategy)
-            elif strategy_id == "h5":  # MACD 전략
-                return self._macd_signal(df, strategy)
-            elif strategy_id == "h7":  # 미체결 약정 전략 (OI)
-                return self._open_interest_signal(df, strategy)
-            elif strategy_id == "h8":  # 깃발/페넌트 패턴
-                return self._flag_pattern_signal(df, strategy)
-            elif strategy_id.startswith("d"):  # 일봉 전략들
-                return self._daily_strategy_signal(strategy_id, strategy)
+            # H7 전략용 OI 데이터 (실제로는 API에서 가져와야 함)
+            if strategy_id == "h7":
+                additional_data['oi_data'] = {
+                    'current': 1000000,
+                    'previous': 950000,
+                    'long_ratio': 0.52
+                }
+                additional_data['funding_rate'] = 0.01
+            
+            # D1 전략용 주봉 데이터
+            if strategy_id == "d1":
+                weekly_df = self._get_historical_dataframe("KRW-BTC", "weekly")
+                additional_data['weekly_df'] = weekly_df
+            
+            # 전략 라우터를 통한 신호 생성
+            signal = self.strategy_router.route_strategy(strategy_id, df, additional_data)
+            
+            # 성능 기록
+            if signal and signal.action != 'hold':
+                # 거래 기록
+                trade_id = self.performance_monitor.record_trade(
+                    strategy_id=strategy_id,
+                    action=signal.action,
+                    price=signal.price,
+                    quantity=signal.suggested_amount / signal.price if signal.price > 0 else 0,
+                    amount=signal.suggested_amount,
+                    confidence=signal.confidence,
+                    reasoning=signal.reasoning
+                )
+                
+                # 포지션 오픈 (buy 신호인 경우)
+                if signal.action == 'buy':
+                    self.performance_monitor.open_position(
+                        strategy_id=strategy_id,
+                        entry_price=signal.price,
+                        quantity=signal.suggested_amount / signal.price,
+                        side='long'
+                    )
+            
+            return signal
             
             # EnhancedSignal을 TradingSignal로 변환
             if enhanced_signal:
@@ -959,6 +995,56 @@ class TradingEngine:
             
         except Exception as e:
             self.logger.error(f"일봉 데이터 가져오기 오류: {e}")
+            return None
+    
+    def _get_historical_dataframe(self, symbol: str, strategy_id: str) -> Optional[pd.DataFrame]:
+        """히스토리컬 데이터를 DataFrame으로 가져오기 - 데이터베이스 우선"""
+        try:
+            # 전략별 적절한 timeframe 설정
+            if strategy_id.startswith('h'):  # 시간봉 전략
+                timeframe = "60"  # 1시간
+                days_back = 30
+            elif strategy_id.startswith('d'):  # 일봉 전략
+                timeframe = "1440"  # 1일
+                days_back = 200
+            elif strategy_id == "weekly":  # 주봉 데이터 요청
+                timeframe = "10080"  # 1주
+                days_back = 365
+            else:
+                timeframe = "60"
+                days_back = 30
+            
+            # 데이터베이스에서 먼저 조회
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days_back)
+            
+            df = self.data_collector.get_historical_data(
+                market=symbol,
+                timeframe=timeframe,
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            # 데이터가 부족하면 API에서 수집
+            if df is None or len(df) < 50:
+                self.logger.info(f"데이터베이스 데이터 부족, API에서 수집 중...")
+                df = self.data_collector.collect_historical_candles(
+                    market=symbol,
+                    timeframe=timeframe,
+                    days_back=days_back
+                )
+            
+            if df is not None and not df.empty:
+                # timestamp를 인덱스로 설정
+                if 'timestamp' in df.columns and not isinstance(df.index, pd.DatetimeIndex):
+                    df.set_index('timestamp', inplace=True)
+                
+                self.logger.info(f"히스토리컬 데이터 {len(df)}개 로드 완료 (전략: {strategy_id})")
+            
+            return df
+            
+        except Exception as e:
+            self.logger.error(f"히스토리컬 데이터 DataFrame 생성 오류: {e}")
             return None
     
     def _get_market_dataframe(self, symbol: str, period: int = 100) -> Optional[pd.DataFrame]:
