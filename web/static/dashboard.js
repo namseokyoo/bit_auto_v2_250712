@@ -1,5 +1,113 @@
 // 대시보드 JavaScript 함수들
 
+// 자동 거래 토글 (새로운 버전)
+function toggleAutoTrading(enable) {
+    const action = enable ? '활성화' : '비활성화';
+    if (!confirm(`자동 거래를 ${action}하시겠습니까?`)) {
+        return;
+    }
+    
+    fetch('/api/trading/toggle', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: enable ? 'enable' : 'disable' })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', `자동 거래가 ${action}되었습니다.`);
+            // UI 업데이트
+            updateAutoTradingUI(enable);
+            // 상태 업데이트
+            updateAutoTradingStatus();
+        } else {
+            showAlert('danger', data.message || '오류가 발생했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('danger', '자동 거래 토글 중 오류가 발생했습니다.');
+    });
+}
+
+// 긴급 정지
+function emergencyStop() {
+    if (!confirm('긴급 정지하시겠습니까? 모든 자동 거래가 즉시 중단됩니다.')) {
+        return;
+    }
+    
+    fetch('/api/emergency_stop', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('danger', '긴급 정지가 실행되었습니다. 모든 자동 거래가 중단되었습니다.');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('danger', data.message || '긴급 정지 실행 중 오류가 발생했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('danger', '긴급 정지 실행 중 오류가 발생했습니다.');
+    });
+}
+
+// 자동 거래 UI 업데이트
+function updateAutoTradingUI(enabled) {
+    const container = document.getElementById('trading-status-container');
+    if (container) {
+        container.innerHTML = `
+            <div class="d-flex align-items-center gap-2">
+                ${enabled ? 
+                    `<span class="badge bg-success">활성화</span>
+                     <button class="btn btn-sm btn-warning" onclick="toggleAutoTrading(false)">
+                         <i class="fas fa-pause"></i> 일시정지
+                     </button>` :
+                    `<span class="badge bg-secondary">비활성화</span>
+                     <button class="btn btn-sm btn-success" onclick="toggleAutoTrading(true)">
+                         <i class="fas fa-play"></i> 시작
+                     </button>`
+                }
+                <button class="btn btn-sm btn-danger" onclick="emergencyStop()">
+                    <i class="fas fa-stop"></i> 긴급정지
+                </button>
+            </div>
+        `;
+    }
+}
+
+// 자동 거래 상태 업데이트
+async function updateAutoTradingStatus() {
+    try {
+        const response = await fetch('/api/auto_trading_status');
+        const data = await response.json();
+        
+        if (data.success && data.status) {
+            // UI 업데이트
+            updateAutoTradingUI(data.status.auto_trading_enabled);
+            
+            // 다음 실행 시간 업데이트
+            if (data.status.next_execution) {
+                document.getElementById('next-trade-time').textContent = data.status.next_execution;
+            }
+            
+            // 마지막 실행 시간 업데이트
+            if (data.status.last_execution) {
+                document.getElementById('last-trade-time').textContent = data.status.last_execution;
+            }
+        }
+    } catch (error) {
+        console.error('Error updating auto trading status:', error);
+    }
+}
+
 // 시스템 토글
 function toggleSystem(action) {
     if (!confirm(`정말로 시스템을 ${action === 'enable' ? '활성화' : '비활성화'}하시겠습니까?`)) {
@@ -624,31 +732,7 @@ function showAlert(type, message) {
     }, 5000);
 }
 
-// 페이지 로드 시 초기화
-document.addEventListener('DOMContentLoaded', async function() {
-    console.log('페이지 로드 시작');
-    
-    // 거래 설정 가져오기
-    await fetchTradingConfig();
-    console.log('거래 설정 로드 완료:', tradeIntervalMinutes);
-    
-    // 서버 자동 거래 상태 가져오기
-    await fetchAutoTradingStatus();
-    console.log('서버 상태 로드 완료:', autoTradingStatus);
-    
-    // 자동 거래 상태 확인
-    const tradingStatusContainer = document.getElementById('trading-status-container');
-    if (tradingStatusContainer) {
-        const badge = tradingStatusContainer.querySelector('.badge');
-        if (badge && badge.classList.contains('bg-success')) {
-            console.log('자동 거래 활성화 상태 - 카운트다운 시작');
-            // 자동 거래가 활성화되어 있으면 카운트다운 시작
-            startTradingCountdown();
-        } else {
-            console.log('자동 거래 비활성화 상태');
-        }
-    }
-});
+// 페이지 로드 시 초기화 (아래 DOMContentLoaded에서 처리)
 
 // 백테스팅 실행
 function runBacktest() {
@@ -1062,6 +1146,8 @@ function refreshAnalysisHistory() {
 
 // 페이지 로드 시 실행
 document.addEventListener('DOMContentLoaded', async function() {
+    console.log('페이지 로드 시작');
+    
     // 백테스트 히스토리 로드
     loadBacktestHistory();
     
@@ -1070,6 +1156,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 거래 설정 가져오기
     await fetchTradingConfig();
+    console.log('거래 설정 로드 완료:', tradeIntervalMinutes);
+    
+    // 서버 자동 거래 상태 가져오기 및 UI 업데이트
+    await updateAutoTradingStatus();
+    console.log('자동 거래 상태 업데이트 완료');
+    
+    // 10초마다 자동 거래 상태 업데이트
+    setInterval(updateAutoTradingStatus, 10000);
     
     // 자동거래 상태 확인 및 타이머 시작
     checkTradingStatusAndStartTimer();

@@ -38,20 +38,28 @@
                         <div class="mb-3">
                             <label class="form-label">자동거래</label>
                             <div id="trading-status-container">
-                                {% if system_status.trading_enabled %}
-                                    <span class="badge bg-success">활성화</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">비활성화</span>
-                                {% endif %}
-                                <small class="text-muted ms-2">
-                                    <i class="fas fa-info-circle"></i> 모니터링 모드
-                                </small>
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if system_status.trading_enabled %}
+                                        <span class="badge bg-success">활성화</span>
+                                        <button class="btn btn-sm btn-warning" onclick="toggleAutoTrading(false)">
+                                            <i class="fas fa-pause"></i> 일시정지
+                                        </button>
+                                    {% else %}
+                                        <span class="badge bg-secondary">비활성화</span>
+                                        <button class="btn btn-sm btn-success" onclick="toggleAutoTrading(true)">
+                                            <i class="fas fa-play"></i> 시작
+                                        </button>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-danger" onclick="emergencyStop()">
+                                        <i class="fas fa-stop"></i> 긴급정지
+                                    </button>
+                                </div>
                             </div>
                             <!-- 다음 거래 시간 표시 -->
-                            <div id="next-trade-timer" class="mt-2" style="display: none;">
+                            <div id="next-trade-timer" class="mt-2">
                                 <small class="text-muted">
                                     <i class="fas fa-clock"></i> 다음 분석: 
-                                    <span id="next-trade-time" class="text-info fw-bold"></span>
+                                    <span id="next-trade-time" class="text-info fw-bold">계산 중...</span>
                                     (<span id="countdown-display" class="text-primary">계산 중...</span>)
                                 </small>
                                 <br>
