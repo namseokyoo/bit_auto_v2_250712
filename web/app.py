@@ -23,6 +23,7 @@ from data.database import db
 from core.upbit_api import UpbitAPI
 from utils.error_logger import log_error, log_trade, log_system
 from core.signal_recorder import signal_recorder
+from core.auto_trader import auto_trader, start_auto_trading, stop_auto_trading, get_auto_trading_status
 
 app = Flask(__name__)
 CORS(app)
@@ -198,9 +199,13 @@ def api_toggle_system():
         
         if action == 'enable':
             config_manager.enable_system()
+            # 시스템 활성화 시 자동 거래 스케줄러 시작
+            start_auto_trading()
             message = "시스템이 활성화되었습니다."
         elif action == 'disable':
             config_manager.disable_system()
+            # 시스템 비활성화 시 자동 거래 스케줄러 정지
+            stop_auto_trading()
             message = "시스템이 비활성화되었습니다."
         else:
             return jsonify({'success': False, 'message': '잘못된 액션입니다.'}), 400
@@ -222,6 +227,9 @@ def api_toggle_trading():
         
         if action == 'enable':
             config_manager.enable_trading()
+            # 자동 거래 스케줄러가 실행 중이 아니면 시작
+            if not auto_trader.running:
+                start_auto_trading()
             message = "자동거래가 활성화되었습니다."
         elif action == 'disable':
             config_manager.disable_trading()
@@ -317,6 +325,19 @@ def api_trading_config():
         })
     except Exception as e:
         logger.error(f"거래 설정 조회 오류: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/auto_trading_status')
+def api_auto_trading_status():
+    """자동 거래 상태 조회 API"""
+    try:
+        status = get_auto_trading_status()
+        return jsonify({
+            'success': True,
+            'status': status
+        })
+    except Exception as e:
+        logger.error(f"자동 거래 상태 조회 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/manual_trading/analyze', methods=['POST'])
@@ -1093,6 +1114,11 @@ if __name__ == '__main__':
     # 템플릿 디렉토리 생성
     os.makedirs('web/templates', exist_ok=True)
     os.makedirs('web/static', exist_ok=True)
+    
+    # 시스템이 활성화되어 있으면 자동 거래 스케줄러 시작
+    if config_manager.is_system_enabled():
+        start_auto_trading()
+        logger.info("자동 거래 스케줄러가 시작되었습니다")
     
     port = int(os.getenv('FLASK_PORT', 5000))
     print("=== Bitcoin Auto Trading 관리자 패널 ===")

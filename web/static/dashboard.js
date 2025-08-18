@@ -95,6 +95,28 @@ function updateTradingToggleUI(enabled) {
 let countdownInterval = null;
 let nextTradeTime = null;
 let tradeIntervalMinutes = 10; // 기본값, API에서 가져옴
+let autoTradingStatus = null; // 서버 자동 거래 상태
+let statusUpdateInterval = null; // 상태 업데이트 인터벌
+
+// 자동 거래 상태 가져오기
+async function fetchAutoTradingStatus() {
+    try {
+        const response = await fetch('/api/auto_trading_status');
+        const data = await response.json();
+        
+        if (data.success && data.status) {
+            autoTradingStatus = data.status;
+            
+            // 서버에서 받은 다음 실행 시간 업데이트
+            if (autoTradingStatus.next_execution) {
+                const nextExecStr = autoTradingStatus.next_execution.replace(' KST', '');
+                nextTradeTime = new Date(nextExecStr + ' GMT+0900');
+            }
+        }
+    } catch (error) {
+        console.error('자동 거래 상태 로드 오류:', error);
+    }
+}
 
 // 거래 설정 가져오기
 async function fetchTradingConfig() {
@@ -116,6 +138,12 @@ async function fetchTradingConfig() {
 
 // 다음 거래 시간 계산
 function calculateNextTradeTime() {
+    // 서버에서 받은 시간이 있으면 우선 사용
+    if (autoTradingStatus && autoTradingStatus.next_execution) {
+        return nextTradeTime;
+    }
+    
+    // 폴백: 로컬 계산
     const now = new Date();
     const lastExecutionTime = localStorage.getItem('lastTradeExecution');
     
@@ -144,13 +172,24 @@ function startTradingCountdown() {
     if (countdownInterval) {
         clearInterval(countdownInterval);
     }
+    if (statusUpdateInterval) {
+        clearInterval(statusUpdateInterval);
+    }
     
-    // 다음 거래 시간 계산
-    nextTradeTime = calculateNextTradeTime();
+    // 서버 상태 가져오기
+    fetchAutoTradingStatus().then(() => {
+        // 다음 거래 시간 계산
+        nextTradeTime = calculateNextTradeTime();
+        
+        // 1초마다 카운트다운 업데이트
+        countdownInterval = setInterval(updateCountdown, 1000);
+        updateCountdown(); // 즉시 첫 업데이트
+    });
     
-    // 1초마다 업데이트
-    countdownInterval = setInterval(updateCountdown, 1000);
-    updateCountdown(); // 즉시 첫 업데이트
+    // 10초마다 서버 상태 업데이트
+    statusUpdateInterval = setInterval(() => {
+        fetchAutoTradingStatus();
+    }, 10000);
 }
 
 // 카운트다운 중지
@@ -158,6 +197,10 @@ function stopTradingCountdown() {
     if (countdownInterval) {
         clearInterval(countdownInterval);
         countdownInterval = null;
+    }
+    if (statusUpdateInterval) {
+        clearInterval(statusUpdateInterval);
+        statusUpdateInterval = null;
     }
 }
 
@@ -171,8 +214,19 @@ function updateCountdown() {
     const diff = nextTradeTime - now;
     
     if (diff <= 0) {
-        // 시간이 지났으면 다시 계산
-        nextTradeTime = calculateNextTradeTime();
+        // 시간이 지났으면 서버 상태 업데이트 후 다시 계산
+        const countdownDisplay = document.getElementById('countdown-display');
+        if (countdownDisplay) {
+            countdownDisplay.textContent = '분석 중...';
+            countdownDisplay.className = 'text-warning fw-bold animate-pulse';
+        }
+        
+        // 서버 상태 업데이트
+        setTimeout(() => {
+            fetchAutoTradingStatus().then(() => {
+                nextTradeTime = calculateNextTradeTime();
+            });
+        }, 3000);
         return;
     }
     
@@ -534,6 +588,22 @@ function showAlert(type, message) {
         }
     }, 5000);
 }
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', async function() {
+    // 거래 설정 가져오기
+    await fetchTradingConfig();
+    
+    // 자동 거래 상태 확인
+    const tradingStatusContainer = document.getElementById('trading-status-container');
+    if (tradingStatusContainer) {
+        const badge = tradingStatusContainer.querySelector('.badge');
+        if (badge && badge.classList.contains('bg-success')) {
+            // 자동 거래가 활성화되어 있으면 카운트다운 시작
+            startTradingCountdown();
+        }
+    }
+});
 
 // 백테스팅 실행
 function runBacktest() {
