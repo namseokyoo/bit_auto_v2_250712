@@ -7,9 +7,28 @@ import numpy as np
 import pandas as pd
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
-import talib
-from scipy import stats
-from sklearn.preprocessing import StandardScaler
+
+# Optional imports
+try:
+    from scipy import stats
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
+
+try:
+    from sklearn.preprocessing import StandardScaler
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+# TA-Lib import를 조건부로 처리
+try:
+    import talib
+    TALIB_AVAILABLE = True
+except ImportError:
+    TALIB_AVAILABLE = False
+    import logging
+    logging.warning("TA-Lib not available. Some technical indicators will use fallback implementations.")
 
 @dataclass
 class EnhancedSignal:

@@ -5,11 +5,18 @@ Professional Trading Strategies Implementation
 
 import numpy as np
 import pandas as pd
-import talib
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
+
+# TA-Lib import를 조건부로 처리
+try:
+    import talib
+    TALIB_AVAILABLE = True
+except ImportError:
+    TALIB_AVAILABLE = False
+    logging.warning("TA-Lib not available. Some technical indicators will use fallback implementations.")
 
 @dataclass
 class ProfessionalSignal:

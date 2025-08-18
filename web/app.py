@@ -380,19 +380,6 @@ def api_trading_config():
         logger.error(f"거래 설정 조회 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
-@app.route('/api/auto_trading_status')
-def api_auto_trading_status():
-    """자동 거래 상태 조회 API"""
-    try:
-        status = get_auto_trading_status()
-        return jsonify({
-            'success': True,
-            'status': status
-        })
-    except Exception as e:
-        logger.error(f"자동 거래 상태 조회 오류: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
-
 @app.route('/api/manual_trading/analyze', methods=['POST'])
 def api_manual_analyze():
     """수동 전략 분석 실행"""

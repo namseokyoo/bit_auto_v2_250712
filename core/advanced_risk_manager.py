@@ -7,9 +7,16 @@ import numpy as np
 import pandas as pd
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime, timedelta
-import talib
 import logging
 from dataclasses import dataclass
+
+# TA-Lib import를 조건부로 처리
+try:
+    import talib
+    TALIB_AVAILABLE = True
+except ImportError:
+    TALIB_AVAILABLE = False
+    logging.warning("TA-Lib not available. Some technical indicators will use fallback implementations.")
 
 @dataclass
 class RiskMetrics:
@@ -410,12 +417,16 @@ class AdvancedRiskManager:
         stop_loss = self.calculate_atr_stop_loss(df, entry_price, direction)
         
         # ATR 계산
-        atr = talib.ATR(
-            df['high'].values,
-            df['low'].values, 
-            df['close'].values,
-            timeperiod=14
-        )[-1]
+        if TALIB_AVAILABLE:
+            atr = talib.ATR(
+                df['high'].values,
+                df['low'].values, 
+                df['close'].values,
+                timeperiod=14
+            )[-1]
+        else:
+            # Fallback ATR calculation
+            atr = self._calculate_atr_fallback(df, 14)
         
         # 부분 익절 목표
         take_profits = self.calculate_take_profits(entry_price, atr, direction)
@@ -453,3 +464,29 @@ class AdvancedRiskManager:
             correlation_score=0,  # 별도 계산 필요
             kelly_fraction=kelly_fraction
         )
+    
+    def _calculate_atr_fallback(self, df: pd.DataFrame, period: int = 14) -> float:
+        """ATR fallback 계산 (TA-Lib 없이)"""
+        high_low = df['high'] - df['low']
+        high_close = np.abs(df['high'] - df['close'].shift())
+        low_close = np.abs(df['low'] - df['close'].shift())
+        
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = np.max(ranges, axis=1)
+        
+        # Simple moving average of true range
+        atr = true_range.rolling(window=period).mean()
+        return atr.iloc[-1] if not atr.empty else 0
+    
+    def _calculate_atr_array_fallback(self, df: pd.DataFrame, period: int = 14) -> np.ndarray:
+        """ATR array fallback 계산 (TA-Lib 없이)"""
+        high_low = df['high'] - df['low']
+        high_close = np.abs(df['high'] - df['close'].shift())
+        low_close = np.abs(df['low'] - df['close'].shift())
+        
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = np.max(ranges, axis=1)
+        
+        # Simple moving average of true range
+        atr = true_range.rolling(window=period).mean()
+        return atr.values

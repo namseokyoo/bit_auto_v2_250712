@@ -34,7 +34,7 @@ class AutoTrader:
         try:
             # 순환 import 방지를 위해 여기서 import
             from core.trading_engine import TradingEngine
-            self.trading_engine = TradingEngine(config_manager)
+            self.trading_engine = TradingEngine()  # 파라미터 없이 생성
             self.logger.info("자동 거래 시스템 초기화 완료")
             return True
         except ImportError as e:

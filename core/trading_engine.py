@@ -28,7 +28,13 @@ from core.signal_recorder import signal_recorder
 from strategy_manager import StrategyManager, TradeRecord
 import pandas as pd
 import numpy as np
-import talib
+# TA-Lib import를 조건부로 처리
+try:
+    import talib
+    TALIB_AVAILABLE = True
+except ImportError:
+    TALIB_AVAILABLE = False
+    logging.warning("TA-Lib not available. Some technical indicators will use fallback implementations.")
 
 # Position 클래스는 position_manager.py에서 가져옴
 
