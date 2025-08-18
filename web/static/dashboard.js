@@ -109,8 +109,19 @@ async function fetchAutoTradingStatus() {
             
             // 서버에서 받은 다음 실행 시간 업데이트
             if (autoTradingStatus.next_execution) {
+                // KST 시간 문자열을 올바르게 파싱
+                // "2025-08-18 22:30:00 KST" 형식을 Date 객체로 변환
                 const nextExecStr = autoTradingStatus.next_execution.replace(' KST', '');
-                nextTradeTime = new Date(nextExecStr + ' GMT+0900');
+                // 서버 시간이 KST로 제공되므로 그대로 사용
+                nextTradeTime = new Date(nextExecStr);
+                console.log('서버 다음 실행 시간:', nextTradeTime);
+            }
+            
+            // 마지막 실행 시간도 localStorage에 저장
+            if (autoTradingStatus.last_execution) {
+                const lastExecStr = autoTradingStatus.last_execution.replace(' KST', '');
+                const lastExecTime = new Date(lastExecStr);
+                localStorage.setItem('lastTradeExecution', lastExecTime.getTime().toString());
             }
         }
     } catch (error) {
@@ -138,8 +149,9 @@ async function fetchTradingConfig() {
 
 // 다음 거래 시간 계산
 function calculateNextTradeTime() {
-    // 서버에서 받은 시간이 있으면 우선 사용
-    if (autoTradingStatus && autoTradingStatus.next_execution) {
+    // 서버에서 받은 시간이 있고 유효하면 우선 사용
+    if (nextTradeTime && nextTradeTime > new Date()) {
+        console.log('서버 시간 사용:', nextTradeTime);
         return nextTradeTime;
     }
     
@@ -163,6 +175,7 @@ function calculateNextTradeTime() {
         nextTime = new Date(now.getTime() + tradeIntervalMinutes * 60 * 1000);
     }
     
+    console.log('로컬 계산 시간:', nextTime);
     return nextTime;
 }
 
@@ -176,15 +189,13 @@ function startTradingCountdown() {
         clearInterval(statusUpdateInterval);
     }
     
-    // 서버 상태 가져오기
-    fetchAutoTradingStatus().then(() => {
-        // 다음 거래 시간 계산
-        nextTradeTime = calculateNextTradeTime();
-        
-        // 1초마다 카운트다운 업데이트
-        countdownInterval = setInterval(updateCountdown, 1000);
-        updateCountdown(); // 즉시 첫 업데이트
-    });
+    // 서버 상태 가져오기 (이미 페이지 로드 시 가져왔으므로 calculateNextTradeTime만 호출)
+    // 다음 거래 시간 계산
+    nextTradeTime = calculateNextTradeTime();
+    
+    // 1초마다 카운트다운 업데이트
+    countdownInterval = setInterval(updateCountdown, 1000);
+    updateCountdown(); // 즉시 첫 업데이트
     
     // 10초마다 서버 상태 업데이트
     statusUpdateInterval = setInterval(() => {
@@ -593,6 +604,9 @@ function showAlert(type, message) {
 document.addEventListener('DOMContentLoaded', async function() {
     // 거래 설정 가져오기
     await fetchTradingConfig();
+    
+    // 서버 자동 거래 상태 가져오기
+    await fetchAutoTradingStatus();
     
     // 자동 거래 상태 확인
     const tradingStatusContainer = document.getElementById('trading-status-container');
