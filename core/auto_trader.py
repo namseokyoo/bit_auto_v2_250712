@@ -12,7 +12,6 @@ import pytz
 from typing import Dict, Optional
 
 from config.config_manager import config_manager
-from core.trading_engine import TradingEngine
 from core.signal_recorder import signal_recorder
 from utils.error_logger import log_trade, log_system
 
@@ -33,9 +32,15 @@ class AutoTrader:
     def initialize(self):
         """거래 엔진 초기화"""
         try:
+            # 순환 import 방지를 위해 여기서 import
+            from core.trading_engine import TradingEngine
             self.trading_engine = TradingEngine(config_manager)
             self.logger.info("자동 거래 시스템 초기화 완료")
             return True
+        except ImportError as e:
+            self.logger.error(f"자동 거래 시스템 import 오류: {e}")
+            self.logger.info("TradingEngine 없이 기본 모드로 실행")
+            return False
         except Exception as e:
             self.logger.error(f"자동 거래 시스템 초기화 실패: {e}")
             return False
@@ -128,8 +133,12 @@ class AutoTrader:
             current_time = datetime.now(self.kst)
             self.logger.info(f"[{current_time.strftime('%Y-%m-%d %H:%M:%S KST')}] 거래 사이클 시작")
             
-            # 거래 엔진에서 분석 및 실행
-            result = self.trading_engine.analyze_and_execute()
+            # 거래 엔진이 있는 경우만 실행
+            if self.trading_engine:
+                result = self.trading_engine.analyze_and_execute()
+            else:
+                self.logger.warning("거래 엔진이 초기화되지 않아 실행할 수 없습니다")
+                result = None
             
             # 실행 시간 업데이트
             self.last_execution_time = current_time
