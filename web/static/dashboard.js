@@ -112,9 +112,11 @@ async function fetchAutoTradingStatus() {
                 // KST 시간 문자열을 올바르게 파싱
                 // "2025-08-18 22:30:00 KST" 형식을 Date 객체로 변환
                 const nextExecStr = autoTradingStatus.next_execution.replace(' KST', '');
-                // 서버 시간이 KST로 제공되므로 그대로 사용
-                nextTradeTime = new Date(nextExecStr);
-                console.log('서버 다음 실행 시간:', nextTradeTime);
+                // 명시적으로 시간대 정보 추가 (KST = UTC+9)
+                nextTradeTime = new Date(nextExecStr + '+09:00');
+                console.log('서버 다음 실행 시간 (원본):', autoTradingStatus.next_execution);
+                console.log('서버 다음 실행 시간 (파싱):', nextTradeTime);
+                console.log('현재 시간:', new Date());
             }
             
             // 마지막 실행 시간도 localStorage에 저장
@@ -602,19 +604,26 @@ function showAlert(type, message) {
 
 // 페이지 로드 시 초기화
 document.addEventListener('DOMContentLoaded', async function() {
+    console.log('페이지 로드 시작');
+    
     // 거래 설정 가져오기
     await fetchTradingConfig();
+    console.log('거래 설정 로드 완료:', tradeIntervalMinutes);
     
     // 서버 자동 거래 상태 가져오기
     await fetchAutoTradingStatus();
+    console.log('서버 상태 로드 완료:', autoTradingStatus);
     
     // 자동 거래 상태 확인
     const tradingStatusContainer = document.getElementById('trading-status-container');
     if (tradingStatusContainer) {
         const badge = tradingStatusContainer.querySelector('.badge');
         if (badge && badge.classList.contains('bg-success')) {
+            console.log('자동 거래 활성화 상태 - 카운트다운 시작');
             // 자동 거래가 활성화되어 있으면 카운트다운 시작
             startTradingCountdown();
+        } else {
+            console.log('자동 거래 비활성화 상태');
         }
     }
 });

@@ -56,6 +56,11 @@ class AutoTrader:
         
         self.running = True
         
+        # 초기 실행 시간 설정
+        trading_config = config_manager.get_trading_config()
+        trade_interval_minutes = trading_config.get('trade_interval_minutes', 10)
+        self._update_next_execution_time(trade_interval_minutes)
+        
         # 스케줄 설정
         self._setup_schedule()
         
@@ -63,7 +68,7 @@ class AutoTrader:
         self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
         self.scheduler_thread.start()
         
-        self.logger.info("자동 거래 시스템 시작됨")
+        self.logger.info(f"자동 거래 시스템 시작됨 - 다음 실행: {self.next_execution_time.strftime('%Y-%m-%d %H:%M:%S KST') if self.next_execution_time else 'N/A'}")
         log_system("자동 거래 시스템이 시작되었습니다")
         
         return True
