@@ -71,6 +71,9 @@ class AutoTrader:
         self.logger.info(f"자동 거래 시스템 시작됨 - 다음 실행: {self.next_execution_time.strftime('%Y-%m-%d %H:%M:%S KST') if self.next_execution_time else 'N/A'}")
         log_system("자동 거래 시스템이 시작되었습니다")
         
+        # 시작 시 상태 저장
+        self._save_status_to_file()
+        
         return True
     
     def stop(self):
@@ -156,7 +159,7 @@ class AutoTrader:
                 # 실행 시간 업데이트
                 self.last_execution_time = current_time
                 
-                # 다음 실행 시간 업데이트
+                # 다음 실행 시간 업데이트 (자동으로 상태 파일도 저장됨)
                 trading_config = config_manager.get_trading_config()
                 trade_interval_minutes = trading_config.get('trade_interval_minutes', 10)
                 self._update_next_execution_time(trade_interval_minutes)
@@ -224,19 +227,39 @@ class AutoTrader:
                 pass
     
     def _update_next_execution_time(self, interval_minutes: int):
-        """다음 실행 시간 업데이트"""
+        """다음 실행 시간 업데이트 및 상태 파일 저장"""
         current_time = datetime.now(self.kst)
         self.next_execution_time = current_time + timedelta(minutes=interval_minutes)
         self.logger.debug(f"다음 실행 시간: {self.next_execution_time.strftime('%Y-%m-%d %H:%M:%S KST')}")
+        
+        # 상태를 파일에 즉시 저장
+        self._save_status_to_file()
     
     def get_status(self) -> Dict:
         """현재 상태 조회"""
         return {
             'running': self.running,
-            'last_execution': self.last_execution_time.strftime('%Y-%m-%d %H:%M:%S KST') if self.last_execution_time else None,
-            'next_execution': self.next_execution_time.strftime('%Y-%m-%d %H:%M:%S KST') if self.next_execution_time else None,
+            'last_execution': self.last_execution_time.isoformat() if self.last_execution_time else None,
+            'next_execution': self.next_execution_time.isoformat() if self.next_execution_time else None,
             'auto_trading_enabled': config_manager.is_trading_enabled()
         }
+    
+    def _save_status_to_file(self):
+        """상태를 파일에 저장"""
+        try:
+            from core.result_manager import result_manager
+            status = {
+                'timestamp': datetime.now(self.kst).isoformat(),
+                'running': self.running,
+                'auto_trading_enabled': config_manager.is_trading_enabled(),
+                'last_execution': self.last_execution_time.isoformat() if self.last_execution_time else None,
+                'next_execution': self.next_execution_time.isoformat() if self.next_execution_time else None,
+                'trade_interval_minutes': config_manager.get_trading_config().get('trade_interval_minutes', 10)
+            }
+            result_manager.update_status(status)
+            self.logger.debug("상태 파일 업데이트 완료")
+        except Exception as e:
+            self.logger.error(f"상태 파일 저장 오류: {e}")
     
     def force_execute(self):
         """강제 실행 (테스트용)"""
