@@ -279,6 +279,59 @@ def api_emergency_stop():
         logger.error(f"긴급 정지 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
+@app.route('/api/analysis/latest')
+def api_latest_analysis():
+    """최근 분석 결과 조회 API (파일 기반)"""
+    try:
+        from core.result_manager import result_manager
+        
+        # 파일에서 분석 이력 조회
+        analyses = result_manager.get_analysis_history(days=1)
+        
+        # 최대 개수 제한
+        limit = request.args.get('limit', 10, type=int)
+        analyses = analyses[:limit]
+        
+        return jsonify({
+            'success': True,
+            'analyses': analyses
+        })
+    except Exception as e:
+        logger.error(f"분석 결과 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/auto_trading_status')
+def api_auto_trading_status():
+    """자동 거래 상태 API (파일 기반)"""
+    try:
+        from core.result_manager import result_manager
+        
+        # 파일에서 상태 읽기
+        status = result_manager.get_current_status()
+        
+        if not status:
+            # 파일이 없으면 기본값 반환
+            status = {
+                'running': False,
+                'last_execution': None,
+                'next_execution': None,
+                'auto_trading_enabled': config_manager.is_trading_enabled()
+            }
+        
+        return jsonify({
+            'success': True,
+            'status': status
+        })
+    except Exception as e:
+        logger.error(f"자동 거래 상태 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
 @app.route('/api/balance')
 def api_balance():
     """잔고 조회 API"""
@@ -631,15 +684,30 @@ def api_strategy_accuracy(strategy_id):
 
 @app.route('/api/manual_trading/execute', methods=['POST'])
 def api_manual_execute():
-    """수동 매매 실행"""
+    """수동 매매 실행 (락 체크 포함)"""
     try:
         from core.trading_engine import TradingEngine
+        from core.result_manager import result_manager
         
         data = request.json
         action = data.get('action')  # 'buy', 'sell', 'analyze_and_execute'
         
         if not action:
             return jsonify({'success': False, 'message': '액션이 지정되지 않았습니다.'}), 400
+        
+        # 자동 거래가 실행 중인지 확인
+        if result_manager.is_trading_locked():
+            return jsonify({
+                'success': False,
+                'message': '자동 거래가 실행 중입니다. 잠시 후 다시 시도하세요.'
+            }), 400
+        
+        # 수동 거래를 위한 락 획득
+        if not result_manager.acquire_trading_lock(timeout=5):
+            return jsonify({
+                'success': False,
+                'message': '거래 락을 획득할 수 없습니다. 다른 거래가 진행 중입니다.'
+            }), 400
         
         engine = TradingEngine()
         
@@ -695,10 +763,22 @@ def api_manual_execute():
             )
         
         logger.info(f"수동 거래 실행: {action} - {message}")
+        
+        # 락 해제
+        result_manager.release_trading_lock()
+        
         return jsonify({'success': True, 'message': message})
         
     except Exception as e:
         logger.error(f"수동 거래 실행 오류: {e}")
+        
+        # 오류 시에도 락 해제
+        try:
+            from core.result_manager import result_manager
+            result_manager.release_trading_lock()
+        except:
+            pass
+        
         log_error(e, {
             'endpoint': '/api/manual_trading/execute',
             'user_action': 'manual_trading_execute',

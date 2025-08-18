@@ -135,46 +135,93 @@ class AutoTrader:
                 self.logger.info("자동 거래가 비활성화되어 있어 실행을 건너뜁니다")
                 return
             
-            current_time = datetime.now(self.kst)
-            self.logger.info(f"[{current_time.strftime('%Y-%m-%d %H:%M:%S KST')}] 거래 사이클 시작")
+            # 거래 락 획득 (수동 거래와 충돌 방지)
+            from core.result_manager import result_manager
+            if not result_manager.acquire_trading_lock(timeout=10):
+                self.logger.warning("거래 락을 획득할 수 없습니다. 다른 거래가 진행 중입니다.")
+                return
             
-            # 거래 엔진이 있는 경우만 실행
-            if self.trading_engine:
-                result = self.trading_engine.analyze_and_execute()
-            else:
-                self.logger.warning("거래 엔진이 초기화되지 않아 실행할 수 없습니다")
-                result = None
-            
-            # 실행 시간 업데이트
-            self.last_execution_time = current_time
-            
-            # 다음 실행 시간 업데이트
-            trading_config = config_manager.get_trading_config()
-            trade_interval_minutes = trading_config.get('trade_interval_minutes', 10)
-            self._update_next_execution_time(trade_interval_minutes)
-            
-            # 결과 로깅
-            if result and 'consolidated_signal' in result:
-                signal = result['consolidated_signal']
-                action = signal.get('action', 'hold')
-                confidence = signal.get('confidence', 0)
+            try:
+                current_time = datetime.now(self.kst)
+                self.logger.info(f"[{current_time.strftime('%Y-%m-%d %H:%M:%S KST')}] 거래 사이클 시작")
+                log_system(f"자동 거래 분석 시작 - {current_time.strftime('%Y-%m-%d %H:%M:%S KST')}")
                 
-                log_message = f"거래 사이클 완료 - 액션: {action}, 신뢰도: {confidence:.2f}"
-                self.logger.info(log_message)
-                log_system(log_message)
+                # TradingEngine이 없으면 직접 분석 실행
+                if not self.trading_engine:
+                    # 직접 간단한 분석 수행
+                    result = self._execute_simple_analysis()
+                else:
+                    result = self.trading_engine.analyze_and_execute()
                 
-                # 실제 거래가 실행된 경우
-                if 'execution' in result and result['execution'].get('success'):
-                    execution = result['execution']
-                    trade_message = f"거래 실행: {execution.get('action')} - 금액: {execution.get('amount', 0):,.0f} KRW"
-                    self.logger.info(trade_message)
-                    log_trade(trade_message)
-            else:
-                self.logger.info("거래 사이클 완료 - 신호 없음")
+                # 실행 시간 업데이트
+                self.last_execution_time = current_time
+                
+                # 다음 실행 시간 업데이트
+                trading_config = config_manager.get_trading_config()
+                trade_interval_minutes = trading_config.get('trade_interval_minutes', 10)
+                self._update_next_execution_time(trade_interval_minutes)
+                
+                # 결과 로깅 및 파일 저장
+                if result:
+                    # 분석 결과를 파일로 저장
+                    result_manager.save_analysis_result(result)
+                    
+                    # DB에도 저장 (호환성 유지)
+                    self._save_analysis_result(result, current_time)
+                    
+                    if 'consolidated_signal' in result:
+                        signal = result['consolidated_signal']
+                        action = signal.get('action', 'hold')
+                        confidence = signal.get('confidence', 0)
+                        reasoning = signal.get('reasoning', '')
+                        
+                        log_message = f"거래 사이클 완료 - 액션: {action}, 신뢰도: {confidence:.2f}, 이유: {reasoning}"
+                        self.logger.info(log_message)
+                        log_system(log_message)
+                        
+                        # 실제 거래가 실행된 경우
+                        if 'execution' in result and result['execution'].get('success'):
+                            execution = result['execution']
+                            trade_message = f"거래 실행: {execution.get('action')} - 금액: {execution.get('amount', 0):,.0f} KRW"
+                            self.logger.info(trade_message)
+                            log_trade(trade_message)
+                            
+                            # 거래 결과 파일 저장
+                            result_manager.save_trade_result({
+                                'action': execution.get('action'),
+                                'amount': execution.get('amount', 0),
+                                'price': signal.get('price', 0),
+                                'confidence': confidence,
+                                'reasoning': reasoning
+                            })
+                    else:
+                        self.logger.info("거래 사이클 완료 - 통합 신호 없음")
+                        log_system("분석 완료 - 전략 신호 없음")
+                else:
+                    self.logger.info("거래 사이클 완료 - 분석 결과 없음")
+                    log_system("분석 실패 - 결과 없음")
+                
+                # 상태 업데이트
+                result_manager.update_status({
+                    'running': self.running,
+                    'last_execution': self.last_execution_time.isoformat() if self.last_execution_time else None,
+                    'next_execution': self.next_execution_time.isoformat() if self.next_execution_time else None,
+                    'auto_trading_enabled': config_manager.is_trading_enabled()
+                })
+                
+            finally:
+                # 거래 락 해제
+                result_manager.release_trading_lock()
             
         except Exception as e:
             self.logger.error(f"거래 사이클 실행 오류: {e}")
             log_system(f"거래 사이클 오류: {e}")
+            # 오류 시에도 락 해제
+            try:
+                from core.result_manager import result_manager
+                result_manager.release_trading_lock()
+            except:
+                pass
     
     def _update_next_execution_time(self, interval_minutes: int):
         """다음 실행 시간 업데이트"""
@@ -200,6 +247,121 @@ class AutoTrader:
         self.logger.info("강제 거래 사이클 실행")
         self._execute_trading_cycle()
         return True
+
+    def _execute_simple_analysis(self):
+        """간단한 분석 수행 (TradingEngine 없이)"""
+        try:
+            from core.upbit_api import UpbitAPI
+            from core.signal_recorder import signal_recorder
+            
+            # API 초기화
+            api = UpbitAPI()
+            
+            # 현재 가격 조회
+            current_price = api.get_current_price('KRW-BTC')
+            
+            # 간단한 RSI 계산
+            candles = api.get_candles('KRW-BTC', 'minutes', 60, 14)
+            if candles and len(candles) >= 14:
+                prices = [float(c['trade_price']) for c in candles]
+                changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
+                gains = [c if c > 0 else 0 for c in changes]
+                losses = [-c if c < 0 else 0 for c in changes]
+                
+                avg_gain = sum(gains) / len(gains)
+                avg_loss = sum(losses) / len(losses)
+                
+                if avg_loss == 0:
+                    rsi = 100
+                else:
+                    rs = avg_gain / avg_loss
+                    rsi = 100 - (100 / (1 + rs))
+                
+                # 분석 결과 생성
+                action = 'hold'
+                confidence = 0.5
+                reasoning = f"RSI: {rsi:.1f}"
+                
+                if rsi < 30:
+                    action = 'buy'
+                    confidence = 0.65
+                    reasoning = f"RSI 과매도 ({rsi:.1f})"
+                elif rsi > 70:
+                    action = 'sell'
+                    confidence = 0.60
+                    reasoning = f"RSI 과매수 ({rsi:.1f})"
+                
+                result = {
+                    'consolidated_signal': {
+                        'action': action,
+                        'confidence': confidence,
+                        'reasoning': reasoning,
+                        'price': current_price
+                    },
+                    'individual_signals': {
+                        'simple_rsi': {
+                            'action': action,
+                            'confidence': confidence,
+                            'rsi': rsi
+                        }
+                    }
+                }
+                
+                # 신호 기록
+                signal_recorder.record_signal({
+                    'strategy_id': 'simple_rsi',
+                    'action': action,
+                    'confidence': confidence,
+                    'price': current_price,
+                    'reasoning': reasoning
+                }, executed=False)
+                
+                return result
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"간단한 분석 오류: {e}")
+            return None
+    
+    def _save_analysis_result(self, result: Dict, timestamp: datetime):
+        """분석 결과 DB 저장"""
+        try:
+            from data.database import db
+            import json
+            
+            # 분석 결과를 JSON으로 변환
+            result_json = json.dumps(result, default=str, ensure_ascii=False)
+            
+            # 통합 신호 정보 추출
+            action = 'hold'
+            confidence = 0
+            price = 0
+            reasoning = ''
+            
+            if result and 'consolidated_signal' in result:
+                signal = result['consolidated_signal']
+                action = signal.get('action', 'hold')
+                confidence = signal.get('confidence', 0)
+                price = signal.get('price', 0)
+                reasoning = signal.get('reasoning', '')
+            
+            # DB에 저장
+            analysis_data = {
+                'timestamp': timestamp,
+                'result': result_json,
+                'executed': False,
+                'action': action,
+                'confidence': confidence,
+                'price': price,
+                'reasoning': reasoning
+            }
+            
+            db.insert_analysis(analysis_data)
+            self.logger.debug("분석 결과 DB 저장 완료")
+            
+        except Exception as e:
+            self.logger.error(f"분석 결과 저장 오류: {e}")
 
 # 싱글톤 인스턴스
 auto_trader = AutoTrader()

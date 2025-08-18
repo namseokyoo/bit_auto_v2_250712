@@ -223,6 +223,28 @@ function updateCountdown() {
         nextTradeTime = calculateNextTradeTime();
     }
     
+    // 서버 시간 표시 업데이트
+    const nextTradeTimeElement = document.getElementById('next-trade-time');
+    const lastTradeTimeElement = document.getElementById('last-trade-time');
+    
+    if (nextTradeTimeElement && nextTradeTime) {
+        // KST 시간으로 표시
+        const options = { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit', 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit',
+            timeZone: 'Asia/Seoul'
+        };
+        nextTradeTimeElement.textContent = nextTradeTime.toLocaleString('ko-KR', options) + ' KST';
+    }
+    
+    if (lastTradeTimeElement && autoTradingStatus && autoTradingStatus.last_execution) {
+        lastTradeTimeElement.textContent = autoTradingStatus.last_execution;
+    }
+    
     const now = new Date();
     const diff = nextTradeTime - now;
     
@@ -231,7 +253,7 @@ function updateCountdown() {
         const countdownDisplay = document.getElementById('countdown-display');
         if (countdownDisplay) {
             countdownDisplay.textContent = '분석 중...';
-            countdownDisplay.className = 'text-warning fw-bold animate-pulse';
+            countdownDisplay.className = 'text-warning animate-pulse';
         }
         
         // 서버 상태 업데이트
@@ -251,23 +273,23 @@ function updateCountdown() {
     // 표시 형식 결정
     let displayText = '';
     if (hours > 0) {
-        displayText = `${hours}시간 ${minutes}분 ${seconds}초`;
+        displayText = `${hours}시간 ${minutes}분 ${seconds}초 남음`;
     } else if (minutes > 0) {
-        displayText = `${minutes}분 ${seconds}초`;
+        displayText = `${minutes}분 ${seconds}초 남음`;
     } else {
-        displayText = `${seconds}초`;
+        displayText = `${seconds}초 남음`;
     }
     
-    // 10초 이하일 때 빨간색으로 강조
+    // 카운트다운 표시
     const countdownDisplay = document.getElementById('countdown-display');
     if (countdownDisplay) {
         countdownDisplay.textContent = displayText;
         if (diff <= 10000) {
-            countdownDisplay.className = 'text-danger fw-bold animate-pulse';
+            countdownDisplay.className = 'text-danger animate-pulse';
         } else if (diff <= 60000) {
-            countdownDisplay.className = 'text-warning fw-bold';
+            countdownDisplay.className = 'text-warning';
         } else {
-            countdownDisplay.className = 'text-primary fw-bold';
+            countdownDisplay.className = 'text-primary';
         }
     }
 }
@@ -972,16 +994,88 @@ function displayStrategyDetails(details) {
     });
 }
 
+// 자동 분석 이력 로드
+function loadAnalysisHistory() {
+    fetch('/api/analysis/latest?limit=5')
+    .then(response => response.json())
+    .then(data => {
+        const historyDiv = document.getElementById('analysis-history');
+        
+        if (data.success && data.analyses && data.analyses.length > 0) {
+            let html = '<div class="table-responsive"><table class="table table-sm table-striped">';
+            html += '<thead><tr><th>시간</th><th>액션</th><th>신뢰도</th><th>이유</th></tr></thead><tbody>';
+            
+            data.analyses.forEach(analysis => {
+                const timestamp = new Date(analysis.timestamp);
+                const action = analysis.action || 'hold';
+                const confidence = (analysis.confidence || 0) * 100;
+                const reasoning = analysis.reasoning || '분석 중...';
+                
+                const actionClass = action === 'buy' ? 'success' : 
+                                   action === 'sell' ? 'danger' : 'secondary';
+                const actionText = action === 'buy' ? '매수' : 
+                                  action === 'sell' ? '매도' : '홀드';
+                
+                html += `
+                    <tr>
+                        <td>${timestamp.toLocaleString('ko-KR', {
+                            month: '2-digit', 
+                            day: '2-digit', 
+                            hour: '2-digit', 
+                            minute: '2-digit'
+                        })}</td>
+                        <td><span class="badge bg-${actionClass}">${actionText}</span></td>
+                        <td>${confidence.toFixed(1)}%</td>
+                        <td><small>${reasoning}</small></td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+            historyDiv.innerHTML = html;
+        } else {
+            historyDiv.innerHTML = `
+                <div class="text-center text-muted py-3">
+                    <i class="fas fa-robot"></i><br>
+                    자동 분석 기록이 없습니다
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading analysis history:', error);
+        document.getElementById('analysis-history').innerHTML = `
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-exclamation-triangle"></i><br>
+                분석 이력 로드 실패
+            </div>
+        `;
+    });
+}
+
+// 분석 이력 새로고침
+function refreshAnalysisHistory() {
+    const historyDiv = document.getElementById('analysis-history');
+    historyDiv.innerHTML = '<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</div>';
+    loadAnalysisHistory();
+}
+
 // 페이지 로드 시 실행
 document.addEventListener('DOMContentLoaded', async function() {
     // 백테스트 히스토리 로드
     loadBacktestHistory();
+    
+    // 자동 분석 이력 로드
+    loadAnalysisHistory();
     
     // 거래 설정 가져오기
     await fetchTradingConfig();
     
     // 자동거래 상태 확인 및 타이머 시작
     checkTradingStatusAndStartTimer();
+    
+    // 주기적으로 분석 이력 업데이트 (1분마다)
+    setInterval(loadAnalysisHistory, 60000);
     
     // 전략 링크 클릭 이벤트 처리
     document.addEventListener('click', function(e) {

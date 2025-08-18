@@ -132,12 +132,28 @@ class DatabaseManager:
                 )
             ''')
 
+            # 분석 이력 테이블 (자동 거래 분석 결과 저장)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS analysis_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TIMESTAMP NOT NULL,
+                    result TEXT NOT NULL,
+                    executed BOOLEAN DEFAULT FALSE,
+                    action TEXT,
+                    confidence REAL,
+                    price REAL,
+                    reasoning TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # 인덱스 생성
             conn.execute('CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades(strategy_id)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_trades_entry_time ON trades(entry_time)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_market_data_symbol_time ON market_data(symbol, timestamp)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON system_logs(timestamp)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_analysis_timestamp ON analysis_history(timestamp)')
 
             conn.commit()
 
@@ -338,6 +354,35 @@ class DatabaseManager:
                 VALUES (?, ?, ?, ?)
             ''', (config_key, old_value, new_value, changed_by))
             conn.commit()
+
+    def insert_analysis(self, analysis_data: Dict) -> int:
+        """분석 결과 삽입"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('''
+                INSERT INTO analysis_history (
+                    timestamp, result, executed, action, confidence, price, reasoning
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                analysis_data.get('timestamp'),
+                analysis_data.get('result'),
+                analysis_data.get('executed', False),
+                analysis_data.get('action'),
+                analysis_data.get('confidence'),
+                analysis_data.get('price'),
+                analysis_data.get('reasoning')
+            ))
+            conn.commit()
+            return cursor.lastrowid
+
+    def get_latest_analysis(self, limit: int = 10) -> List[Dict]:
+        """최근 분석 결과 조회"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('''
+                SELECT * FROM analysis_history 
+                ORDER BY timestamp DESC 
+                LIMIT ?
+            ''', (limit,))
+            return [dict(row) for row in cursor.fetchall()]
 
     def get_dashboard_data(self) -> Dict:
         """대시보드용 데이터 조회"""

@@ -75,6 +75,13 @@ def run_trading_engine():
 def run_web_server():
     """웹 서버 실행"""
     try:
+        # 자동 거래 스케줄러 시작
+        from core.auto_trader import auto_trader
+        if config_manager.is_system_enabled():
+            print("🤖 자동 거래 스케줄러 시작 중...")
+            auto_trader.start()
+            print("✅ 자동 거래 스케줄러 시작 완료")
+        
         host = os.getenv('FLASK_HOST', '0.0.0.0')
         port = int(os.getenv('FLASK_PORT', 5000))
         debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'

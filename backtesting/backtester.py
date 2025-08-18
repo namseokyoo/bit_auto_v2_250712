@@ -273,10 +273,14 @@ class Backtester:
         min_threshold = 0.3
         
         if final_buy_score > final_sell_score and final_buy_score > min_threshold:
+            # config_manager 사용하여 설정 가져오기
+            from config.config_manager import config_manager
+            max_trade_amount = config_manager.get_trading_config().get('max_trade_amount', 100000)
+            
             return ConsolidatedSignal(
                 action='buy',
                 confidence=final_buy_score,
-                suggested_amount=int(self.config.get('trading', {}).get('max_trade_amount', 100000) * 0.5),
+                suggested_amount=int(max_trade_amount * 0.5),
                 contributing_strategies=[s.strategy_id for s in buy_signals],
                 reasoning=f"매수 신호 우세 (점수: {final_buy_score:.3f})"
             )
