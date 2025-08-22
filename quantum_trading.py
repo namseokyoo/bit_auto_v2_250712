@@ -257,11 +257,16 @@ class QuantumTradingSystem:
                 ticker = pyupbit.get_current_price(symbol)
                 orderbook = pyupbit.get_orderbook(symbol)
                 
-                if ticker and orderbook and len(orderbook) > 0:
-                    # orderbook 구조 안전하게 접근
-                    if 'orderbook_units' in orderbook[0] and len(orderbook[0]['orderbook_units']) > 0:
-                        bid = orderbook[0]['orderbook_units'][0]['bid_price']
-                        ask = orderbook[0]['orderbook_units'][0]['ask_price']
+                if ticker and orderbook:
+                    # orderbook이 딕셔너리 형태로 반환됨
+                    if isinstance(orderbook, dict) and 'orderbook_units' in orderbook:
+                        units = orderbook['orderbook_units']
+                        if units and len(units) > 0:
+                            bid = units[0]['bid_price']
+                            ask = units[0]['ask_price']
+                        else:
+                            bid = ticker * 0.999
+                            ask = ticker * 1.001
                     else:
                         # 기본값 설정
                         bid = ticker * 0.999
