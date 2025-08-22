@@ -1,0 +1,100 @@
+system:
+  name: "Quantum Trading System"
+  version: "3.0.0"
+  environment: "production"
+  timezone: "Asia/Seoul"
+  
+trading:
+  enabled: true
+  mode: "live"  # dry_run, paper, live
+  interval: 60  # seconds between trading cycles
+  symbol: "KRW-BTC"
+  base_currency: "KRW"
+  quote_currency: "BTC"
+  
+  limits:
+    max_position: 10000000  # 1000만원
+    max_order_size: 500000  # 50만원 per order
+    min_order_size: 5000    # 5천원
+    max_open_orders: 10
+    
+strategies:
+  market_making:
+    enabled: true
+    weight: 0.30
+    params:
+      spread_threshold: 0.001  # 0.1%
+      order_layers: 5
+      inventory_limit: 1000000  # KRW
+      
+  statistical_arbitrage:
+    enabled: true
+    weight: 0.20
+    params:
+      lookback_period: 1000
+      entry_zscore: 2.0
+      exit_zscore: 0.5
+      
+  microstructure:
+    enabled: true
+    weight: 0.20
+    params:
+      flow_window: 100
+      vwap_deviation_threshold: 0.002  # 0.2%
+      
+  momentum_scalping:
+    enabled: true
+    weight: 0.15
+    params:
+      momentum_period: 20
+      entry_threshold: 0.002  # 0.2%
+      stop_loss: 0.001  # 0.1%
+      take_profit: 0.003  # 0.3%
+      
+  mean_reversion:
+    enabled: true
+    weight: 0.15
+    params:
+      bb_period: 20
+      bb_std: 2.0
+      rsi_period: 14
+      rsi_oversold: 30
+      rsi_overbought: 70
+      
+risk_management:
+  enabled: true
+  
+  position_sizing:
+    method: "kelly"  # fixed, kelly, optimal_f
+    kelly_fraction: 0.25  # Use 25% of Kelly criterion
+    max_position_percent: 30  # Max 30% of capital per position
+    
+  limits:
+    max_daily_loss_percent: 5.0
+    max_weekly_loss_percent: 10.0
+    max_monthly_loss_percent: 15.0
+    emergency_stop_percent: 3.0
+    max_drawdown_percent: 10.0
+    
+execution:
+  algorithm: "smart"  # smart, twap, vwap, iceberg
+  
+  order_types:
+    use_limit_orders: false
+    use_market_orders: true
+    post_only: false
+    
+  retry:
+    max_attempts: 3
+    backoff_seconds: 1
+    
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+  
+logging:
+  level: "INFO"
+  file: "logs/quantum_trading.log"
+  max_size: 10485760  # 10MB
+  backup_count: 5
