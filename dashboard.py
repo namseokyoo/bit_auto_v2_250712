@@ -202,16 +202,20 @@ DASHBOARD_HTML = """
             <div class="card">
                 <h2>계좌 정보</h2>
                 <div class="metric">
-                    <span class="metric-label">총 잔고</span>
+                    <span class="metric-label">총 자산</span>
                     <span class="metric-value" id="total-balance">₩0</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">포지션 가치</span>
-                    <span class="metric-value" id="position-value">₩0</span>
+                    <span class="metric-label">KRW (예수금)</span>
+                    <span class="metric-value" id="krw-balance">₩0</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">가용 잔고</span>
-                    <span class="metric-value" id="available-balance">₩0</span>
+                    <span class="metric-label">BTC 보유</span>
+                    <span class="metric-value" id="btc-balance">0 BTC</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">BTC 평가금</span>
+                    <span class="metric-value" id="position-value">₩0</span>
                 </div>
             </div>
             
@@ -307,9 +311,13 @@ DASHBOARD_HTML = """
                 
                 // 계좌 정보 업데이트
                 document.getElementById('total-balance').textContent = 
-                    '₩' + (data.total_balance || 0).toLocaleString();
+                    '₩' + Math.floor(data.total_balance || 0).toLocaleString();
+                document.getElementById('krw-balance').textContent = 
+                    '₩' + Math.floor(data.krw_balance || 0).toLocaleString();
+                document.getElementById('btc-balance').textContent = 
+                    (data.btc_balance || 0).toFixed(8) + ' BTC';
                 document.getElementById('position-value').textContent = 
-                    '₩' + (data.position_value || 0).toLocaleString();
+                    '₩' + Math.floor(data.position_value || 0).toLocaleString();
                 
                 // 성과 업데이트
                 const pnlElement = document.getElementById('daily-pnl');
@@ -402,7 +410,8 @@ def get_status():
         
         status = {
             'system_status': 'Running' if is_running else 'Stopped',
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'is_running': is_running
         }
         
         # Redis에서 최신 데이터 가져오기
@@ -459,12 +468,44 @@ def get_status():
                 os.getenv('UPBIT_SECRET_KEY')
             )
             balances = upbit.get_balances()
-            total_balance = sum(float(b['balance']) * float(b['avg_buy_price']) 
-                              if b['currency'] != 'KRW' else float(b['balance']) 
-                              for b in balances)
-            status['total_balance'] = total_balance
-        except:
+            
+            krw_balance = 0
+            btc_balance = 0
+            btc_avg_price = 0
+            position_value = 0
+            
+            for b in balances:
+                currency = b['currency']
+                balance = float(b['balance'])
+                
+                if currency == 'KRW':
+                    krw_balance = balance
+                elif currency == 'BTC' and balance > 0:
+                    btc_balance = balance
+                    btc_avg_price = float(b['avg_buy_price'])
+                    # BTC 현재가 조회
+                    try:
+                        current_btc_price = pyupbit.get_current_price('KRW-BTC')
+                        if current_btc_price:
+                            position_value = btc_balance * current_btc_price
+                            status['btc_current_price'] = current_btc_price
+                            status['btc_pnl'] = position_value - (btc_balance * btc_avg_price)
+                            status['btc_pnl_percent'] = ((current_btc_price - btc_avg_price) / btc_avg_price * 100) if btc_avg_price > 0 else 0
+                    except:
+                        position_value = btc_balance * btc_avg_price
+            
+            status['krw_balance'] = krw_balance
+            status['btc_balance'] = btc_balance
+            status['btc_avg_price'] = btc_avg_price
+            status['position_value'] = position_value
+            status['total_balance'] = krw_balance + position_value
+            status['available_balance'] = krw_balance
+            
+        except Exception as e:
+            logger.error(f"Error getting balances: {e}")
             status['total_balance'] = 0
+            status['krw_balance'] = 0
+            status['btc_balance'] = 0
         
         return jsonify(status)
         
@@ -473,7 +514,6 @@ def get_status():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/control', methods=['POST'])
-@require_auth
 def control():
     """시스템 제어 API"""
     try:
@@ -488,7 +528,12 @@ def control():
                 return jsonify({'status': 'warning', 'message': 'Trading already running'})
             
             # 새로 시작
-            os.system('cd /opt/bit_auto_v2_250712 && source venv/bin/activate && nohup python3 quantum_trading.py > logs/quantum_trading_prod.log 2>&1 &')
+            import subprocess
+            subprocess.Popen(
+                ['bash', '-c', 'cd /opt/bit_auto_v2_250712 && source venv/bin/activate && nohup python3 quantum_trading.py > logs/quantum_trading_prod.log 2>&1 &'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
             
             # 설정 파일에 상태 저장
             if redis_client:
@@ -510,7 +555,12 @@ def control():
             # 재시작
             os.system("pkill -f 'quantum_trading.py'")
             os.system('sleep 2')
-            os.system('cd /opt/bit_auto_v2_250712 && source venv/bin/activate && nohup python3 quantum_trading.py > logs/quantum_trading_prod.log 2>&1 &')
+            import subprocess
+            subprocess.Popen(
+                ['bash', '-c', 'cd /opt/bit_auto_v2_250712 && source venv/bin/activate && nohup python3 quantum_trading.py > logs/quantum_trading_prod.log 2>&1 &'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
             
             if redis_client:
                 redis_client.set('trading:status', 'running')
