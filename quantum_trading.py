@@ -227,25 +227,27 @@ class QuantumTradingSystem:
         
     def setup_signal_handlers(self):
         """시그널 핸들러 설정"""
-        signal.signal(signal.SIGINT, self.shutdown)
-        signal.signal(signal.SIGTERM, self.shutdown)
+        # 백그라운드 실행을 위해 시그널 핸들러 비활성화
+        # signal.signal(signal.SIGINT, self.shutdown)
+        # signal.signal(signal.SIGTERM, self.shutdown)
+        pass
         
-    def shutdown(self, signum, frame):
+    def shutdown(self, signum=None, frame=None):
         """종료 처리"""
         logger.info("Shutting down Quantum Trading System...")
         self.running = False
         
-        # 모든 포지션 청산
-        if self.positions:
-            logger.info("Closing all positions...")
-            self.close_all_positions()
+        # 모든 포지션 청산 (선택적)
+        # if self.positions:
+        #     logger.info("Closing all positions...")
+        #     self.close_all_positions()
             
         # 데이터베이스 닫기
         if hasattr(self, 'db'):
             self.db.close()
             
         logger.info("Shutdown complete")
-        sys.exit(0)
+        # sys.exit(0) 제거 - 백그라운드에서 계속 실행
         
     async def collect_market_data(self):
         """시장 데이터 수집"""
@@ -358,8 +360,8 @@ class QuantumTradingSystem:
             elif signal.action == 'SELL':
                 sell_score += signal.strength * strategy_weight
                 
-        # 임계값 체크 (초기에는 매우 낮게 설정하여 거래 활성화)
-        threshold = 0.03  # 테스트를 위해 매우 낮게 설정
+        # 임계값 체크 (설정 파일에서 읽기)
+        threshold = self.config.get('trading', {}).get('signal_threshold', 0.3)  # 기본값 0.3
         
         if buy_score > threshold and buy_score > sell_score:
             return Signal(

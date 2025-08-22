@@ -11,6 +11,7 @@ trading:
   symbol: "KRW-BTC"
   base_currency: "KRW"
   quote_currency: "BTC"
+  signal_threshold: 0.25  # 신호 임계값 (0.1~0.5 권장, 낮을수록 거래 빈번)
   
   limits:
     max_position: 10000000  # 1000만원
