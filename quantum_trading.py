@@ -249,6 +249,7 @@ class QuantumTradingSystem:
         
     async def collect_market_data(self):
         """시장 데이터 수집"""
+        logger.info("Starting market data collection...")
         while self.running:
             try:
                 symbol = self.config['trading']['symbol']
@@ -284,6 +285,12 @@ class QuantumTradingSystem:
                     
                     self.market_data.append(market_data)
                     
+                    # 수집된 데이터 로그 (처음 10개만)
+                    if len(self.market_data) <= 10:
+                        logger.info(f"Market data collected #{len(self.market_data)}: Price={ticker:,.0f}, Bid={bid:,.0f}, Ask={ask:,.0f}")
+                    elif len(self.market_data) == 100:
+                        logger.info("Collected 100 market data points, starting signal generation...")
+                    
                     # Redis 캐시 업데이트
                     if self.redis:
                         self.redis.set(
@@ -298,9 +305,12 @@ class QuantumTradingSystem:
             
     async def generate_signals(self):
         """전략별 신호 생성"""
+        logger.info("Starting signal generation...")
         while self.running:
             try:
                 if len(self.market_data) < 100:
+                    if len(self.market_data) % 10 == 0:
+                        logger.info(f"Waiting for market data... ({len(self.market_data)}/100)")
                     await asyncio.sleep(1)
                     continue
                     
@@ -314,13 +324,18 @@ class QuantumTradingSystem:
                         if signal:
                             signal.strategy = name
                             signals.append(signal)
+                            logger.info(f"Signal from {name}: {signal.action} with strength {signal.strength:.2f}")
                             
                 # 신호 집계 및 최종 결정
                 if signals:
+                    logger.info(f"Total {len(signals)} signals generated, aggregating...")
                     final_signal = self.aggregate_signals(signals)
                     if final_signal:
+                        logger.info(f"Final signal: {final_signal.action} with strength {final_signal.strength:.2f}")
                         self.signals.append(final_signal)
                         await self.execute_signal(final_signal)
+                else:
+                    logger.debug("No signals generated in this cycle")
                         
             except Exception as e:
                 logger.error(f"Error generating signals: {e}")
@@ -371,6 +386,7 @@ class QuantumTradingSystem:
         """신호 실행"""
         try:
             symbol = self.config['trading']['symbol']
+            logger.info(f"Executing signal: {signal.action} for {symbol}")
             
             # 리스크 체크
             if not self.check_risk_limits():
@@ -379,9 +395,11 @@ class QuantumTradingSystem:
                 
             # 포지션 크기 계산
             position_size = self.calculate_position_size(signal)
+            logger.info(f"Calculated position size: {position_size:,.0f} KRW")
             
             if signal.action == 'BUY':
                 # 매수 주문
+                logger.info(f"Placing BUY order for {position_size:,.0f} KRW")
                 order = self.upbit.buy_market_order(symbol, position_size)
                 logger.info(f"Buy order placed: {order}")
                 
