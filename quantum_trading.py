@@ -257,9 +257,15 @@ class QuantumTradingSystem:
                 ticker = pyupbit.get_current_price(symbol)
                 orderbook = pyupbit.get_orderbook(symbol)
                 
-                if ticker and orderbook:
-                    bid = orderbook[0]['orderbook_units'][0]['bid_price']
-                    ask = orderbook[0]['orderbook_units'][0]['ask_price']
+                if ticker and orderbook and len(orderbook) > 0:
+                    # orderbook 구조 안전하게 접근
+                    if 'orderbook_units' in orderbook[0] and len(orderbook[0]['orderbook_units']) > 0:
+                        bid = orderbook[0]['orderbook_units'][0]['bid_price']
+                        ask = orderbook[0]['orderbook_units'][0]['ask_price']
+                    else:
+                        # 기본값 설정
+                        bid = ticker * 0.999
+                        ask = ticker * 1.001
                     
                     market_data = MarketData(
                         timestamp=time.time(),
@@ -268,7 +274,7 @@ class QuantumTradingSystem:
                         volume=0,  # Volume은 별도 API 필요
                         bid=bid,
                         ask=ask,
-                        spread=(ask - bid) / bid
+                        spread=(ask - bid) / bid if bid > 0 else 0
                     )
                     
                     self.market_data.append(market_data)
