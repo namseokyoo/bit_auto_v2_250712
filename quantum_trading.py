@@ -358,8 +358,8 @@ class QuantumTradingSystem:
             elif signal.action == 'SELL':
                 sell_score += signal.strength * strategy_weight
                 
-        # 임계값 체크
-        threshold = 0.5
+        # 임계값 체크 (초기에는 낮게 설정하여 거래 활성화)
+        threshold = 0.2  # 0.5에서 0.2로 낮춤
         
         if buy_score > threshold and buy_score > sell_score:
             return Signal(
