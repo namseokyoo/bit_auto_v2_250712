@@ -396,8 +396,12 @@ def dashboard():
 def get_status():
     """시스템 상태 API"""
     try:
+        # 프로세스 실행 상태 확인
+        result = os.popen("ps aux | grep 'quantum_trading.py' | grep -v grep").read()
+        is_running = bool(result.strip())
+        
         status = {
-            'system_status': 'Running',
+            'system_status': 'Running' if is_running else 'Stopped',
             'timestamp': datetime.now().isoformat()
         }
         
@@ -477,18 +481,40 @@ def control():
         action = data.get('action')
         
         if action == 'start':
-            # 거래 시작 (실제로는 systemd 서비스 제어)
-            os.system('sudo systemctl start quantum-trading')
+            # 거래 시작 - 프로세스 직접 실행
+            # 이미 실행 중인지 확인
+            result = os.popen("ps aux | grep 'quantum_trading.py' | grep -v grep").read()
+            if result:
+                return jsonify({'status': 'warning', 'message': 'Trading already running'})
+            
+            # 새로 시작
+            os.system('cd /opt/bit_auto_v2_250712 && source venv/bin/activate && nohup python3 quantum_trading.py > logs/quantum_trading_prod.log 2>&1 &')
+            
+            # 설정 파일에 상태 저장
+            if redis_client:
+                redis_client.set('trading:status', 'running')
+            
             return jsonify({'status': 'success', 'message': 'Trading started'})
             
         elif action == 'stop':
-            # 거래 중지
-            os.system('sudo systemctl stop quantum-trading')
+            # 거래 중지 - 프로세스 종료
+            os.system("pkill -f 'quantum_trading.py'")
+            
+            # 설정 파일에 상태 저장
+            if redis_client:
+                redis_client.set('trading:status', 'stopped')
+            
             return jsonify({'status': 'success', 'message': 'Trading stopped'})
             
         elif action == 'restart':
             # 재시작
-            os.system('sudo systemctl restart quantum-trading')
+            os.system("pkill -f 'quantum_trading.py'")
+            os.system('sleep 2')
+            os.system('cd /opt/bit_auto_v2_250712 && source venv/bin/activate && nohup python3 quantum_trading.py > logs/quantum_trading_prod.log 2>&1 &')
+            
+            if redis_client:
+                redis_client.set('trading:status', 'running')
+            
             return jsonify({'status': 'success', 'message': 'Trading restarted'})
             
         else:
