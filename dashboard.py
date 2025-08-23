@@ -14,6 +14,10 @@ from dotenv import load_dotenv
 import pyupbit
 import yaml
 import subprocess
+import pytz
+
+# KST 타임존 설정
+KST = pytz.timezone('Asia/Seoul')
 
 # 환경 변수 로드
 load_dotenv()
@@ -569,7 +573,7 @@ DASHBOARD_HTML = """
             details.innerHTML = `
                 <div class="metric">
                     <span class="metric-label">거래 시간:</span>
-                    <span class="metric-value">${new Date(trade.timestamp).toLocaleString()}</span>
+                    <span class="metric-value">${new Date(trade.timestamp).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'})}</span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">거래 방향:</span>
@@ -785,7 +789,7 @@ DASHBOARD_HTML = """
                 
                 // 시스템 상태 업데이트
                 document.getElementById('system-status').textContent = data.system_status || 'Unknown';
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('ko-KR', {timeZone: 'Asia/Seoul'});
                 
                 // 상태 인디케이터
                 const indicator = document.getElementById('status-indicator');
@@ -836,11 +840,16 @@ DASHBOARD_HTML = """
                     const tradesHtml = data.recent_trades.map(trade => {
                         const sideClass = trade.side === 'BUY' ? 'buy' : 'sell';
                         const pnlClass = trade.pnl >= 0 ? 'positive' : 'negative';
+                        // quantity가 BTC 수량이면 price * quantity로 거래금액 계산
+                        // quantity가 이미 KRW 금액이면 그대로 사용
+                        const tradeAmount = trade.quantity < 1 ? 
+                            Math.floor(trade.price * trade.quantity) : 
+                            Math.floor(trade.quantity);
                         return `
                             <div class="trade-item ${sideClass}" onclick='showTradeDetails(${JSON.stringify(trade).replace(/'/g, "&apos;")})' style="cursor: pointer;">
-                                <span class="trade-time">${new Date(trade.timestamp).toLocaleTimeString()}</span>
+                                <span class="trade-time">${new Date(trade.timestamp).toLocaleTimeString('ko-KR', {timeZone: 'Asia/Seoul'})}</span>
                                 <span class="trade-side ${sideClass}">${trade.side}</span>
-                                <span class="trade-price">₩${Math.floor(trade.price).toLocaleString()}</span>
+                                <span class="trade-price">₩${tradeAmount.toLocaleString()}</span>
                                 <span class="trade-signal">신호: ${(trade.signal_strength || 0).toFixed(3)}</span>
                                 ${trade.pnl !== 0 ? `<span class="trade-pnl ${pnlClass}">₩${Math.floor(trade.pnl).toLocaleString()}</span>` : ''}
                             </div>
@@ -975,7 +984,7 @@ def get_status():
         
         status = {
             'system_status': 'Running' if is_running else 'Stopped',
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': datetime.now(KST).isoformat(),
             'is_running': is_running
         }
         
@@ -1033,63 +1042,51 @@ def get_status():
             status['krw_balance'] = 0
             status['btc_balance'] = 0
         
-        # 실제 거래 통계 (Upbit API에서 직접 조회)
+        # 실제 거래 통계 (DB와 Upbit API 조합)
         try:
-            # Upbit에서 실제 거래 내역 조회
-            upbit = pyupbit.Upbit(
-                os.getenv('UPBIT_ACCESS_KEY'),
-                os.getenv('UPBIT_SECRET_KEY')
-            )
+            # DB 연결
+            conn = sqlite3.connect('data/quantum.db')
+            cursor = conn.cursor()
             
-            # 오늘의 체결 내역 조회
-            orders = upbit.get_order("KRW-BTC", state="done")
+            # 오늘의 거래 통계 (DB에서)
+            today = datetime.now(KST).strftime('%Y-%m-%d')
             
-            trade_count = 0
-            buy_count = 0
-            sell_count = 0
-            daily_pnl = 0
-            min_price = float('inf')
-            max_price = 0
-            total_price = 0
-            win_count = 0
+            # 오늘의 거래 데이터 조회
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as trade_count,
+                    SUM(CASE WHEN side = 'BUY' THEN 1 ELSE 0 END) as buy_count,
+                    SUM(CASE WHEN side = 'SELL' THEN 1 ELSE 0 END) as sell_count,
+                    SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as win_count,
+                    SUM(pnl) as daily_pnl,
+                    MIN(price) as min_price,
+                    MAX(price) as max_price,
+                    AVG(price) as avg_price,
+                    AVG(signal_strength) as avg_signal_strength
+                FROM trades
+                WHERE DATE(timestamp) = ?
+            """, (today,))
             
-            if orders and isinstance(orders, list):
-                today = datetime.now().strftime('%Y-%m-%d')
-                today_orders = []
-                
-                for order in orders:
-                    # 오늘 날짜의 거래만 필터링
-                    created_at = order.get('created_at', '')
-                    if created_at.startswith(today):
-                        today_orders.append(order)
-                        trade_count += 1
-                        
-                        side = order.get('side', '')
-                        price = float(order.get('price', 0))
-                        volume = float(order.get('volume', 0))
-                        
-                        if side == 'bid':  # 매수
-                            buy_count += 1
-                        elif side == 'ask':  # 매도
-                            sell_count += 1
-                            # 매도 시 수익 계산 (간단히 수수료만 고려)
-                            fee = float(order.get('paid_fee', 0))
-                            daily_pnl -= fee
-                        
-                        if price > 0:
-                            min_price = min(min_price, price)
-                            max_price = max(max_price, price)
-                            total_price += price
-                
-                # 현재 포지션의 미실현 손익 추가
-                if btc_balance > 0 and 'btc_pnl' in status:
-                    daily_pnl += status.get('btc_pnl', 0)
-                
-                if min_price == float('inf'):
-                    min_price = 0
-                    
-                avg_price = (total_price / trade_count) if trade_count > 0 else 0
-                
+            stats = cursor.fetchone()
+            
+            if stats:
+                trade_count = stats[0] or 0
+                buy_count = stats[1] or 0
+                sell_count = stats[2] or 0
+                win_count = stats[3] or 0
+                daily_pnl = stats[4] or 0
+                min_price = stats[5] or 0
+                max_price = stats[6] or 0
+                avg_price = stats[7] or 0
+                avg_signal_strength = stats[8] or 0
+            else:
+                trade_count = buy_count = sell_count = win_count = 0
+                daily_pnl = min_price = max_price = avg_price = avg_signal_strength = 0
+            
+            # 현재 포지션의 미실현 손익 추가
+            if btc_balance > 0 and 'btc_pnl' in status:
+                daily_pnl += status.get('btc_pnl', 0)
+            
             status['trade_count'] = trade_count
             status['buy_count'] = buy_count
             status['sell_count'] = sell_count
@@ -1097,16 +1094,49 @@ def get_status():
             status['min_price'] = min_price
             status['max_price'] = max_price
             status['avg_price'] = avg_price
+            status['avg_signal_strength'] = avg_signal_strength
             
-            # 승률 계산 (실제 거래 기준)
-            # 매수-매도 쌍이 완성된 거래에서 수익이 발생한 비율
+            # 승률 계산
             if sell_count > 0:
-                # 간단히 매도 횟수를 기준으로 승률 계산 (완료된 거래)
-                status['win_rate'] = 50.0  # 실제 수익 계산이 복잡하므로 임시값
+                status['win_rate'] = (win_count / sell_count) * 100 if sell_count > 0 else 0
             else:
                 status['win_rate'] = 0
             
-            # 평균 신호 강도 (Redis에서 최근 값)
+            # 최근 실제 거래 내역 (DB에서 신호 정보와 함께)
+            cursor.execute("""
+                SELECT 
+                    t.timestamp,
+                    t.side,
+                    t.price,
+                    t.quantity,
+                    t.pnl,
+                    t.strategy_name,
+                    t.signal_strength,
+                    t.signal_reason
+                FROM trades t
+                ORDER BY t.timestamp DESC
+                LIMIT 10
+            """)
+            
+            recent_trades = []
+            for row in cursor.fetchall():
+                trade_info = {
+                    'timestamp': row[0],
+                    'side': row[1],
+                    'price': row[2],
+                    'quantity': row[3],
+                    'pnl': row[4] or 0,
+                    'strategy': row[5] or 'quantum',
+                    'signal_strength': row[6] or 0,
+                    'reason': row[7] or 'ensemble signal'
+                }
+                recent_trades.append(trade_info)
+            
+            status['recent_trades'] = recent_trades
+            
+            conn.close()
+            
+            # 현재 신호 강도 (Redis에서 최근 값 - 실시간 모니터링용)
             try:
                 import redis
                 r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
@@ -1114,36 +1144,11 @@ def get_status():
                 if aggregate:
                     buy_score = float(aggregate.get('buy_score', 0))
                     sell_score = float(aggregate.get('sell_score', 0))
-                    status['avg_signal_strength'] = max(buy_score, sell_score)
+                    status['current_signal_strength'] = max(buy_score, sell_score)
                 else:
-                    status['avg_signal_strength'] = 0
+                    status['current_signal_strength'] = 0
             except:
-                status['avg_signal_strength'] = 0
-            
-            # 최근 실제 거래 내역
-            status['recent_trades'] = []
-            if orders and isinstance(orders, list):
-                # 최근 10개 거래만 표시
-                recent_orders = sorted(orders, key=lambda x: x.get('created_at', ''), reverse=True)[:10]
-                
-                for order in recent_orders:
-                    trade_info = {
-                        'timestamp': order.get('created_at', ''),
-                        'side': 'BUY' if order.get('side') == 'bid' else 'SELL',
-                        'price': float(order.get('price', 0)),
-                        'quantity': float(order.get('executed_volume', 0)) * float(order.get('price', 0)),  # KRW 금액
-                        'pnl': 0,  # 실시간 계산 복잡
-                        'strategy': 'quantum',
-                        'signal_strength': 0,
-                        'reason': order.get('ord_type', 'market')
-                    }
-                    
-                    # 수수료 정보 추가
-                    fee = float(order.get('paid_fee', 0))
-                    if fee > 0:
-                        trade_info['fee'] = fee
-                        
-                    status['recent_trades'].append(trade_info)
+                status['current_signal_strength'] = 0
             
         except Exception as e:
             logger.error(f"Error getting trade data: {e}")
@@ -1466,7 +1471,7 @@ def get_logs():
 @app.route('/health')
 def health():
     """헬스 체크 엔드포인트"""
-    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now(KST).isoformat()})
 
 if __name__ == '__main__':
     port = int(os.getenv('DASHBOARD_PORT', 8080))

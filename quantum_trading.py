@@ -23,6 +23,10 @@ import pyupbit
 import redis
 import yaml
 from dotenv import load_dotenv
+import pytz
+
+# KST 타임존 설정
+KST = pytz.timezone('Asia/Seoul')
 
 # 전략 클래스 import
 from strategies import (
@@ -37,13 +41,23 @@ from strategies import (
 import os
 os.makedirs('logs', exist_ok=True)
 
+# KST 타임존을 사용하는 커스텀 포맷터
+class KSTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, KST)
+        if datefmt:
+            return dt.strftime(datefmt)
+        else:
+            return dt.strftime('%Y-%m-%d %H:%M:%S')
+
 # 로그 파일 경로
 log_file = 'logs/quantum_trading.log'
 
 # 파일 핸들러 생성
 file_handler = logging.FileHandler(log_file)
 file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+kst_formatter = KSTFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(kst_formatter)
 
 # 루트 로거 설정
 logger = logging.getLogger(__name__)
@@ -408,10 +422,8 @@ class QuantumTradingSystem:
                 buy_score += signal.strength * strategy_weight
             elif signal.action == 'SELL':
                 sell_score += signal.strength * strategy_weight
-            elif signal.action == 'HOLD':
-                # HOLD 신호는 강도는 있지만 방향성이 없으므로 스킵
-                # 대시보드에는 표시되지만 거래 결정에는 영향 없음
-                strategy_signals[signal.strategy]['weighted_signal'] = 0
+            # HOLD 신호는 강도는 있지만 방향성이 없으므로 거래 점수에는 영향 없음
+            # 하지만 weighted_signal은 대시보드 표시를 위해 유지
         
         # Redis나 메모리에 전략별 신호 저장
         self.save_strategy_signals(strategy_signals, buy_score, sell_score)
@@ -520,6 +532,7 @@ class QuantumTradingSystem:
             
             # 실제 거래 실행 여부
             trade_executed = False
+            executed_order = None
             
             if signal.action == 'BUY':
                 # 매수 주문
@@ -528,6 +541,7 @@ class QuantumTradingSystem:
                 if order and order.get('uuid'):  # 실제 주문이 성공한 경우
                     logger.info(f"Buy order placed: {order}")
                     trade_executed = True
+                    executed_order = order
                 else:
                     logger.warning(f"Buy order failed or dry-run mode")
                 
@@ -539,13 +553,29 @@ class QuantumTradingSystem:
                     if order and order.get('uuid'):  # 실제 주문이 성공한 경우
                         logger.info(f"Sell order placed: {order}")
                         trade_executed = True
+                        executed_order = order
                     else:
                         logger.warning(f"Sell order failed or dry-run mode")
                     
             # 실제 거래가 실행된 경우에만 기록
-            if trade_executed:
-                self.record_trade(signal, position_size)
-                logger.info(f"Trade recorded in database")
+            if trade_executed and executed_order:
+                # 주문 상세 정보 조회
+                try:
+                    order_detail = self.upbit.get_order(executed_order['uuid'])
+                    if order_detail:
+                        # 실제 체결 가격과 수량 사용
+                        actual_price = float(order_detail.get('price', signal.price))
+                        actual_volume = float(order_detail.get('executed_volume', 0))
+                        fee = float(order_detail.get('paid_fee', 0))
+                        
+                        self.record_trade_with_details(signal, actual_price, actual_volume, fee)
+                        logger.info(f"Trade recorded with actual details")
+                    else:
+                        self.record_trade(signal, position_size)
+                        logger.info(f"Trade recorded in database")
+                except:
+                    self.record_trade(signal, position_size)
+                    logger.info(f"Trade recorded in database")
             
         except Exception as e:
             logger.error(f"Error executing signal: {e}")
@@ -613,14 +643,16 @@ class QuantumTradingSystem:
         try:
             cursor = self.db.cursor()
             cursor.execute('''
-                INSERT INTO trades (strategy_name, symbol, side, price, quantity)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO trades (strategy_name, symbol, side, price, quantity, fee, pnl)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
                 signal.strategy,
                 self.config['trading']['symbol'],
                 signal.action,
                 signal.price,
-                size
+                size,
+                0,  # fee
+                0   # pnl
             ))
             self.db.commit()
             
@@ -639,12 +671,65 @@ class QuantumTradingSystem:
             
         except Exception as e:
             logger.error(f"Error recording trade: {e}")
+    
+    def record_trade_with_details(self, signal: Signal, price: float, volume: float, fee: float):
+        """실제 거래 상세 정보 기록"""
+        try:
+            cursor = self.db.cursor()
+            
+            # PnL 계산 (매도시)
+            pnl = 0
+            if signal.action == 'SELL':
+                # 이전 매수 평균가 조회
+                cursor.execute('''
+                    SELECT AVG(price) FROM trades 
+                    WHERE side = 'BUY' AND symbol = ?
+                    ORDER BY id DESC LIMIT 5
+                ''', (self.config['trading']['symbol'],))
+                
+                avg_buy_price = cursor.fetchone()[0]
+                if avg_buy_price:
+                    pnl = (price - avg_buy_price) * volume - fee
+            
+            cursor.execute('''
+                INSERT INTO trades (timestamp, strategy_name, symbol, side, price, quantity, fee, pnl, signal_strength, signal_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S'),  # KST 시간 명시
+                signal.strategy,
+                self.config['trading']['symbol'],
+                signal.action,
+                price,
+                volume,  # BTC 수량
+                fee,
+                pnl,
+                signal.strength,  # 신호 강도 추가
+                signal.reason  # 신호 이유 추가
+            ))
+            self.db.commit()
+            
+            # 신호도 기록
+            cursor.execute('''
+                INSERT INTO signals (timestamp, strategy_name, action, strength, price, reason)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (
+                datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S'),  # KST 시간 명시
+                signal.strategy,
+                signal.action,
+                signal.strength,
+                price,
+                signal.reason
+            ))
+            self.db.commit()
+            
+        except Exception as e:
+            logger.error(f"Error recording trade with details: {e}")
             
     def get_daily_pnl(self) -> float:
         """일일 손익률 계산"""
         try:
             cursor = self.db.cursor()
-            today = datetime.now().strftime('%Y-%m-%d')
+            today = datetime.now(KST).strftime('%Y-%m-%d')
             
             cursor.execute('''
                 SELECT SUM(pnl) FROM trades
@@ -737,7 +822,7 @@ class QuantumTradingSystem:
                 
                 # 메트릭 계산
                 metrics = {
-                    'timestamp': datetime.now(),
+                    'timestamp': datetime.now(KST),
                     'total_balance': total_balance,
                     'position_value': sum(p.quantity * p.current_price for p in self.positions.values()),
                     'daily_pnl': self.get_daily_pnl(),
