@@ -1106,15 +1106,19 @@ def get_status():
             else:
                 status['win_rate'] = 0
             
-            # 평균 신호 강도 (signals 테이블에서)
-            cursor.execute("""
-                SELECT AVG(strength) 
-                FROM signals 
-                WHERE DATE(timestamp) = ?
-            """, (today,))
-            
-            avg_signal = cursor.fetchone()[0] or 0
-            status['avg_signal_strength'] = avg_signal
+            # 평균 신호 강도 (Redis에서 최근 값)
+            try:
+                import redis
+                r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+                aggregate = r.hgetall("signal:aggregate")
+                if aggregate:
+                    buy_score = float(aggregate.get('buy_score', 0))
+                    sell_score = float(aggregate.get('sell_score', 0))
+                    status['avg_signal_strength'] = max(buy_score, sell_score)
+                else:
+                    status['avg_signal_strength'] = 0
+            except:
+                status['avg_signal_strength'] = 0
             
             # 최근 실제 거래 내역
             status['recent_trades'] = []
@@ -1140,8 +1144,6 @@ def get_status():
                         trade_info['fee'] = fee
                         
                     status['recent_trades'].append(trade_info)
-            
-            conn.close()
             
         except Exception as e:
             logger.error(f"Error getting trade data: {e}")
