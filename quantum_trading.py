@@ -223,7 +223,12 @@ class QuantumTradingSystem:
                 params=strategy_config['mean_reversion'].get('params', {})
             )
             
-        logger.info(f"Initialized {len(self.strategies)} strategies")
+        # 전략별 가중치 로그 출력
+        weights_info = []
+        for name, strategy in self.strategies.items():
+            weights_info.append(f"{name}: {strategy.weight*100:.0f}%")
+        
+        logger.info(f"Initialized {len(self.strategies)} strategies with weights: {', '.join(weights_info)}")
         
     def setup_signal_handlers(self):
         """시그널 핸들러 설정"""

@@ -391,6 +391,60 @@ DASHBOARD_HTML = """
                 <button class="btn btn-primary" onclick="saveSettings()">설정 저장</button>
                 <button class="btn" onclick="loadSettings()">현재 설정 불러오기</button>
             </div>
+            
+            <!-- 전략별 가중치 설정 -->
+            <div class="card" style="margin-top: 20px;">
+                <h2>전략별 가중치 설정</h2>
+                <div class="setting-description" style="margin-bottom: 20px;">
+                    전략별 가중치를 조절하여 신호 강도를 제어합니다. (합계: <span id="weight-total">100</span>%)
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Market Making (마켓 메이킹)</label>
+                    <input type="number" id="weight-market-making" class="setting-input" 
+                           min="0" max="100" step="5" value="30" onchange="updateWeightTotal()">
+                    <div class="setting-description">스프레드 수익 전략 (기본: 30%)</div>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Statistical Arbitrage (통계적 차익거래)</label>
+                    <input type="number" id="weight-stat-arb" class="setting-input" 
+                           min="0" max="100" step="5" value="20" onchange="updateWeightTotal()">
+                    <div class="setting-description">페어 트레이딩 전략 (기본: 20%)</div>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Microstructure (마이크로구조)</label>
+                    <input type="number" id="weight-microstructure" class="setting-input" 
+                           min="0" max="100" step="5" value="20" onchange="updateWeightTotal()">
+                    <div class="setting-description">시장 미시구조 분석 (기본: 20%)</div>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Momentum Scalping (모멘텀 스캘핑)</label>
+                    <input type="number" id="weight-momentum" class="setting-input" 
+                           min="0" max="100" step="5" value="15" onchange="updateWeightTotal()">
+                    <div class="setting-description">단기 모멘텀 포착 (기본: 15%)</div>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Mean Reversion (평균 회귀)</label>
+                    <input type="number" id="weight-mean-reversion" class="setting-input" 
+                           min="0" max="100" step="5" value="15" onchange="updateWeightTotal()">
+                    <div class="setting-description">과매수/과매도 포착 (기본: 15%)</div>
+                </div>
+                
+                <div class="setting-item" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <div class="setting-description">
+                        <strong>팁:</strong> 가중치 합계는 100%가 되어야 합니다.<br>
+                        • 신호가 약하다면 주요 전략의 가중치를 높이세요<br>
+                        • 특정 전략이 잘 작동한다면 해당 가중치를 증가시키세요
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" onclick="saveStrategyWeights()">가중치 저장</button>
+                <button class="btn" onclick="loadStrategyWeights()">현재 가중치 불러오기</button>
+            </div>
         </div>
         
         <!-- 로그 탭 -->
@@ -537,6 +591,84 @@ DASHBOARD_HTML = """
             }
         }
         
+        // 가중치 합계 업데이트
+        function updateWeightTotal() {
+            const weights = [
+                'weight-market-making',
+                'weight-stat-arb', 
+                'weight-microstructure',
+                'weight-momentum',
+                'weight-mean-reversion'
+            ];
+            
+            let total = 0;
+            weights.forEach(id => {
+                total += parseFloat(document.getElementById(id).value) || 0;
+            });
+            
+            document.getElementById('weight-total').textContent = total;
+            
+            // 합계가 100이 아니면 경고 색상
+            const totalElement = document.getElementById('weight-total');
+            if (Math.abs(total - 100) < 0.01) {
+                totalElement.style.color = '#4ade80';
+            } else {
+                totalElement.style.color = '#f87171';
+            }
+        }
+        
+        // 전략 가중치 저장
+        async function saveStrategyWeights() {
+            const weights = {
+                market_making: parseFloat(document.getElementById('weight-market-making').value) / 100,
+                stat_arb: parseFloat(document.getElementById('weight-stat-arb').value) / 100,
+                microstructure: parseFloat(document.getElementById('weight-microstructure').value) / 100,
+                momentum_scalping: parseFloat(document.getElementById('weight-momentum').value) / 100,
+                mean_reversion: parseFloat(document.getElementById('weight-mean-reversion').value) / 100
+            };
+            
+            // 합계 검증
+            const total = Object.values(weights).reduce((a, b) => a + b, 0);
+            if (Math.abs(total - 1.0) > 0.01) {
+                alert('가중치 합계는 100%가 되어야 합니다. 현재: ' + (total * 100).toFixed(0) + '%');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/strategy-weights', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(weights)
+                });
+                
+                if (response.ok) {
+                    alert('전략 가중치가 저장되었습니다. 시스템을 재시작하세요.');
+                } else {
+                    alert('가중치 저장 실패');
+                }
+            } catch (error) {
+                alert('Error: ' + error);
+            }
+        }
+        
+        // 전략 가중치 불러오기
+        async function loadStrategyWeights() {
+            try {
+                const response = await fetch('/api/strategy-weights');
+                const weights = await response.json();
+                
+                document.getElementById('weight-market-making').value = (weights.market_making || 0.30) * 100;
+                document.getElementById('weight-stat-arb').value = (weights.stat_arb || 0.20) * 100;
+                document.getElementById('weight-microstructure').value = (weights.microstructure || 0.20) * 100;
+                document.getElementById('weight-momentum').value = (weights.momentum_scalping || 0.15) * 100;
+                document.getElementById('weight-mean-reversion').value = (weights.mean_reversion || 0.15) * 100;
+                
+                updateWeightTotal();
+            } catch (error) {
+                console.error('Error loading strategy weights:', error);
+            }
+        }
+        
         // 로그 로드
         async function loadLogs() {
             try {
@@ -665,6 +797,8 @@ DASHBOARD_HTML = """
         // 페이지 로드 시 초기화
         window.onload = function() {
             updateStatus();
+            loadSettings();
+            loadStrategyWeights();
             setInterval(updateStatus, 5000);  // 5초마다 업데이트
         };
         
@@ -1005,6 +1139,58 @@ def get_trades():
     except Exception as e:
         logger.error(f"Error fetching trades: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/strategy-weights', methods=['GET', 'POST'])
+def strategy_weights():
+    """전략별 가중치 관리 API"""
+    config_file = 'config/config.yaml'
+    
+    if request.method == 'GET':
+        try:
+            with open(config_file, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            weights = {
+                'market_making': config.get('strategies', {}).get('market_making', {}).get('weight', 0.30),
+                'stat_arb': config.get('strategies', {}).get('statistical_arbitrage', {}).get('weight', 0.20),
+                'microstructure': config.get('strategies', {}).get('microstructure', {}).get('weight', 0.20),
+                'momentum_scalping': config.get('strategies', {}).get('momentum_scalping', {}).get('weight', 0.15),
+                'mean_reversion': config.get('strategies', {}).get('mean_reversion', {}).get('weight', 0.15)
+            }
+            
+            return jsonify(weights)
+        except Exception as e:
+            logger.error(f"Error loading strategy weights: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'POST':
+        try:
+            weights = request.json
+            
+            # config 파일 읽기
+            with open(config_file, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # 가중치 업데이트
+            if 'strategies' not in config:
+                config['strategies'] = {}
+            
+            config['strategies']['market_making']['weight'] = weights['market_making']
+            config['strategies']['statistical_arbitrage']['weight'] = weights['stat_arb']
+            config['strategies']['microstructure']['weight'] = weights['microstructure']
+            config['strategies']['momentum_scalping']['weight'] = weights['momentum_scalping']
+            config['strategies']['mean_reversion']['weight'] = weights['mean_reversion']
+            
+            # 파일 저장
+            with open(config_file, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+            
+            logger.info(f"Strategy weights updated: {weights}")
+            return jsonify({'status': 'success', 'message': 'Strategy weights saved'})
+            
+        except Exception as e:
+            logger.error(f"Error saving strategy weights: {e}")
+            return jsonify({'error': str(e)}), 500
 
 @app.route('/api/logs')
 def get_logs():
