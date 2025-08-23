@@ -375,29 +375,29 @@ DASHBOARD_HTML = """
                     <h2>전략별 신호 강도</h2>
                     <div class="strategy-signals" id="strategy-signals">
                         <div class="strategy-signal-item">
-                            <span class="strategy-name">Market Making</span>
+                            <span class="strategy-name">Market Making <span id="signal-mm-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
                             <span class="signal-raw">원본: <span id="signal-mm-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치 적용: <span id="signal-mm-weighted">0.000</span></span>
+                            <span class="signal-weighted">가중치: <span id="signal-mm-weighted">0.000</span></span>
                         </div>
                         <div class="strategy-signal-item">
-                            <span class="strategy-name">Statistical Arbitrage</span>
+                            <span class="strategy-name">Statistical Arbitrage <span id="signal-sa-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
                             <span class="signal-raw">원본: <span id="signal-sa-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치 적용: <span id="signal-sa-weighted">0.000</span></span>
+                            <span class="signal-weighted">가중치: <span id="signal-sa-weighted">0.000</span></span>
                         </div>
                         <div class="strategy-signal-item">
-                            <span class="strategy-name">Microstructure</span>
+                            <span class="strategy-name">Microstructure <span id="signal-ms-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
                             <span class="signal-raw">원본: <span id="signal-ms-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치 적용: <span id="signal-ms-weighted">0.000</span></span>
+                            <span class="signal-weighted">가중치: <span id="signal-ms-weighted">0.000</span></span>
                         </div>
                         <div class="strategy-signal-item">
-                            <span class="strategy-name">Momentum Scalping</span>
+                            <span class="strategy-name">Momentum Scalping <span id="signal-mo-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
                             <span class="signal-raw">원본: <span id="signal-mo-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치 적용: <span id="signal-mo-weighted">0.000</span></span>
+                            <span class="signal-weighted">가중치: <span id="signal-mo-weighted">0.000</span></span>
                         </div>
                         <div class="strategy-signal-item">
-                            <span class="strategy-name">Mean Reversion</span>
+                            <span class="strategy-name">Mean Reversion <span id="signal-mr-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
                             <span class="signal-raw">원본: <span id="signal-mr-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치 적용: <span id="signal-mr-weighted">0.000</span></span>
+                            <span class="signal-weighted">가중치: <span id="signal-mr-weighted">0.000</span></span>
                         </div>
                         <div class="strategy-signal-item" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2);">
                             <span class="strategy-name"><strong>최종 신호</strong></span>
@@ -866,30 +866,50 @@ DASHBOARD_HTML = """
                 if (signals.market_making) {
                     document.getElementById('signal-mm-raw').textContent = signals.market_making.raw_signal.toFixed(3);
                     document.getElementById('signal-mm-weighted').textContent = signals.market_making.weighted_signal.toFixed(3);
+                    const mmAction = document.getElementById('signal-mm-action');
+                    mmAction.textContent = signals.market_making.action || 'HOLD';
+                    mmAction.style.color = signals.market_making.action === 'BUY' ? '#00ff00' : 
+                                          signals.market_making.action === 'SELL' ? '#ff4444' : '#ffa500';
                 }
                 
                 // Statistical Arbitrage
                 if (signals.statistical_arbitrage) {
                     document.getElementById('signal-sa-raw').textContent = signals.statistical_arbitrage.raw_signal.toFixed(3);
                     document.getElementById('signal-sa-weighted').textContent = signals.statistical_arbitrage.weighted_signal.toFixed(3);
+                    const saAction = document.getElementById('signal-sa-action');
+                    saAction.textContent = signals.statistical_arbitrage.action || 'HOLD';
+                    saAction.style.color = signals.statistical_arbitrage.action === 'BUY' ? '#00ff00' : 
+                                          signals.statistical_arbitrage.action === 'SELL' ? '#ff4444' : '#ffa500';
                 }
                 
                 // Microstructure
                 if (signals.microstructure) {
                     document.getElementById('signal-ms-raw').textContent = signals.microstructure.raw_signal.toFixed(3);
                     document.getElementById('signal-ms-weighted').textContent = signals.microstructure.weighted_signal.toFixed(3);
+                    const msAction = document.getElementById('signal-ms-action');
+                    msAction.textContent = signals.microstructure.action || 'HOLD';
+                    msAction.style.color = signals.microstructure.action === 'BUY' ? '#00ff00' : 
+                                          signals.microstructure.action === 'SELL' ? '#ff4444' : '#ffa500';
                 }
                 
                 // Momentum Scalping
                 if (signals.momentum_scalping) {
                     document.getElementById('signal-mo-raw').textContent = signals.momentum_scalping.raw_signal.toFixed(3);
                     document.getElementById('signal-mo-weighted').textContent = signals.momentum_scalping.weighted_signal.toFixed(3);
+                    const moAction = document.getElementById('signal-mo-action');
+                    moAction.textContent = signals.momentum_scalping.action || 'HOLD';
+                    moAction.style.color = signals.momentum_scalping.action === 'BUY' ? '#00ff00' : 
+                                          signals.momentum_scalping.action === 'SELL' ? '#ff4444' : '#ffa500';
                 }
                 
                 // Mean Reversion
                 if (signals.mean_reversion) {
                     document.getElementById('signal-mr-raw').textContent = signals.mean_reversion.raw_signal.toFixed(3);
                     document.getElementById('signal-mr-weighted').textContent = signals.mean_reversion.weighted_signal.toFixed(3);
+                    const mrAction = document.getElementById('signal-mr-action');
+                    mrAction.textContent = signals.mean_reversion.action || 'HOLD';
+                    mrAction.style.color = signals.mean_reversion.action === 'BUY' ? '#00ff00' : 
+                                          signals.mean_reversion.action === 'SELL' ? '#ff4444' : '#ffa500';
                 }
                 
                 // 최종 집계 신호
