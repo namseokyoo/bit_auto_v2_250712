@@ -435,15 +435,18 @@ class QuantumTradingSystem:
         try:
             # Redis에 저장 시도
             if self.redis:
+                logger.info(f"Saving {len(strategy_signals)} strategy signals to Redis")
                 # 전략별 신호 저장
                 for strategy, data in strategy_signals.items():
-                    self.redis.hset(f"signal:{strategy}", mapping={
-                        'action': data['action'],
-                        'raw_signal': data['raw_signal'],
-                        'weight': data['weight'],
-                        'weighted_signal': data['weighted_signal'],
-                        'timestamp': time.time()
+                    key = f"signal:{strategy}"
+                    self.redis.hset(key, mapping={
+                        'action': str(data['action']),
+                        'raw_signal': str(data['raw_signal']),
+                        'weight': str(data['weight']),
+                        'weighted_signal': str(data['weighted_signal']),
+                        'timestamp': str(time.time())
                     })
+                    logger.debug(f"Saved signal for {strategy}: {data}")
                 
                 # 최종 집계 신호 저장
                 action = 'HOLD'
