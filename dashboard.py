@@ -1334,18 +1334,19 @@ def get_strategy_signals():
             import redis
             r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
             
-            strategies = [
-                'market_making',
-                'statistical_arbitrage', 
-                'microstructure',
-                'momentum_scalping',
-                'mean_reversion'
-            ]
+            # quantum_trading.py에서 사용하는 실제 키 이름과 매핑
+            strategy_map = {
+                'market_making': 'market_making',
+                'statistical_arbitrage': 'stat_arb',
+                'microstructure': 'microstructure', 
+                'momentum_scalping': 'momentum',
+                'mean_reversion': 'mean_reversion'
+            }
             
-            for strategy in strategies:
-                signal_data = r.hgetall(f"signal:{strategy}")
+            for display_name, redis_key in strategy_map.items():
+                signal_data = r.hgetall(f"signal:{redis_key}")
                 if signal_data:
-                    signals[strategy] = {
+                    signals[display_name] = {
                         'action': signal_data.get('action', 'HOLD'),
                         'raw_signal': float(signal_data.get('raw_signal', 0)),
                         'weight': float(signal_data.get('weight', 0)),
@@ -1353,7 +1354,7 @@ def get_strategy_signals():
                         'timestamp': float(signal_data.get('timestamp', 0))
                     }
                 else:
-                    signals[strategy] = {
+                    signals[display_name] = {
                         'action': 'HOLD',
                         'raw_signal': 0,
                         'weight': 0,
