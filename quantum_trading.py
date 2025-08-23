@@ -34,17 +34,25 @@ from strategies import (
 )
 
 # 로깅 설정
-logging.basicConfig(
-    level=logging.INFO,  # INFO로 다시 변경
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/quantum_trading.log')
-    ]
-)
-logger = logging.getLogger(__name__)
+import os
+os.makedirs('logs', exist_ok=True)
 
-# urllib3 로그 레벨을 WARNING으로 설정하여 불필요한 로그 제거
+# 로그 파일 경로
+log_file = 'logs/quantum_trading.log'
+
+# 파일 핸들러 생성
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
+# 루트 로거 설정
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+
+# urllib3와 다른 노이즈 로거들 비활성화
 logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
 
 # 환경 변수 로드
 load_dotenv('.env')
