@@ -474,16 +474,16 @@ class QuantumTradingSystem:
                     action = 'SELL'
                 
                 self.redis.hset("signal:aggregate", mapping={
-                    'buy_score': buy_score,
-                    'sell_score': sell_score,
+                    'buy_score': float(buy_score),  # numpy float를 Python float로 변환
+                    'sell_score': float(sell_score),  # numpy float를 Python float로 변환
                     'action': action,
                     'timestamp': time.time()
                 })
                 
                 # 최종 점수 저장
                 self.redis.hset("signal:final", mapping={
-                    'buy_score': buy_score,
-                    'sell_score': sell_score,
+                    'buy_score': float(buy_score),  # numpy float를 Python float로 변환
+                    'sell_score': float(sell_score),  # numpy float를 Python float로 변환
                     'timestamp': time.time()
                 })
                 

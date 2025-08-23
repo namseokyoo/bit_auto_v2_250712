@@ -1397,9 +1397,19 @@ def get_strategy_signals():
         try:
             aggregate_data = r.hgetall("signal:aggregate")
             if aggregate_data:
+                # numpy float64 문자열 처리
+                buy_score_str = aggregate_data.get('buy_score', '0')
+                sell_score_str = aggregate_data.get('sell_score', '0')
+                
+                # "np.float64(값)" 형식 처리
+                if 'np.float64' in str(buy_score_str):
+                    buy_score_str = buy_score_str.replace('np.float64(', '').replace(')', '')
+                if 'np.float64' in str(sell_score_str):
+                    sell_score_str = sell_score_str.replace('np.float64(', '').replace(')', '')
+                    
                 signals['aggregate'] = {
-                    'buy_score': float(aggregate_data.get('buy_score', 0)),
-                    'sell_score': float(aggregate_data.get('sell_score', 0)),
+                    'buy_score': float(buy_score_str),
+                    'sell_score': float(sell_score_str),
                     'action': aggregate_data.get('action', 'HOLD'),
                     'timestamp': float(aggregate_data.get('timestamp', 0))
                 }
