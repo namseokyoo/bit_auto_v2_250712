@@ -356,16 +356,18 @@ class QuantumTradingSystem:
                         except Exception as e:
                             logger.error(f"Error generating signal from {name}: {e}")
                             
-                # 신호 집계 및 최종 결정
+                # 신호 집계 및 최종 결정 (신호가 없어도 호출하여 대시보드에 표시)
                 if signals:
                     logger.info(f"Total {len(signals)} signals generated, aggregating...")
-                    final_signal = self.aggregate_signals(signals)
-                    if final_signal:
-                        logger.info(f"Final signal: {final_signal.action} with strength {final_signal.strength:.2f}")
-                        self.signals.append(final_signal)
-                        await self.execute_signal(final_signal)
                 else:
-                    logger.debug("No signals generated in this cycle")
+                    logger.info("No signals generated, but updating dashboard with 0 values...")
+                    
+                # 항상 aggregate_signals를 호출하여 대시보드 업데이트
+                final_signal = self.aggregate_signals(signals)
+                if final_signal:
+                    logger.info(f"Final signal: {final_signal.action} with strength {final_signal.strength:.2f}")
+                    self.signals.append(final_signal)
+                    await self.execute_signal(final_signal)
                         
             except Exception as e:
                 logger.error(f"Error generating signals: {e}")
@@ -374,9 +376,6 @@ class QuantumTradingSystem:
             
     def aggregate_signals(self, signals: List[Signal]) -> Optional[Signal]:
         """신호 집계 및 가중 평균"""
-        if not signals:
-            return None
-            
         buy_score = 0
         sell_score = 0
         
