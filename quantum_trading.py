@@ -35,7 +35,7 @@ from strategies import (
 
 # 로깅 설정
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # DEBUG로 변경하여 더 자세한 로그 확인
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('logs/quantum_trading.log'),
@@ -332,8 +332,10 @@ class QuantumTradingSystem:
                     
                 # 각 전략에서 신호 생성
                 signals = []
+                logger.debug(f"Checking {len(self.strategies)} strategies for signals...")
                 for name, strategy in self.strategies.items():
                     if hasattr(strategy, 'generate_signal'):
+                        logger.debug(f"Calling generate_signal for {name}")
                         signal = await strategy.generate_signal(
                             list(self.market_data)
                         )
@@ -341,6 +343,8 @@ class QuantumTradingSystem:
                             signal.strategy = name
                             signals.append(signal)
                             logger.info(f"Signal from {name}: {signal.action} with strength {signal.strength:.2f}")
+                        else:
+                            logger.debug(f"No signal from {name}")
                             
                 # 신호 집계 및 최종 결정
                 if signals:
