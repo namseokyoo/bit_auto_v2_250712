@@ -366,9 +366,19 @@ class QuantumTradingSystem:
         buy_score = 0
         sell_score = 0
         
-        # 전략별 신호 정보 저장
+        # 전략별 신호 정보 저장 - 모든 전략을 0으로 초기화
         strategy_signals = {}
         
+        # 먼저 모든 전략을 0으로 초기화
+        for name, strategy in self.strategies.items():
+            strategy_signals[name] = {
+                'action': 'HOLD',
+                'raw_signal': 0.0,
+                'weight': strategy.weight,
+                'weighted_signal': 0.0
+            }
+        
+        # 실제 신호가 있는 전략들 업데이트
         for signal in signals:
             strategy_weight = self.strategies[signal.strategy].weight
             
