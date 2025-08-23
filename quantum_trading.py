@@ -357,13 +357,27 @@ class QuantumTradingSystem:
         buy_score = 0
         sell_score = 0
         
+        # 전략별 신호 정보 저장
+        strategy_signals = {}
+        
         for signal in signals:
             strategy_weight = self.strategies[signal.strategy].weight
+            
+            # 전략별 원본 신호와 가중치 적용 신호 저장
+            strategy_signals[signal.strategy] = {
+                'action': signal.action,
+                'raw_signal': signal.strength,
+                'weight': strategy_weight,
+                'weighted_signal': signal.strength * strategy_weight
+            }
             
             if signal.action == 'BUY':
                 buy_score += signal.strength * strategy_weight
             elif signal.action == 'SELL':
                 sell_score += signal.strength * strategy_weight
+        
+        # Redis나 메모리에 전략별 신호 저장
+        self.save_strategy_signals(strategy_signals, buy_score, sell_score)
                 
         # 임계값 체크 (설정 파일에서 읽기)
         threshold = self.config.get('trading', {}).get('signal_threshold', 0.25)  # 기본값 0.25로 수정
@@ -396,6 +410,58 @@ class QuantumTradingSystem:
             logger.info(f"No signal passes threshold. Buy: {buy_score:.3f}, Sell: {sell_score:.3f} < {threshold}")
             
         return None
+    
+    def save_strategy_signals(self, strategy_signals: dict, buy_score: float, sell_score: float):
+        """전략별 신호를 Redis 또는 메모리에 저장"""
+        try:
+            # Redis에 저장 시도
+            if self.redis:
+                # 전략별 신호 저장
+                for strategy, data in strategy_signals.items():
+                    self.redis.hset(f"signal:{strategy}", mapping={
+                        'action': data['action'],
+                        'raw_signal': data['raw_signal'],
+                        'weight': data['weight'],
+                        'weighted_signal': data['weighted_signal'],
+                        'timestamp': time.time()
+                    })
+                
+                # 최종 집계 신호 저장
+                action = 'HOLD'
+                if buy_score > sell_score and buy_score > self.config.get('trading', {}).get('signal_threshold', 0.25):
+                    action = 'BUY'
+                elif sell_score > buy_score and sell_score > self.config.get('trading', {}).get('signal_threshold', 0.25):
+                    action = 'SELL'
+                
+                self.redis.hset("signal:aggregate", mapping={
+                    'buy_score': buy_score,
+                    'sell_score': sell_score,
+                    'action': action,
+                    'timestamp': time.time()
+                })
+                
+                # 최종 점수 저장
+                self.redis.hset("signal:final", mapping={
+                    'buy_score': buy_score,
+                    'sell_score': sell_score,
+                    'timestamp': time.time()
+                })
+                
+                # 1분 후 만료
+                for strategy in strategy_signals.keys():
+                    self.redis.expire(f"signal:{strategy}", 60)
+                self.redis.expire("signal:final", 60)
+            else:
+                # 메모리에 저장 (클래스 변수 사용)
+                self.latest_signals = {
+                    'strategies': strategy_signals,
+                    'buy_score': buy_score,
+                    'sell_score': sell_score,
+                    'timestamp': time.time()
+                }
+                
+        except Exception as e:
+            logger.error(f"Error saving strategy signals: {e}")
         
     async def execute_signal(self, signal: Signal):
         """신호 실행"""

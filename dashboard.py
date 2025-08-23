@@ -187,6 +187,31 @@ DASHBOARD_HTML = """
         .trade-pnl { font-weight: bold; }
         .trade-pnl.positive { color: #4CAF50; }
         .trade-pnl.negative { color: #f44336; }
+        .strategy-signals {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .strategy-signal-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .strategy-name {
+            flex: 1;
+            font-weight: 500;
+            color: #e2e8f0;
+        }
+        .signal-raw, .signal-weighted {
+            flex: 1;
+            text-align: center;
+        }
+        .signal-raw { color: #94a3b8; }
+        .signal-weighted { color: #f59e0b; font-weight: 500; }
         .modal {
             display: none;
             position: fixed;
@@ -342,6 +367,43 @@ DASHBOARD_HTML = """
                     <div class="metric">
                         <span class="metric-label">오늘 최고/최저가</span>
                         <span class="metric-value" id="price-range">-</span>
+                    </div>
+                </div>
+                
+                <!-- 전략별 신호 강도 -->
+                <div class="card">
+                    <h2>전략별 신호 강도</h2>
+                    <div class="strategy-signals" id="strategy-signals">
+                        <div class="strategy-signal-item">
+                            <span class="strategy-name">Market Making</span>
+                            <span class="signal-raw">원본: <span id="signal-mm-raw">0.000</span></span>
+                            <span class="signal-weighted">가중치 적용: <span id="signal-mm-weighted">0.000</span></span>
+                        </div>
+                        <div class="strategy-signal-item">
+                            <span class="strategy-name">Statistical Arbitrage</span>
+                            <span class="signal-raw">원본: <span id="signal-sa-raw">0.000</span></span>
+                            <span class="signal-weighted">가중치 적용: <span id="signal-sa-weighted">0.000</span></span>
+                        </div>
+                        <div class="strategy-signal-item">
+                            <span class="strategy-name">Microstructure</span>
+                            <span class="signal-raw">원본: <span id="signal-ms-raw">0.000</span></span>
+                            <span class="signal-weighted">가중치 적용: <span id="signal-ms-weighted">0.000</span></span>
+                        </div>
+                        <div class="strategy-signal-item">
+                            <span class="strategy-name">Momentum Scalping</span>
+                            <span class="signal-raw">원본: <span id="signal-mo-raw">0.000</span></span>
+                            <span class="signal-weighted">가중치 적용: <span id="signal-mo-weighted">0.000</span></span>
+                        </div>
+                        <div class="strategy-signal-item">
+                            <span class="strategy-name">Mean Reversion</span>
+                            <span class="signal-raw">원본: <span id="signal-mr-raw">0.000</span></span>
+                            <span class="signal-weighted">가중치 적용: <span id="signal-mr-weighted">0.000</span></span>
+                        </div>
+                        <div class="strategy-signal-item" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2);">
+                            <span class="strategy-name"><strong>최종 신호</strong></span>
+                            <span class="signal-raw">BUY: <span id="final-buy-signal">0.000</span></span>
+                            <span class="signal-weighted">SELL: <span id="final-sell-signal">0.000</span></span>
+                        </div>
                     </div>
                 </div>
                 
@@ -794,12 +856,76 @@ DASHBOARD_HTML = """
             }
         }
         
+        // 전략별 신호 업데이트 함수
+        async function updateStrategySignals() {
+            try {
+                const response = await fetch('/api/strategy-signals');
+                const signals = await response.json();
+                
+                // Market Making
+                if (signals.market_making) {
+                    document.getElementById('signal-mm-raw').textContent = signals.market_making.raw_signal.toFixed(3);
+                    document.getElementById('signal-mm-weighted').textContent = signals.market_making.weighted_signal.toFixed(3);
+                }
+                
+                // Statistical Arbitrage
+                if (signals.statistical_arbitrage) {
+                    document.getElementById('signal-sa-raw').textContent = signals.statistical_arbitrage.raw_signal.toFixed(3);
+                    document.getElementById('signal-sa-weighted').textContent = signals.statistical_arbitrage.weighted_signal.toFixed(3);
+                }
+                
+                // Microstructure
+                if (signals.microstructure) {
+                    document.getElementById('signal-ms-raw').textContent = signals.microstructure.raw_signal.toFixed(3);
+                    document.getElementById('signal-ms-weighted').textContent = signals.microstructure.weighted_signal.toFixed(3);
+                }
+                
+                // Momentum Scalping
+                if (signals.momentum_scalping) {
+                    document.getElementById('signal-mo-raw').textContent = signals.momentum_scalping.raw_signal.toFixed(3);
+                    document.getElementById('signal-mo-weighted').textContent = signals.momentum_scalping.weighted_signal.toFixed(3);
+                }
+                
+                // Mean Reversion
+                if (signals.mean_reversion) {
+                    document.getElementById('signal-mr-raw').textContent = signals.mean_reversion.raw_signal.toFixed(3);
+                    document.getElementById('signal-mr-weighted').textContent = signals.mean_reversion.weighted_signal.toFixed(3);
+                }
+                
+                // 최종 집계 신호
+                if (signals.aggregate) {
+                    const buyScore = signals.aggregate.buy_score;
+                    const sellScore = signals.aggregate.sell_score;
+                    const action = signals.aggregate.action;
+                    
+                    document.getElementById('final-buy-score').textContent = buyScore.toFixed(3);
+                    document.getElementById('final-sell-score').textContent = sellScore.toFixed(3);
+                    document.getElementById('final-action').textContent = action;
+                    
+                    // 액션에 따른 색상 변경
+                    const actionElement = document.getElementById('final-action');
+                    if (action === 'BUY') {
+                        actionElement.style.color = '#00ff00';
+                    } else if (action === 'SELL') {
+                        actionElement.style.color = '#ff4444';
+                    } else {
+                        actionElement.style.color = '#ffa500';
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error updating strategy signals:', error);
+            }
+        }
+        
         // 페이지 로드 시 초기화
         window.onload = function() {
             updateStatus();
             loadSettings();
             loadStrategyWeights();
+            updateStrategySignals();
             setInterval(updateStatus, 5000);  // 5초마다 업데이트
+            setInterval(updateStrategySignals, 5000);  // 5초마다 신호 업데이트
         };
         
         // 모달 외부 클릭 시 닫기
@@ -1191,6 +1317,78 @@ def strategy_weights():
         except Exception as e:
             logger.error(f"Error saving strategy weights: {e}")
             return jsonify({'error': str(e)}), 500
+
+@app.route('/api/strategy-signals')
+def get_strategy_signals():
+    """전략별 신호 강도 조회 API"""
+    try:
+        signals = {}
+        
+        # Redis에서 신호 데이터 가져오기
+        try:
+            import redis
+            r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+            
+            strategies = [
+                'market_making',
+                'statistical_arbitrage', 
+                'microstructure',
+                'momentum_scalping',
+                'mean_reversion'
+            ]
+            
+            for strategy in strategies:
+                signal_data = r.hgetall(f"signal:{strategy}")
+                if signal_data:
+                    signals[strategy] = {
+                        'action': signal_data.get('action', 'HOLD'),
+                        'raw_signal': float(signal_data.get('raw_signal', 0)),
+                        'weight': float(signal_data.get('weight', 0)),
+                        'weighted_signal': float(signal_data.get('weighted_signal', 0)),
+                        'timestamp': float(signal_data.get('timestamp', 0))
+                    }
+                else:
+                    signals[strategy] = {
+                        'action': 'HOLD',
+                        'raw_signal': 0,
+                        'weight': 0,
+                        'weighted_signal': 0,
+                        'timestamp': 0
+                    }
+        except Exception as redis_error:
+            logger.warning(f"Redis not available: {redis_error}")
+            # Redis가 없을 경우 기본값 반환
+            strategies = {
+                'market_making': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.30, 'weighted_signal': 0},
+                'statistical_arbitrage': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.20, 'weighted_signal': 0},
+                'microstructure': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.20, 'weighted_signal': 0},
+                'momentum_scalping': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.15, 'weighted_signal': 0},
+                'mean_reversion': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.15, 'weighted_signal': 0}
+            }
+            signals = strategies
+        
+        # 최종 집계 신호도 가져오기
+        try:
+            aggregate_data = r.hgetall("signal:aggregate")
+            if aggregate_data:
+                signals['aggregate'] = {
+                    'buy_score': float(aggregate_data.get('buy_score', 0)),
+                    'sell_score': float(aggregate_data.get('sell_score', 0)),
+                    'action': aggregate_data.get('action', 'HOLD'),
+                    'timestamp': float(aggregate_data.get('timestamp', 0))
+                }
+        except:
+            signals['aggregate'] = {
+                'buy_score': 0,
+                'sell_score': 0,
+                'action': 'HOLD',
+                'timestamp': 0
+            }
+        
+        return jsonify(signals)
+    except Exception as e:
+        logger.error(f"Error fetching strategy signals: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/logs')
 def get_logs():
