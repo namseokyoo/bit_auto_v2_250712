@@ -1180,7 +1180,7 @@ def settings():
                 'signal_threshold': config.get('trading', {}).get('signal_threshold', 0.25),
                 'max_position': config.get('trading', {}).get('limits', {}).get('max_position', 1000000),
                 'trading_interval': config.get('trading', {}).get('interval', 60),
-                'daily_loss_limit': config.get('risk', {}).get('limits', {}).get('max_daily_loss_percent', 5.0)
+                'daily_loss_limit': config.get('risk_management', {}).get('limits', {}).get('max_daily_loss_percent', 5.0)
             })
         except Exception as e:
             logger.error(f"Error loading settings: {e}")
@@ -1196,13 +1196,18 @@ def settings():
             
             # 설정 업데이트
             if 'signal_threshold' in data:
-                config['trading']['signal_threshold'] = data['signal_threshold']
+                config['trading']['signal_threshold'] = float(data['signal_threshold'])
             if 'max_position' in data:
-                config['trading']['limits']['max_position'] = data['max_position']
+                config['trading']['limits']['max_position'] = int(data['max_position'])
             if 'trading_interval' in data:
-                config['trading']['interval'] = data['trading_interval']
+                config['trading']['interval'] = int(data['trading_interval'])
             if 'daily_loss_limit' in data:
-                config['risk']['limits']['max_daily_loss_percent'] = data['daily_loss_limit']
+                # risk_management 섹션이 없으면 생성
+                if 'risk_management' not in config:
+                    config['risk_management'] = {}
+                if 'limits' not in config['risk_management']:
+                    config['risk_management']['limits'] = {}
+                config['risk_management']['limits']['max_daily_loss_percent'] = float(data['daily_loss_limit'])
             
             # 설정 저장
             with open(config_path, 'w') as f:
