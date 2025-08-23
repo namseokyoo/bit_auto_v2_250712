@@ -1,0 +1,28 @@
+[Unit]
+Description=Quantum Trading System
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/bit_auto_v2_250712
+Environment="PATH=/opt/bit_auto_v2_250712/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/opt/bit_auto_v2_250712/venv/bin/python /opt/bit_auto_v2_250712/quantum_trading.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/bit_auto_v2_250712/logs/quantum_trading.log
+StandardError=append:/opt/bit_auto_v2_250712/logs/quantum_trading.log
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Kill settings
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

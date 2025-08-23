@@ -1,0 +1,29 @@
+[Unit]
+Description=Quantum Trading Dashboard
+After=network.target quantum-trading.service
+Wants=quantum-trading.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/bit_auto_v2_250712
+Environment="PATH=/opt/bit_auto_v2_250712/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="DASHBOARD_PORT=8080"
+ExecStart=/opt/bit_auto_v2_250712/venv/bin/python /opt/bit_auto_v2_250712/dashboard.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/bit_auto_v2_250712/logs/dashboard.log
+StandardError=append:/opt/bit_auto_v2_250712/logs/dashboard.log
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Kill settings
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
