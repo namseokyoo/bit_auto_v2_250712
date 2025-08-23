@@ -361,9 +361,14 @@ class QuantumTradingSystem:
                 sell_score += signal.strength * strategy_weight
                 
         # 임계값 체크 (설정 파일에서 읽기)
-        threshold = self.config.get('trading', {}).get('signal_threshold', 0.3)  # 기본값 0.3
+        threshold = self.config.get('trading', {}).get('signal_threshold', 0.25)  # 기본값 0.25로 수정
         
+        # 로그 추가하여 디버깅
+        logger.info(f"Aggregating signals - Buy: {buy_score:.3f}, Sell: {sell_score:.3f}, Threshold: {threshold}")
+        
+        # 임계값을 넘는 신호만 처리
         if buy_score > threshold and buy_score > sell_score:
+            logger.info(f"Buy signal passes threshold check: {buy_score:.3f} > {threshold}")
             return Signal(
                 timestamp=time.time(),
                 strategy='ensemble',
@@ -373,6 +378,7 @@ class QuantumTradingSystem:
                 reason=f"Ensemble buy signal (score: {buy_score:.2f})"
             )
         elif sell_score > threshold and sell_score > buy_score:
+            logger.info(f"Sell signal passes threshold check: {sell_score:.3f} > {threshold}")
             return Signal(
                 timestamp=time.time(),
                 strategy='ensemble',
@@ -381,6 +387,8 @@ class QuantumTradingSystem:
                 price=self.market_data[-1].price,
                 reason=f"Ensemble sell signal (score: {sell_score:.2f})"
             )
+        else:
+            logger.info(f"No signal passes threshold. Buy: {buy_score:.3f}, Sell: {sell_score:.3f} < {threshold}")
             
         return None
         
