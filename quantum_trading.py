@@ -564,7 +564,12 @@ class QuantumTradingSystem:
                     order_detail = self.upbit.get_order(executed_order['uuid'])
                     if order_detail:
                         # 실제 체결 가격과 수량 사용
-                        actual_price = float(order_detail.get('price', signal.price))
+                        # BUY의 경우 현재 BTC 가격을 가져옴
+                        if signal.action == "BUY":
+                            current_price = self.upbit.get_current_price(symbol)
+                            actual_price = float(current_price) if current_price else signal.price
+                        else:
+                            actual_price = float(order_detail.get("price", signal.price))
                         actual_volume = float(order_detail.get('executed_volume', 0))
                         fee = float(order_detail.get('paid_fee', 0))
                         
