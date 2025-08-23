@@ -24,6 +24,15 @@ import redis
 import yaml
 from dotenv import load_dotenv
 
+# 전략 클래스 import
+from strategies import (
+    MarketMakingStrategy,
+    StatisticalArbitrageStrategy,
+    MicrostructureStrategy,
+    MomentumScalpingStrategy,
+    MeanReversionStrategy
+)
+
 # 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
