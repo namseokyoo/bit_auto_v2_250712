@@ -167,10 +167,26 @@ DASHBOARD_HTML = """
             border-bottom: 1px solid rgba(255,255,255,0.1);
             cursor: pointer;
             transition: background 0.3s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9em;
         }
         .trade-item:hover {
             background: rgba(255,255,255,0.05);
         }
+        .trade-item.buy { border-left: 3px solid #4CAF50; }
+        .trade-item.sell { border-left: 3px solid #f44336; }
+        .trade-time { color: #94a3b8; }
+        .trade-side { font-weight: bold; }
+        .trade-side.buy { color: #4CAF50; }
+        .trade-side.sell { color: #f44336; }
+        .trade-price { color: #f59e0b; }
+        .trade-signal { color: #8b5cf6; font-size: 0.85em; }
+        .trade-pnl { font-weight: bold; }
+        .trade-pnl.positive { color: #4CAF50; }
+        .trade-pnl.negative { color: #f44336; }
         .modal {
             display: none;
             position: fixed;
@@ -306,15 +322,26 @@ DASHBOARD_HTML = """
                     </div>
                     <div class="metric">
                         <span class="metric-label">거래 횟수</span>
-                        <span class="metric-value" id="trade-count">0</span>
+                        <span class="metric-value">
+                            <span id="trade-count">0</span>회
+                            (<span id="buy-count">0</span>매수/<span id="sell-count">0</span>매도)
+                        </span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">승률</span>
                         <span class="metric-value" id="win-rate">0%</span>
                     </div>
                     <div class="metric">
+                        <span class="metric-label">평균 신호 강도</span>
+                        <span class="metric-value" id="avg-signal">0.000</span>
+                    </div>
+                    <div class="metric">
                         <span class="metric-label">현재 임계값</span>
                         <span class="metric-value" id="current-threshold">0.25</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">오늘 최고/최저가</span>
+                        <span class="metric-value" id="price-range">-</span>
                     </div>
                 </div>
                 
@@ -420,26 +447,35 @@ DASHBOARD_HTML = """
             const modal = document.getElementById('tradeModal');
             const details = document.getElementById('trade-details');
             
+            const sideClass = trade.side === 'BUY' ? 'buy' : 'sell';
+            const pnlClass = trade.pnl >= 0 ? 'positive' : 'negative';
+            
             details.innerHTML = `
                 <div class="metric">
                     <span class="metric-label">거래 시간:</span>
                     <span class="metric-value">${new Date(trade.timestamp).toLocaleString()}</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">거래 유형:</span>
-                    <span class="metric-value">${trade.action || 'N/A'}</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">거래 금액:</span>
-                    <span class="metric-value">₩${(trade.amount || 0).toLocaleString()}</span>
+                    <span class="metric-label">거래 방향:</span>
+                    <span class="metric-value" style="color: ${trade.side === 'BUY' ? '#4CAF50' : '#f44336'}; font-weight: bold;">
+                        ${trade.side || trade.action || 'N/A'}
+                    </span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">거래 가격:</span>
-                    <span class="metric-value">₩${(trade.price || 0).toLocaleString()}</span>
+                    <span class="metric-value">₩${Math.floor(trade.price || 0).toLocaleString()}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">거래 수량:</span>
+                    <span class="metric-value">${((trade.quantity || trade.amount || 0) / (trade.price || 1)).toFixed(8)} BTC</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">거래 금액:</span>
+                    <span class="metric-value">₩${Math.floor(trade.quantity || trade.amount || 0).toLocaleString()}</span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">전략:</span>
-                    <span class="metric-value">${trade.strategy || 'Unknown'}</span>
+                    <span class="metric-value">${trade.strategy || 'ensemble'}</span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">신호 강도:</span>
@@ -447,12 +483,12 @@ DASHBOARD_HTML = """
                 </div>
                 <div class="metric">
                     <span class="metric-label">거래 근거:</span>
-                    <span class="metric-value">${trade.reason || 'N/A'}</span>
+                    <span class="metric-value" style="font-size: 0.9em;">${trade.reason || 'N/A'}</span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">손익:</span>
-                    <span class="metric-value ${trade.pnl > 0 ? 'positive' : 'negative'}">
-                        ₩${(trade.pnl || 0).toLocaleString()}
+                    <span class="metric-value" style="color: ${trade.pnl >= 0 ? '#4CAF50' : '#f44336'}; font-weight: bold;">
+                        ₩${Math.floor(trade.pnl || 0).toLocaleString()}
                     </span>
                 </div>
             `;
@@ -586,21 +622,39 @@ DASHBOARD_HTML = """
                 pnlElement.className = pnl >= 0 ? 'positive' : 'negative';
                 
                 document.getElementById('trade-count').textContent = data.trade_count || '0';
+                document.getElementById('buy-count').textContent = data.buy_count || '0';
+                document.getElementById('sell-count').textContent = data.sell_count || '0';
                 document.getElementById('win-rate').textContent = 
                     (data.win_rate || 0).toFixed(1) + '%';
+                document.getElementById('avg-signal').textContent = 
+                    (data.avg_signal_strength || 0).toFixed(3);
                 document.getElementById('current-threshold').textContent = 
                     (data.current_threshold || 0.25).toFixed(2);
                 
+                // 가격 범위 표시
+                if (data.min_price && data.max_price) {
+                    document.getElementById('price-range').textContent = 
+                        `₩${Math.floor(data.min_price).toLocaleString()} ~ ₩${Math.floor(data.max_price).toLocaleString()}`;
+                }
+                
                 // 최근 거래
                 if (data.recent_trades && data.recent_trades.length > 0) {
-                    const tradesHtml = data.recent_trades.map(trade => `
-                        <div class="trade-item" onclick='showTradeDetails(${JSON.stringify(trade)})'>
-                            <strong>${trade.action}</strong> - 
-                            ${new Date(trade.timestamp).toLocaleTimeString()} - 
-                            ₩${(trade.amount || 0).toLocaleString()}
-                        </div>
-                    `).join('');
+                    const tradesHtml = data.recent_trades.map(trade => {
+                        const sideClass = trade.side === 'BUY' ? 'buy' : 'sell';
+                        const pnlClass = trade.pnl >= 0 ? 'positive' : 'negative';
+                        return `
+                            <div class="trade-item ${sideClass}" onclick='showTradeDetails(${JSON.stringify(trade).replace(/'/g, "&apos;")})' style="cursor: pointer;">
+                                <span class="trade-time">${new Date(trade.timestamp).toLocaleTimeString()}</span>
+                                <span class="trade-side ${sideClass}">${trade.side}</span>
+                                <span class="trade-price">₩${Math.floor(trade.price).toLocaleString()}</span>
+                                <span class="trade-signal">신호: ${(trade.signal_strength || 0).toFixed(3)}</span>
+                                ${trade.pnl !== 0 ? `<span class="trade-pnl ${pnlClass}">₩${Math.floor(trade.pnl).toLocaleString()}</span>` : ''}
+                            </div>
+                        `;
+                    }).join('');
                     document.getElementById('recent-trades').innerHTML = tradesHtml;
+                } else {
+                    document.getElementById('recent-trades').innerHTML = '<div class="trade-item">거래 내역이 없습니다</div>';
                 }
                 
             } catch (error) {
@@ -704,17 +758,37 @@ def get_status():
             conn = sqlite3.connect('data/quantum.db')
             cursor = conn.cursor()
             
-            # 오늘의 거래
+            # 오늘의 거래 상세 통계
             today = datetime.now().strftime('%Y-%m-%d')
             cursor.execute("""
-                SELECT COUNT(*), SUM(pnl) 
+                SELECT 
+                    COUNT(*) as total_trades,
+                    COUNT(CASE WHEN side = 'BUY' THEN 1 END) as buy_count,
+                    COUNT(CASE WHEN side = 'SELL' THEN 1 END) as sell_count,
+                    SUM(pnl) as total_pnl,
+                    MIN(price) as min_price,
+                    MAX(price) as max_price,
+                    AVG(price) as avg_price
                 FROM trades 
                 WHERE DATE(timestamp) = ?
             """, (today,))
             
-            trade_count, daily_pnl = cursor.fetchone()
-            status['trade_count'] = trade_count or 0
-            status['daily_pnl'] = daily_pnl or 0
+            stats = cursor.fetchone()
+            trade_count = stats[0] or 0
+            buy_count = stats[1] or 0
+            sell_count = stats[2] or 0
+            daily_pnl = stats[3] or 0
+            min_price = stats[4] or 0
+            max_price = stats[5] or 0
+            avg_price = stats[6] or 0
+            
+            status['trade_count'] = trade_count
+            status['buy_count'] = buy_count
+            status['sell_count'] = sell_count
+            status['daily_pnl'] = daily_pnl
+            status['min_price'] = min_price
+            status['max_price'] = max_price
+            status['avg_price'] = avg_price
             
             # 승률 계산
             cursor.execute("""
@@ -725,26 +799,49 @@ def get_status():
             win_count = cursor.fetchone()[0] or 0
             status['win_rate'] = (win_count / trade_count * 100) if trade_count > 0 else 0
             
-            # 최근 거래
+            # 평균 신호 강도 (signals 테이블에서)
             cursor.execute("""
-                SELECT * FROM trades 
-                ORDER BY timestamp DESC 
+                SELECT AVG(strength) 
+                FROM signals 
+                WHERE DATE(timestamp) = ?
+            """, (today,))
+            
+            avg_signal = cursor.fetchone()[0] or 0
+            status['avg_signal_strength'] = avg_signal
+            
+            # 최근 거래 (신호 정보와 함께)
+            cursor.execute("""
+                SELECT 
+                    t.timestamp,
+                    t.side,
+                    t.price,
+                    t.quantity,
+                    t.pnl,
+                    t.strategy_name,
+                    s.strength,
+                    s.reason
+                FROM trades t
+                LEFT JOIN signals s ON 
+                    s.timestamp BETWEEN datetime(t.timestamp, '-5 seconds') 
+                    AND datetime(t.timestamp, '+5 seconds')
+                    AND s.action = t.side
+                ORDER BY t.timestamp DESC 
                 LIMIT 10
             """)
             
             trades = cursor.fetchall()
-            status['recent_trades'] = [
-                {
-                    'timestamp': trade[1],
-                    'action': trade[2],
-                    'amount': trade[4],
-                    'price': trade[3],
-                    'strategy': trade[7],
-                    'signal_strength': trade[8],
-                    'reason': trade[9],
-                    'pnl': trade[5]
-                } for trade in trades
-            ]
+            status['recent_trades'] = []
+            for trade in trades:
+                status['recent_trades'].append({
+                    'timestamp': trade[0],
+                    'side': trade[1],
+                    'price': trade[2],
+                    'quantity': trade[3],
+                    'pnl': trade[4] or 0,
+                    'strategy': trade[5],
+                    'signal_strength': trade[6] or 0,
+                    'reason': trade[7] or 'N/A'
+                })
             
             conn.close()
             
