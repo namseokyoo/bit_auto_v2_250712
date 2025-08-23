@@ -124,12 +124,14 @@ class MarketMakingStrategy(BaseStrategy):
                 mid_price = (current_bid + current_ask) / 2
                 
                 # 현재가가 중간 가격보다 낮으면 매수
+                strength = min(1.0, spread_percent / self.spread_threshold)
+                
                 if current_price < mid_price * 0.999:
                     return Signal(
                         timestamp=market_data[-1].timestamp,
                         strategy='market_making',
                         action='BUY',
-                        strength=min(1.0, spread_percent / self.spread_threshold),
+                        strength=strength,
                         price=current_price,
                         reason=f"Market making buy: spread {spread_percent:.3%}"
                     )
@@ -139,10 +141,31 @@ class MarketMakingStrategy(BaseStrategy):
                         timestamp=market_data[-1].timestamp,
                         strategy='market_making',
                         action='SELL',
-                        strength=min(1.0, spread_percent / self.spread_threshold),
+                        strength=strength,
                         price=current_price,
                         reason=f"Market making sell: spread {spread_percent:.3%}"
                     )
+                else:
+                    # 조건 미충족시에도 신호 강도 반환 (HOLD)
+                    return Signal(
+                        timestamp=market_data[-1].timestamp,
+                        strategy='market_making',
+                        action='HOLD',
+                        strength=strength,
+                        price=current_price,
+                        reason=f"Spread: {spread_percent:.3%}, volatility: {volatility:.3f}"
+                    )
+            else:
+                # 스프레드가 좁거나 변동성이 높은 경우에도 신호 반환
+                strength = min(1.0, spread_percent / self.spread_threshold) if spread_percent > 0 else 0
+                return Signal(
+                    timestamp=market_data[-1].timestamp,
+                    strategy='market_making',
+                    action='HOLD',
+                    strength=strength,
+                    price=current_price,
+                    reason=f"Spread: {spread_percent:.3%}, volatility: {volatility:.3f}"
+                )
                     
         except Exception as e:
             logger.error(f"Market making strategy error: {e}")
@@ -178,14 +201,16 @@ class StatisticalArbitrageStrategy(BaseStrategy):
             current_price = prices.iloc[-1]
             zscore = (current_price - mean) / std
             
-            # Z-score 기반 신호
+            # Z-score 기반 신호 - 항상 강도를 계산하여 반환
+            strength = min(1.0, abs(zscore) / 3)
+            
             if zscore < -self.entry_zscore:
                 # 과매도 - 매수 신호
                 return Signal(
                     timestamp=market_data[-1].timestamp,
                     strategy='stat_arb',
                     action='BUY',
-                    strength=min(1.0, abs(zscore) / 3),
+                    strength=strength,
                     price=current_price,
                     reason=f"Statistical arbitrage: Z-score {zscore:.2f} (oversold)"
                 )
@@ -195,9 +220,19 @@ class StatisticalArbitrageStrategy(BaseStrategy):
                     timestamp=market_data[-1].timestamp,
                     strategy='stat_arb',
                     action='SELL',
-                    strength=min(1.0, abs(zscore) / 3),
+                    strength=strength,
                     price=current_price,
                     reason=f"Statistical arbitrage: Z-score {zscore:.2f} (overbought)"
+                )
+            else:
+                # 조건 미충족시에도 신호 강도 반환 (HOLD)
+                return Signal(
+                    timestamp=market_data[-1].timestamp,
+                    strategy='stat_arb',
+                    action='HOLD',
+                    strength=strength,
+                    price=current_price,
+                    reason=f"Z-score: {zscore:.2f} (threshold: {self.entry_zscore})"
                 )
                 
         except Exception as e:
@@ -242,14 +277,16 @@ class MicrostructureStrategy(BaseStrategy):
             # VWAP 대비 현재가 편차
             vwap_deviation = (current_price - vwap) / vwap
             
-            # 신호 생성
+            # 신호 생성 - 항상 강도를 계산하여 반환
+            strength = min(1.0, abs(vwap_deviation) / self.vwap_threshold)
+            
             if vwap_deviation < -self.vwap_threshold and spread_change < 0:
                 # VWAP보다 낮고 스프레드 감소 - 매수
                 return Signal(
                     timestamp=market_data[-1].timestamp,
                     strategy='microstructure',
                     action='BUY',
-                    strength=min(1.0, abs(vwap_deviation) / self.vwap_threshold),
+                    strength=strength,
                     price=current_price,
                     reason=f"Microstructure: VWAP deviation {vwap_deviation:.3%}"
                 )
@@ -259,9 +296,19 @@ class MicrostructureStrategy(BaseStrategy):
                     timestamp=market_data[-1].timestamp,
                     strategy='microstructure',
                     action='SELL',
-                    strength=min(1.0, abs(vwap_deviation) / self.vwap_threshold),
+                    strength=strength,
                     price=current_price,
                     reason=f"Microstructure: VWAP deviation {vwap_deviation:.3%}"
+                )
+            else:
+                # 조건 미충족시에도 신호 강도 반환 (HOLD)
+                return Signal(
+                    timestamp=market_data[-1].timestamp,
+                    strategy='microstructure',
+                    action='HOLD',
+                    strength=strength,
+                    price=current_price,
+                    reason=f"VWAP dev: {vwap_deviation:.3%}, spread change: {spread_change:.5f}"
                 )
                 
         except Exception as e:
@@ -300,14 +347,16 @@ class MomentumScalpingStrategy(BaseStrategy):
             avg_spread = np.mean([d.spread for d in market_data[-10:]])
             volume_surge = avg_spread < 0.001  # 스프레드가 좁으면 거래량 많다고 가정
             
-            # 신호 생성
+            # 신호 생성 - 항상 강도를 계산하여 반환
+            strength = min(1.0, abs(weighted_momentum) / (self.entry_threshold * 2))
+            
             if weighted_momentum > self.entry_threshold and volume_surge:
                 # 강한 상승 모멘텀
                 return Signal(
                     timestamp=market_data[-1].timestamp,
                     strategy='momentum_scalping',
                     action='BUY',
-                    strength=min(1.0, weighted_momentum / (self.entry_threshold * 2)),
+                    strength=strength,
                     price=market_data[-1].price,
                     reason=f"Momentum scalping: momentum {weighted_momentum:.4f}"
                 )
@@ -317,9 +366,19 @@ class MomentumScalpingStrategy(BaseStrategy):
                     timestamp=market_data[-1].timestamp,
                     strategy='momentum_scalping',
                     action='SELL',
-                    strength=min(1.0, abs(weighted_momentum) / (self.entry_threshold * 2)),
+                    strength=strength,
                     price=market_data[-1].price,
                     reason=f"Momentum scalping: momentum {weighted_momentum:.4f}"
+                )
+            else:
+                # 조건 미충족시에도 신호 강도 반환 (HOLD)
+                return Signal(
+                    timestamp=market_data[-1].timestamp,
+                    strategy='momentum_scalping',
+                    action='HOLD',
+                    strength=strength,
+                    price=market_data[-1].price,
+                    reason=f"Momentum: {weighted_momentum:.4f} (threshold: {self.entry_threshold})"
                 )
                 
         except Exception as e:
@@ -355,7 +414,12 @@ class MeanReversionStrategy(BaseStrategy):
             bb_upper = indicators['bb_upper']
             bb_lower = indicators['bb_lower']
             
-            # 신호 생성
+            # 신호 생성 - 항상 강도를 계산하여 반환
+            # BB 위치 계산 (0: 하단, 0.5: 중간, 1.0: 상단)
+            bb_position = (current_price - bb_lower) / (bb_upper - bb_lower) if bb_upper > bb_lower else 0.5
+            # RSI 정규화 (0-1 범위)
+            rsi_normalized = rsi / 100
+            
             if current_price < bb_lower and rsi < self.rsi_oversold:
                 # 볼린저 밴드 하단 이탈 + RSI 과매도
                 strength = ((self.rsi_oversold - rsi) / self.rsi_oversold) * 0.5 + \
@@ -381,6 +445,22 @@ class MeanReversionStrategy(BaseStrategy):
                     strength=min(1.0, strength),
                     price=current_price,
                     reason=f"Mean reversion: RSI {rsi:.1f}, above BB upper"
+                )
+            else:
+                # 조건 미충족시에도 신호 강도 반환 (HOLD)
+                # 강도는 BB 위치와 RSI를 조합하여 계산
+                if bb_position < 0.5:  # 하단 근처
+                    strength = (0.5 - bb_position) * 0.5 + (0.5 - rsi_normalized) * 0.5
+                else:  # 상단 근처
+                    strength = (bb_position - 0.5) * 0.5 + (rsi_normalized - 0.5) * 0.5
+                    
+                return Signal(
+                    timestamp=market_data[-1].timestamp,
+                    strategy='mean_reversion',
+                    action='HOLD',
+                    strength=max(0, min(1.0, abs(strength))),
+                    price=current_price,
+                    reason=f"RSI: {rsi:.1f}, BB position: {bb_position:.2f}"
                 )
                 
         except Exception as e:

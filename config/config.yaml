@@ -32,7 +32,7 @@ strategies:
     enabled: true
     weight: 0.20
     params:
-      lookback_period: 1000
+      lookback_period: 100
       entry_zscore: 2.0
       exit_zscore: 0.5
       

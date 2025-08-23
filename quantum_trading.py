@@ -395,18 +395,50 @@ class QuantumTradingSystem:
         for signal in signals:
             strategy_weight = self.strategies[signal.strategy].weight
             
-            # 전략별 원본 신호와 가중치 적용 신호 저장
-            strategy_signals[signal.strategy] = {
-                'action': signal.action,
-                'raw_signal': signal.strength,
-                'weight': strategy_weight,
-                'weighted_signal': signal.strength * strategy_weight
-            }
-            
-            if signal.action == 'BUY':
-                buy_score += signal.strength * strategy_weight
-            elif signal.action == 'SELL':
-                sell_score += signal.strength * strategy_weight
+            # HOLD 신호의 경우 방향성을 결정
+            if signal.action == 'HOLD':
+                # HOLD 신호의 강도를 현재 가격 위치로 방향 결정
+                # 음수면 매수 성향, 양수면 매도 성향으로 처리
+                raw_signal = signal.strength
+                if signal.reason and 'oversold' in signal.reason.lower():
+                    # 과매도 상태면 매수 신호로
+                    strategy_signals[signal.strategy] = {
+                        'action': 'HOLD(BUY)',
+                        'raw_signal': raw_signal,
+                        'weight': strategy_weight,
+                        'weighted_signal': raw_signal * strategy_weight * 0.3  # HOLD는 약하게 반영
+                    }
+                    buy_score += raw_signal * strategy_weight * 0.3
+                elif signal.reason and 'overbought' in signal.reason.lower():
+                    # 과매수 상태면 매도 신호로
+                    strategy_signals[signal.strategy] = {
+                        'action': 'HOLD(SELL)',
+                        'raw_signal': raw_signal,
+                        'weight': strategy_weight,
+                        'weighted_signal': raw_signal * strategy_weight * 0.3
+                    }
+                    sell_score += raw_signal * strategy_weight * 0.3
+                else:
+                    # 중립 상태
+                    strategy_signals[signal.strategy] = {
+                        'action': 'HOLD',
+                        'raw_signal': raw_signal,
+                        'weight': strategy_weight,
+                        'weighted_signal': 0
+                    }
+            else:
+                # BUY/SELL 신호 처리
+                strategy_signals[signal.strategy] = {
+                    'action': signal.action,
+                    'raw_signal': signal.strength,
+                    'weight': strategy_weight,
+                    'weighted_signal': signal.strength * strategy_weight
+                }
+                
+                if signal.action == 'BUY':
+                    buy_score += signal.strength * strategy_weight
+                elif signal.action == 'SELL':
+                    sell_score += signal.strength * strategy_weight
         
         # Redis나 메모리에 전략별 신호 저장
         self.save_strategy_signals(strategy_signals, buy_score, sell_score)
