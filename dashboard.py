@@ -857,6 +857,58 @@ def settings():
             logger.error(f"Error saving settings: {e}")
             return jsonify({'error': str(e)}), 500
 
+@app.route('/api/trades')
+def get_trades():
+    """거래 내역 조회 API (상세 정보 포함)"""
+    try:
+        conn = sqlite3.connect('data/quantum.db')
+        cursor = conn.cursor()
+        
+        # 거래 내역과 신호 정보 조인
+        cursor.execute('''
+            SELECT 
+                t.id,
+                t.timestamp,
+                t.strategy_name,
+                t.symbol,
+                t.side,
+                t.price,
+                t.quantity,
+                t.fee,
+                t.pnl,
+                s.strength,
+                s.reason
+            FROM trades t
+            LEFT JOIN signals s ON 
+                s.timestamp BETWEEN datetime(t.timestamp, '-5 seconds') 
+                AND datetime(t.timestamp, '+5 seconds')
+                AND s.action = t.side
+            ORDER BY t.timestamp DESC
+            LIMIT 50
+        ''')
+        
+        trades = []
+        for row in cursor.fetchall():
+            trades.append({
+                'id': row[0],
+                'timestamp': row[1],
+                'strategy': row[2],
+                'symbol': row[3],
+                'side': row[4],
+                'price': row[5],
+                'quantity': row[6],
+                'fee': row[7] or 0,
+                'pnl': row[8] or 0,
+                'signal_strength': row[9] or 0,
+                'reason': row[10] or 'N/A'
+            })
+        
+        conn.close()
+        return jsonify({'trades': trades})
+    except Exception as e:
+        logger.error(f"Error fetching trades: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/logs')
 def get_logs():
     """로그 조회 API"""
