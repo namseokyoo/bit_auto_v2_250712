@@ -395,50 +395,23 @@ class QuantumTradingSystem:
         for signal in signals:
             strategy_weight = self.strategies[signal.strategy].weight
             
-            # HOLD 신호의 경우 방향성을 결정
-            if signal.action == 'HOLD':
-                # HOLD 신호의 강도를 현재 가격 위치로 방향 결정
-                # 음수면 매수 성향, 양수면 매도 성향으로 처리
-                raw_signal = signal.strength
-                if signal.reason and 'oversold' in signal.reason.lower():
-                    # 과매도 상태면 매수 신호로
-                    strategy_signals[signal.strategy] = {
-                        'action': 'HOLD(BUY)',
-                        'raw_signal': raw_signal,
-                        'weight': strategy_weight,
-                        'weighted_signal': raw_signal * strategy_weight * 0.3  # HOLD는 약하게 반영
-                    }
-                    buy_score += raw_signal * strategy_weight * 0.3
-                elif signal.reason and 'overbought' in signal.reason.lower():
-                    # 과매수 상태면 매도 신호로
-                    strategy_signals[signal.strategy] = {
-                        'action': 'HOLD(SELL)',
-                        'raw_signal': raw_signal,
-                        'weight': strategy_weight,
-                        'weighted_signal': raw_signal * strategy_weight * 0.3
-                    }
-                    sell_score += raw_signal * strategy_weight * 0.3
-                else:
-                    # 중립 상태
-                    strategy_signals[signal.strategy] = {
-                        'action': 'HOLD',
-                        'raw_signal': raw_signal,
-                        'weight': strategy_weight,
-                        'weighted_signal': 0
-                    }
-            else:
-                # BUY/SELL 신호 처리
-                strategy_signals[signal.strategy] = {
-                    'action': signal.action,
-                    'raw_signal': signal.strength,
-                    'weight': strategy_weight,
-                    'weighted_signal': signal.strength * strategy_weight
-                }
-                
-                if signal.action == 'BUY':
-                    buy_score += signal.strength * strategy_weight
-                elif signal.action == 'SELL':
-                    sell_score += signal.strength * strategy_weight
+            # 전략별 원본 신호와 가중치 적용 신호 저장
+            strategy_signals[signal.strategy] = {
+                'action': signal.action,
+                'raw_signal': signal.strength,
+                'weight': strategy_weight,
+                'weighted_signal': signal.strength * strategy_weight
+            }
+            
+            # BUY/SELL/HOLD 모든 신호에 대해 점수 계산
+            if signal.action == 'BUY':
+                buy_score += signal.strength * strategy_weight
+            elif signal.action == 'SELL':
+                sell_score += signal.strength * strategy_weight
+            elif signal.action == 'HOLD':
+                # HOLD 신호는 강도는 있지만 방향성이 없으므로 스킵
+                # 대시보드에는 표시되지만 거래 결정에는 영향 없음
+                strategy_signals[signal.strategy]['weighted_signal'] = 0
         
         # Redis나 메모리에 전략별 신호 저장
         self.save_strategy_signals(strategy_signals, buy_score, sell_score)
@@ -545,21 +518,34 @@ class QuantumTradingSystem:
             position_size = self.calculate_position_size(signal)
             logger.info(f"Calculated position size: {position_size:,.0f} KRW")
             
+            # 실제 거래 실행 여부
+            trade_executed = False
+            
             if signal.action == 'BUY':
                 # 매수 주문
                 logger.info(f"Placing BUY order for {position_size:,.0f} KRW")
                 order = self.upbit.buy_market_order(symbol, position_size)
-                logger.info(f"Buy order placed: {order}")
+                if order and order.get('uuid'):  # 실제 주문이 성공한 경우
+                    logger.info(f"Buy order placed: {order}")
+                    trade_executed = True
+                else:
+                    logger.warning(f"Buy order failed or dry-run mode")
                 
             elif signal.action == 'SELL':
                 # 매도 주문
                 balance = self.upbit.get_balance(symbol.split('-')[1])
                 if balance > 0:
                     order = self.upbit.sell_market_order(symbol, balance)
-                    logger.info(f"Sell order placed: {order}")
+                    if order and order.get('uuid'):  # 실제 주문이 성공한 경우
+                        logger.info(f"Sell order placed: {order}")
+                        trade_executed = True
+                    else:
+                        logger.warning(f"Sell order failed or dry-run mode")
                     
-            # 거래 기록
-            self.record_trade(signal, position_size)
+            # 실제 거래가 실행된 경우에만 기록
+            if trade_executed:
+                self.record_trade(signal, position_size)
+                logger.info(f"Trade recorded in database")
             
         except Exception as e:
             logger.error(f"Error executing signal: {e}")

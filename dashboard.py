@@ -918,8 +918,8 @@ DASHBOARD_HTML = """
                     const sellScore = signals.aggregate.sell_score;
                     const action = signals.aggregate.action;
                     
-                    document.getElementById('final-buy-score').textContent = buyScore.toFixed(3);
-                    document.getElementById('final-sell-score').textContent = sellScore.toFixed(3);
+                    document.getElementById('final-buy-signal').textContent = buyScore.toFixed(3);
+                    document.getElementById('final-sell-signal').textContent = sellScore.toFixed(3);
                     document.getElementById('final-action').textContent = action;
                     
                     // 액션에 따른 색상 변경
