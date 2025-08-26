@@ -1,0 +1,152 @@
+name: Simple Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: 158.180.82.112
+        username: ubuntu
+        key: ${{ secrets.ORACLE_SSH_KEY }}
+        port: 22
+        script: |
+          echo "Deployment started at $(date)"
+          
+          # Variables
+          DEPLOY_DIR="/home/ubuntu/bit_auto_v2"
+          
+          # Create directories
+          mkdir -p $DEPLOY_DIR
+          mkdir -p $DEPLOY_DIR/logs
+          mkdir -p $DEPLOY_DIR/data
+          mkdir -p $DEPLOY_DIR/config
+          
+          # Navigate to deployment directory
+          cd $DEPLOY_DIR
+          
+          # Clone or pull repository
+          if [ ! -d ".git" ]; then
+            echo "Cloning repository..."
+            git clone https://github.com/namseokyoo/bit_auto_v2_250712.git .
+          else
+            echo "Pulling latest changes..."
+            git fetch origin main
+            git reset --hard origin/main
+          fi
+          
+          # Install Python dependencies
+          echo "Installing dependencies..."
+          pip3 install --user pyupbit pandas numpy redis apscheduler httpx psutil pyyaml flask flask-cors python-dotenv
+          
+          # Create .env file if not exists
+          if [ ! -f "config/.env" ]; then
+            cat > config/.env << 'EOF'
+          UPBIT_ACCESS_KEY=your_key_here
+          UPBIT_SECRET_KEY=your_secret_here
+          DEEPSEEK_API_KEY=sk-ae644f698503467d80dbd125f443fa5d
+          DASHBOARD_PORT=8080
+          FLASK_SECRET_KEY=quantum-trading-secret
+          TRADING_MODE=dry-run
+          MAX_POSITION_SIZE=10000000
+          DAILY_LOSS_LIMIT=-0.03
+          SIGNAL_THRESHOLD=0.65
+          EOF
+            echo "Created .env file"
+          fi
+          
+          # Initialize databases
+          echo "Initializing databases..."
+          python3 << 'EOF'
+          import sqlite3
+          import os
+          
+          os.makedirs('data', exist_ok=True)
+          
+          # Create all necessary tables
+          for db_name in ['quantum.db', 'ai_analysis.db', 'multi_coin.db']:
+              conn = sqlite3.connect(f'data/{db_name}')
+              cursor = conn.cursor()
+              
+              if db_name == 'quantum.db':
+                  cursor.execute('''CREATE TABLE IF NOT EXISTS trades (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      strategy TEXT,
+                      symbol TEXT,
+                      side TEXT,
+                      price REAL,
+                      quantity REAL,
+                      fee REAL,
+                      pnl REAL,
+                      signal_strength REAL
+                  )''')
+              elif db_name == 'ai_analysis.db':
+                  cursor.execute('''CREATE TABLE IF NOT EXISTS analyses (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      type TEXT,
+                      analysis TEXT,
+                      implemented BOOLEAN DEFAULT FALSE
+                  )''')
+              elif db_name == 'multi_coin.db':
+                  cursor.execute('''CREATE TABLE IF NOT EXISTS trades (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      coin TEXT,
+                      strategy TEXT,
+                      side TEXT,
+                      price REAL,
+                      quantity REAL,
+                      amount REAL,
+                      fee REAL,
+                      pnl REAL,
+                      signal_strength REAL,
+                      market_conditions TEXT
+                  )''')
+                  cursor.execute('''CREATE TABLE IF NOT EXISTS positions (
+                      coin TEXT PRIMARY KEY,
+                      quantity REAL,
+                      avg_price REAL,
+                      current_value REAL,
+                      unrealized_pnl REAL,
+                      last_updated DATETIME
+                  )''')
+              
+              conn.commit()
+              conn.close()
+          
+          print("Databases initialized")
+          EOF
+          
+          # Stop existing processes
+          echo "Stopping existing services..."
+          pkill -f "dashboard.py" || true
+          pkill -f "integrated_trading_system.py" || true
+          pkill -f "quantum_trading.py" || true
+          sleep 2
+          
+          # Start dashboard
+          echo "Starting dashboard..."
+          nohup python3 dashboard.py > logs/dashboard.log 2>&1 &
+          echo "Dashboard started"
+          
+          # Check if dashboard is running
+          sleep 5
+          if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+            echo "✅ Dashboard is running successfully"
+          else
+            echo "⚠️ Dashboard may not be running, check logs"
+          fi
+          
+          echo "Deployment completed at $(date)"
