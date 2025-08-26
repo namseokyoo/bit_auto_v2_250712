@@ -1,0 +1,14 @@
+{
+  "name": "quantum-trading-dashboard-test",
+  "version": "1.0.0",
+  "description": "E2E tests for Quantum Trading Dashboard",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,5 +1,35 @@
 # CLAUDE.md - Quantum Trading System v3
 
+## 🔴 중요: 개발 워크플로우
+
+### SSH를 통한 Oracle 서버 직접 개발
+모든 코드 개선 작업은 **반드시 Oracle Cloud 서버에서 직접** 수행해야 합니다:
+
+```bash
+# 1. Oracle 서버 SSH 접속
+ssh ubuntu@158.180.82.112
+
+# 2. 프로젝트 디렉토리 이동
+cd /home/ubuntu/bit_auto_v2
+
+# 3. 코드 수정 작업 진행
+vim [파일명]  # 또는 nano, vi 등
+
+# 4. 테스트 실행
+python quantum_trading.py --dry-run
+
+# 5. Git 커밋 및 푸시
+git add .
+git commit -m "feat: [변경 내용]"
+git push origin main
+```
+
+### 개발 원칙
+- ✅ **서버에서 직접 개발**: 실시간 테스트 및 검증 가능
+- ✅ **즉시 GitHub 푸시**: 코드 변경사항 즉시 백업
+- ✅ **로컬은 읽기 전용**: 로컬에서는 분석만, 수정은 서버에서
+- ❌ **로컬 수정 금지**: 동기화 충돌 방지
+
 ## 🚀 프로젝트 개요
 
 **Quantum Trading System**은 전문 퀀트 트레이딩을 위한 고빈도 자동 거래 시스템입니다.

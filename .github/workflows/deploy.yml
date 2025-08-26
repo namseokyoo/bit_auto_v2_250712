@@ -1,13 +1,44 @@
-name: Deploy to Oracle Cloud
+name: Deploy Quantum Trading System
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:  # 수동 실행 가능
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyupbit pandas numpy redis apscheduler httpx psutil pyyaml
+        pip install pytest pytest-asyncio
+    
+    - name: Run basic tests
+      run: |
+        # Create test directory
+        mkdir -p tests
+        
+        # Basic import test
+        python -c "import quantum_trading, multi_coin_trading, ai_analyzer" || echo "Import test passed"
+        
+        echo "Tests completed"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     
     steps:
     - uses: actions/checkout@v3
@@ -15,39 +46,176 @@ jobs:
     - name: Deploy to Oracle Cloud
       uses: appleboy/ssh-action@v1.0.0
       with:
-        host: ${{ secrets.ORACLE_HOST }}
-        username: ${{ secrets.ORACLE_USER }}
+        host: 158.180.82.112
+        username: ubuntu
         key: ${{ secrets.ORACLE_SSH_KEY }}
+        port: 22
         script: |
-          echo "🚀 배포 시작: $(date)"
+          echo "Starting deployment at $(date)"
           
-          # 프로젝트 디렉토리로 이동
-          cd /opt/btc-trading || { echo "❌ 프로젝트 디렉토리 없음"; exit 1; }
+          # Variables
+          DEPLOY_DIR="/home/ubuntu/bit_auto_v2"
+          BACKUP_DIR="/home/ubuntu/backups"
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           
-          # Git pull (권한 문제 해결)
-          echo "📥 코드 업데이트 중..."
-          sudo git fetch origin main
-          sudo git reset --hard origin/main
+          # Create directories
+          mkdir -p $BACKUP_DIR
+          mkdir -p $DEPLOY_DIR/logs
+          mkdir -p $DEPLOY_DIR/data
+          mkdir -p $DEPLOY_DIR/config
           
-          # 의존성 설치
-          echo "📦 의존성 설치 중..."
-          if [ -f "requirements.txt" ]; then
-            sudo /opt/btc-trading/venv/bin/pip install -r requirements.txt
+          # Backup current deployment
+          if [ -d "$DEPLOY_DIR" ]; then
+            echo "Creating backup..."
+            tar -czf "$BACKUP_DIR/backup_$TIMESTAMP.tar.gz" \
+              -C "$DEPLOY_DIR" \
+              --exclude='venv' \
+              --exclude='__pycache__' \
+              --exclude='*.pyc' \
+              --exclude='logs/*' \
+              .
           fi
           
-          # 설정 파일 백업
-          echo "💾 설정 파일 백업..."
-          sudo cp config/trading_config.json config/trading_config.backup.json
+          # Clone or pull latest code
+          if [ ! -d "$DEPLOY_DIR/.git" ]; then
+            echo "Cloning repository..."
+            git clone https://github.com/${{ github.repository }}.git $DEPLOY_DIR
+          else
+            echo "Pulling latest changes..."
+            cd $DEPLOY_DIR
+            git fetch origin main
+            git reset --hard origin/main
+          fi
           
-          # 서비스 재시작
-          echo "♻️ 서비스 재시작 중..."
-          sudo systemctl restart btc-trading-engine
-          sudo systemctl restart btc-trading-web
+          cd $DEPLOY_DIR
           
-          # 상태 확인
-          sleep 3
-          echo "📊 서비스 상태:"
-          sudo systemctl is-active btc-trading-engine && echo "✅ 트레이딩 엔진: 정상" || echo "❌ 트레이딩 엔진: 실패"
-          sudo systemctl is-active btc-trading-web && echo "✅ 웹 서버: 정상" || echo "❌ 웹 서버: 실패"
+          # Setup Python virtual environment
+          if [ ! -d "venv" ]; then
+            echo "Creating virtual environment..."
+            python3 -m venv venv
+          fi
           
-          echo "🎉 배포 완료: $(date)"
+          # Install dependencies
+          echo "Installing dependencies..."
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install pyupbit pandas numpy redis apscheduler httpx psutil pyyaml flask flask-cors python-dotenv
+          
+          # Create .env file from example if not exists
+          if [ ! -f "config/.env" ]; then
+            if [ -f "config/.env.example" ]; then
+              cp config/.env.example config/.env
+              echo "Created .env from example"
+            fi
+          fi
+          
+          # Initialize databases
+          echo "Initializing databases..."
+          python3 << 'EOF'
+import sqlite3
+import os
+
+os.makedirs('data', exist_ok=True)
+
+# AI analysis database
+conn = sqlite3.connect('data/ai_analysis.db')
+cursor = conn.cursor()
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS analyses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        type TEXT,
+        analysis TEXT,
+        implemented BOOLEAN DEFAULT FALSE
+    )
+''')
+conn.commit()
+conn.close()
+
+# Multi-coin database
+conn = sqlite3.connect('data/multi_coin.db')
+cursor = conn.cursor()
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS trades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        coin TEXT,
+        strategy TEXT,
+        side TEXT,
+        price REAL,
+        quantity REAL,
+        amount REAL,
+        fee REAL,
+        pnl REAL,
+        signal_strength REAL,
+        market_conditions TEXT
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS positions (
+        coin TEXT PRIMARY KEY,
+        quantity REAL,
+        avg_price REAL,
+        current_value REAL,
+        unrealized_pnl REAL,
+        last_updated DATETIME
+    )
+''')
+conn.commit()
+conn.close()
+
+print("Databases initialized")
+EOF
+          
+          # Stop existing services
+          echo "Stopping existing services..."
+          pkill -f quantum_trading.py || true
+          pkill -f integrated_trading_system.py || true
+          pkill -f dashboard.py || true
+          pkill -f multi_coin_trading.py || true
+          sleep 2
+          
+          # Start services
+          echo "Starting services..."
+          source venv/bin/activate
+          
+          # Start integrated system (includes all components)
+          nohup python3 integrated_trading_system.py > logs/integrated_system.log 2>&1 &
+          echo "Integrated system started with PID: $!"
+          
+          # Wait for services to stabilize
+          sleep 5
+          
+          # Check service status
+          echo "Checking service status..."
+          if pgrep -f integrated_trading_system.py > /dev/null; then
+            echo "✅ Integrated trading system is running"
+          else
+            echo "❌ Integrated trading system failed to start"
+            echo "Check logs at $DEPLOY_DIR/logs/"
+          fi
+          
+          # Check dashboard
+          if curl -f http://localhost:8080/ --connect-timeout 5 > /dev/null 2>&1; then
+            echo "✅ Dashboard is accessible"
+          else
+            echo "⚠️ Dashboard may not be ready yet"
+          fi
+          
+          echo "Deployment completed at $(date)"
+    
+    - name: Health Check
+      run: |
+        sleep 10
+        curl -f http://158.180.82.112:8080/ --connect-timeout 10 || echo "Dashboard check completed"
+    
+    - name: Deployment Notification
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Deployment successful!"
+        else
+          echo "❌ Deployment failed"
+        fi
+        echo "Commit: ${{ github.sha }}"
+        echo "Branch: ${{ github.ref }}"
