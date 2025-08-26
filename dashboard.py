@@ -1,5 +1,5 @@
 """
-Quantum Trading Dashboard with Settings and Trade Details
+Enhanced Quantum Trading Dashboard with AI Analysis and Multi-Coin Control
 """
 
 import os
@@ -15,12 +15,13 @@ import pyupbit
 import yaml
 import subprocess
 import pytz
+import psutil
 
 # KST 타임존 설정
 KST = pytz.timezone('Asia/Seoul')
 
 # 환경 변수 로드
-load_dotenv()
+load_dotenv('config/.env')
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -48,7 +49,7 @@ DASHBOARD_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quantum Trading Dashboard</title>
+    <title>Quantum Trading Dashboard v3.0</title>
     <style>
         * {
             margin: 0;
@@ -63,21 +64,29 @@ DASHBOARD_HTML = """
             padding: 20px;
         }
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
         }
-        h1 {
+        .header {
             text-align: center;
-            font-size: 2.5em;
             margin-bottom: 30px;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
             background: linear-gradient(135deg, #4ade80 0%, #22d3ee 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1.1em;
         }
         .tabs {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
         .tab {
             padding: 10px 20px;
@@ -100,1378 +109,1299 @@ DASHBOARD_HTML = """
         }
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 20px;
+            margin-bottom: 20px;
         }
         .card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
             padding: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255,255,255,0.1);
         }
-        .card h2 {
+        .card h3 {
             color: #4ade80;
             margin-bottom: 15px;
-            font-size: 1.3em;
+            font-size: 1.2em;
         }
         .metric {
             display: flex;
             justify-content: space-between;
-            margin: 10px 0;
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 5px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .metric:last-child {
+            border-bottom: none;
         }
         .metric-label {
-            font-weight: 500;
+            color: #94a3b8;
         }
         .metric-value {
             font-weight: bold;
+            font-size: 1.1em;
         }
-        .positive { color: #4ade80; }
-        .negative { color: #f87171; }
-        .neutral { color: #fbbf24; }
+        .positive {
+            color: #4ade80;
+        }
+        .negative {
+            color: #ef4444;
+        }
+        .neutral {
+            color: #fbbf24;
+        }
+        table {
+            width: 100%;
+            margin-top: 10px;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        th {
+            background: rgba(255,255,255,0.1);
+            color: #4ade80;
+        }
         .btn {
             padding: 10px 20px;
-            margin: 5px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 1em;
+            font-weight: bold;
             transition: all 0.3s;
+            margin: 5px;
         }
         .btn-primary {
             background: #4ade80;
             color: #000;
         }
         .btn-danger {
-            background: #f87171;
+            background: #ef4444;
             color: #fff;
         }
+        .btn-warning {
+            background: #fbbf24;
+            color: #000;
+        }
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            opacity: 0.8;
+            transform: scale(1.05);
+        }
+        .loading {
+            text-align: center;
+            color: #94a3b8;
+            padding: 20px;
+        }
+        .analysis-item {
+            background: rgba(255,255,255,0.05);
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .analysis-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .analysis-date {
+            color: #94a3b8;
+            font-size: 0.9em;
+        }
+        .analysis-type {
+            color: #4ade80;
+            font-weight: bold;
+        }
+        .analysis-content {
+            color: #e2e8f0;
+            line-height: 1.5;
+        }
+        .coin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .coin-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .coin-symbol {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4ade80;
+            margin-bottom: 10px;
+        }
+        .coin-price {
+            font-size: 0.9em;
+            color: #94a3b8;
+            margin-bottom: 5px;
+        }
+        .coin-pnl {
+            font-size: 1.1em;
+            font-weight: bold;
         }
         .status-indicator {
             display: inline-block;
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             margin-right: 5px;
         }
-        .status-running { background: #4ade80; }
-        .status-stopped { background: #f87171; }
-        .trade-list {
-            max-height: 300px;
-            overflow-y: auto;
+        .status-running {
+            background: #4ade80;
+            animation: pulse 2s infinite;
         }
-        .trade-item {
-            padding: 10px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            cursor: pointer;
-            transition: background 0.3s;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.9em;
+        .status-stopped {
+            background: #ef4444;
         }
-        .trade-item:hover {
-            background: rgba(255,255,255,0.05);
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
-        .trade-item.buy { border-left: 3px solid #4CAF50; }
-        .trade-item.sell { border-left: 3px solid #f44336; }
-        .trade-time { color: #94a3b8; }
-        .trade-side { font-weight: bold; }
-        .trade-side.buy { color: #4CAF50; }
-        .trade-side.sell { color: #f44336; }
-        .trade-price { color: #f59e0b; }
-        .trade-signal { color: #8b5cf6; font-size: 0.85em; }
-        .trade-pnl { font-weight: bold; }
-        .trade-pnl.positive { color: #4CAF50; }
-        .trade-pnl.negative { color: #f44336; }
-        .strategy-signals {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .strategy-signal-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px;
-            background: rgba(255,255,255,0.02);
-            border-radius: 4px;
-            font-size: 0.9em;
-        }
-        .strategy-name {
-            flex: 1;
-            font-weight: 500;
-            color: #e2e8f0;
-        }
-        .signal-raw, .signal-weighted {
-            flex: 1;
-            text-align: center;
-        }
-        .signal-raw { color: #94a3b8; }
-        .signal-weighted { color: #f59e0b; font-weight: 500; }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-        }
-        .modal-content {
-            background: #1e293b;
-            margin: 10% auto;
-            padding: 30px;
-            border-radius: 10px;
-            width: 80%;
-            max-width: 600px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        .close {
-            color: #94a3b8;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .close:hover {
-            color: #fff;
-        }
-        .setting-item {
-            margin: 20px 0;
-        }
-        .setting-label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-        .setting-input {
-            width: 100%;
-            padding: 10px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 5px;
-            color: #fff;
-            font-size: 1em;
-        }
-        .setting-description {
-            font-size: 0.9em;
-            color: #94a3b8;
-            margin-top: 5px;
-        }
-        .log-content {
+        .log-viewer {
             background: #000;
             color: #0f0;
+            font-family: 'Courier New', monospace;
             padding: 15px;
             border-radius: 5px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
-            max-height: 500px;
+            height: 400px;
             overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .control-panel {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .status-message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+        }
+        .status-success {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border: 1px solid #4ade80;
+        }
+        .status-error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid #ef4444;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 Quantum Trading Dashboard</h1>
-        
-        <!-- 탭 버튼 -->
-        <div class="tabs">
-            <button class="tab active" onclick="switchTab('dashboard', this)">대시보드</button>
-            <button class="tab" onclick="switchTab('settings', this)">설정</button>
-            <button class="tab" onclick="switchTab('logs', this)">로그</button>
+        <div class="header">
+            <h1>Quantum Trading Dashboard v3.0</h1>
+            <div class="subtitle">AI-Powered Multi-Coin Trading System with DeepSeek Analysis</div>
         </div>
         
-        <!-- 대시보드 탭 -->
-        <div id="dashboard-tab" class="tab-content active">
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('overview')">📊 Overview</button>
+            <button class="tab" onclick="showTab('ai-analysis')">🤖 AI Analysis</button>
+            <button class="tab" onclick="showTab('multi-coin')">💰 Multi-Coin</button>
+            <button class="tab" onclick="showTab('control')">🎮 Control</button>
+            <button class="tab" onclick="showTab('trades')">📈 Trades</button>
+            <button class="tab" onclick="showTab('settings')">⚙️ Settings</button>
+            <button class="tab" onclick="showTab('logs')">📝 Logs</button>
+        </div>
+        
+        <!-- Overview Tab -->
+        <div class="tab-content active" id="overview-content">
             <div class="grid">
-                <!-- 시스템 상태 -->
                 <div class="card">
-                    <h2>시스템 상태</h2>
-                    <div class="metric">
-                        <span class="metric-label">상태</span>
-                        <span class="metric-value">
-                            <span class="status-indicator" id="status-indicator"></span>
-                            <span id="system-status">Loading...</span>
-                        </span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">운영 시간</span>
-                        <span class="metric-value" id="uptime">-</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">마지막 업데이트</span>
-                        <span class="metric-value" id="last-update">-</span>
-                    </div>
-                    <div style="margin-top: 15px;">
-                        <button class="btn btn-primary" onclick="startTrading()">시작</button>
-                        <button class="btn btn-danger" onclick="stopTrading()">중지</button>
+                    <h3>📊 System Status</h3>
+                    <div id="system-status">
+                        <div class="loading">Loading system status...</div>
                     </div>
                 </div>
                 
-                <!-- 계좌 정보 -->
                 <div class="card">
-                    <h2>계좌 정보</h2>
-                    <div class="metric">
-                        <span class="metric-label">총 자산</span>
-                        <span class="metric-value" id="total-balance">₩0</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">KRW (예수금)</span>
-                        <span class="metric-value" id="krw-balance">₩0</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">BTC 보유</span>
-                        <span class="metric-value" id="btc-balance">0 BTC</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">BTC 평가금</span>
-                        <span class="metric-value" id="position-value">₩0</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">BTC 손익</span>
-                        <span class="metric-value" id="btc-pnl">₩0</span>
+                    <h3>💵 Portfolio Summary</h3>
+                    <div id="portfolio-summary">
+                        <div class="loading">Loading portfolio...</div>
                     </div>
                 </div>
                 
-                <!-- 오늘의 성과 -->
                 <div class="card">
-                    <h2>오늘의 성과</h2>
-                    <div class="metric">
-                        <span class="metric-label">일일 손익</span>
-                        <span class="metric-value" id="daily-pnl">₩0</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">거래 횟수</span>
-                        <span class="metric-value">
-                            <span id="trade-count">0</span>회
-                            (<span id="buy-count">0</span>매수/<span id="sell-count">0</span>매도)
-                        </span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">승률</span>
-                        <span class="metric-value" id="win-rate">0%</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">평균 신호 강도</span>
-                        <span class="metric-value" id="avg-signal">0.000</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">현재 임계값</span>
-                        <span class="metric-value" id="current-threshold">0.25</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">오늘 최고/최저가</span>
-                        <span class="metric-value" id="price-range">-</span>
+                    <h3>📈 Today's Performance</h3>
+                    <div id="today-performance">
+                        <div class="loading">Loading performance...</div>
                     </div>
                 </div>
                 
-                <!-- 전략별 신호 강도 -->
                 <div class="card">
-                    <h2>전략별 신호 강도</h2>
-                    <div class="strategy-signals" id="strategy-signals">
-                        <div class="strategy-signal-item">
-                            <span class="strategy-name">Market Making <span id="signal-mm-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
-                            <span class="signal-raw">원본: <span id="signal-mm-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치: <span id="signal-mm-weighted">0.000</span></span>
-                        </div>
-                        <div class="strategy-signal-item">
-                            <span class="strategy-name">Statistical Arbitrage <span id="signal-sa-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
-                            <span class="signal-raw">원본: <span id="signal-sa-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치: <span id="signal-sa-weighted">0.000</span></span>
-                        </div>
-                        <div class="strategy-signal-item">
-                            <span class="strategy-name">Microstructure <span id="signal-ms-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
-                            <span class="signal-raw">원본: <span id="signal-ms-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치: <span id="signal-ms-weighted">0.000</span></span>
-                        </div>
-                        <div class="strategy-signal-item">
-                            <span class="strategy-name">Momentum Scalping <span id="signal-mo-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
-                            <span class="signal-raw">원본: <span id="signal-mo-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치: <span id="signal-mo-weighted">0.000</span></span>
-                        </div>
-                        <div class="strategy-signal-item">
-                            <span class="strategy-name">Mean Reversion <span id="signal-mr-action" style="font-weight: bold; margin-left: 5px;">HOLD</span></span>
-                            <span class="signal-raw">원본: <span id="signal-mr-raw">0.000</span></span>
-                            <span class="signal-weighted">가중치: <span id="signal-mr-weighted">0.000</span></span>
-                        </div>
-                        <div class="strategy-signal-item" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2);">
-                            <span class="strategy-name"><strong>최종 신호</strong></span>
-                            <span class="signal-raw">BUY: <span id="final-buy-signal">0.000</span></span>
-                            <span class="signal-weighted">SELL: <span id="final-sell-signal">0.000</span></span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 최근 거래 -->
-                <div class="card">
-                    <h2>최근 거래</h2>
-                    <div class="trade-list" id="recent-trades">
-                        <div class="trade-item">거래 내역이 없습니다</div>
+                    <h3>🎯 Active Strategies</h3>
+                    <div id="active-strategies">
+                        <div class="loading">Loading strategies...</div>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- 설정 탭 -->
-        <div id="settings-tab" class="tab-content">
+        <!-- AI Analysis Tab -->
+        <div class="tab-content" id="ai-analysis-content">
             <div class="card">
-                <h2>거래 설정</h2>
-                <div class="setting-item">
-                    <label class="setting-label">신호 임계값 (Signal Threshold)</label>
-                    <input type="number" id="signal-threshold" class="setting-input" 
-                           min="0.05" max="0.5" step="0.05" value="0.25">
-                    <div class="setting-description">
-                        거래 신호 강도 임계값 (0.05~0.5)<br>
-                        • 0.05~0.15: 매우 활발한 거래 (고위험)<br>
-                        • 0.20~0.30: 보통 거래 빈도 <strong>(권장)</strong><br>
-                        • 0.35~0.50: 보수적 거래 (저위험)
-                    </div>
+                <h3>🤖 DeepSeek AI Analysis</h3>
+                <div class="control-panel">
+                    <button class="btn btn-primary" onclick="refreshAIAnalysis()">Refresh</button>
+                    <button class="btn btn-warning" onclick="triggerAnalysis()">Trigger Analysis Now</button>
                 </div>
-                <div class="setting-item">
-                    <label class="setting-label">최대 포지션 크기 (Max Position)</label>
-                    <input type="number" id="max-position" class="setting-input" 
-                           min="100000" max="10000000" step="100000" value="1000000">
-                    <div class="setting-description">최대 포지션 크기 (원)</div>
+                <div id="ai-analysis-list">
+                    <div class="loading">Loading AI analysis...</div>
                 </div>
-                <div class="setting-item">
-                    <label class="setting-label">거래 간격 (Trading Interval)</label>
-                    <input type="number" id="trading-interval" class="setting-input" 
-                           min="30" max="300" step="10" value="60">
-                    <div class="setting-description">거래 신호 생성 간격 (초)</div>
+            </div>
+        </div>
+        
+        <!-- Multi-Coin Tab -->
+        <div class="tab-content" id="multi-coin-content">
+            <div class="card">
+                <h3>💰 Multi-Coin Trading Status</h3>
+                <div class="coin-grid" id="coin-status-grid">
+                    <div class="loading">Loading coin status...</div>
                 </div>
-                <div class="setting-item">
-                    <label class="setting-label">일일 손실 한도 (Daily Loss Limit)</label>
-                    <input type="number" id="daily-loss-limit" class="setting-input" 
-                           min="1" max="10" step="0.5" value="5">
-                    <div class="setting-description">일일 최대 손실 한도 (%)</div>
-                </div>
-                <button class="btn btn-primary" onclick="saveSettings()">설정 저장</button>
-                <button class="btn" onclick="loadSettings()">현재 설정 불러오기</button>
             </div>
             
-            <!-- 전략별 가중치 설정 -->
-            <div class="card" style="margin-top: 20px;">
-                <h2>전략별 가중치 설정</h2>
-                <div class="setting-description" style="margin-bottom: 20px;">
-                    전략별 가중치를 조절하여 신호 강도를 제어합니다. (합계: <span id="weight-total">100</span>%)
-                </div>
-                
-                <div class="setting-item">
-                    <label class="setting-label">Market Making (마켓 메이킹)</label>
-                    <input type="number" id="weight-market-making" class="setting-input" 
-                           min="0" max="100" step="5" value="30" onchange="updateWeightTotal()">
-                    <div class="setting-description">스프레드 수익 전략 (기본: 30%)</div>
-                </div>
-                
-                <div class="setting-item">
-                    <label class="setting-label">Statistical Arbitrage (통계적 차익거래)</label>
-                    <input type="number" id="weight-stat-arb" class="setting-input" 
-                           min="0" max="100" step="5" value="20" onchange="updateWeightTotal()">
-                    <div class="setting-description">페어 트레이딩 전략 (기본: 20%)</div>
-                </div>
-                
-                <div class="setting-item">
-                    <label class="setting-label">Microstructure (마이크로구조)</label>
-                    <input type="number" id="weight-microstructure" class="setting-input" 
-                           min="0" max="100" step="5" value="20" onchange="updateWeightTotal()">
-                    <div class="setting-description">시장 미시구조 분석 (기본: 20%)</div>
-                </div>
-                
-                <div class="setting-item">
-                    <label class="setting-label">Momentum Scalping (모멘텀 스캘핑)</label>
-                    <input type="number" id="weight-momentum" class="setting-input" 
-                           min="0" max="100" step="5" value="15" onchange="updateWeightTotal()">
-                    <div class="setting-description">단기 모멘텀 포착 (기본: 15%)</div>
-                </div>
-                
-                <div class="setting-item">
-                    <label class="setting-label">Mean Reversion (평균 회귀)</label>
-                    <input type="number" id="weight-mean-reversion" class="setting-input" 
-                           min="0" max="100" step="5" value="15" onchange="updateWeightTotal()">
-                    <div class="setting-description">과매수/과매도 포착 (기본: 15%)</div>
-                </div>
-                
-                <div class="setting-item" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
-                    <div class="setting-description">
-                        <strong>팁:</strong> 가중치 합계는 100%가 되어야 합니다.<br>
-                        • 신호가 약하다면 주요 전략의 가중치를 높이세요<br>
-                        • 특정 전략이 잘 작동한다면 해당 가중치를 증가시키세요
-                    </div>
-                </div>
-                
-                <button class="btn btn-primary" onclick="saveStrategyWeights()">가중치 저장</button>
-                <button class="btn" onclick="loadStrategyWeights()">현재 가중치 불러오기</button>
+            <div class="card">
+                <h3>📊 Coin Performance</h3>
+                <table id="coin-performance-table">
+                    <thead>
+                        <tr>
+                            <th>Coin</th>
+                            <th>Holdings</th>
+                            <th>Avg Price</th>
+                            <th>Current Price</th>
+                            <th>PnL</th>
+                            <th>PnL %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="6" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
         
-        <!-- 로그 탭 -->
-        <div id="logs-tab" class="tab-content">
+        <!-- Control Tab -->
+        <div class="tab-content" id="control-content">
             <div class="card">
-                <h2>시스템 로그</h2>
-                <div class="log-content" id="log-content">
-                    Loading logs...
+                <h3>🎮 System Control</h3>
+                <div class="control-panel">
+                    <button class="btn btn-primary" onclick="controlSystem('start')">▶️ Start Trading</button>
+                    <button class="btn btn-danger" onclick="controlSystem('stop')">⏹️ Stop Trading</button>
+                    <button class="btn btn-warning" onclick="controlSystem('restart')">🔄 Restart System</button>
                 </div>
-                <button class="btn" onclick="loadLogs()">로그 새로고침</button>
+                <div id="control-status" class="status-message"></div>
+            </div>
+            
+            <div class="card">
+                <h3>🛠️ Quick Actions</h3>
+                <div class="control-panel">
+                    <button class="btn btn-primary" onclick="emergencyStop()">🚨 Emergency Stop</button>
+                    <button class="btn btn-warning" onclick="closeAllPositions()">💸 Close All Positions</button>
+                    <button class="btn btn-primary" onclick="runBacktest()">📊 Run Backtest</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>📊 Process Monitor</h3>
+                <div id="process-monitor">
+                    <div class="loading">Loading process status...</div>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <!-- 거래 상세 모달 -->
-    <div id="tradeModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <h2>거래 상세 정보</h2>
-            <div id="trade-details"></div>
+        
+        <!-- Trades Tab -->
+        <div class="tab-content" id="trades-content">
+            <div class="card">
+                <h3>📈 Recent Trades</h3>
+                <table id="trades-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Coin</th>
+                            <th>Strategy</th>
+                            <th>Side</th>
+                            <th>Price</th>
+                            <th>Amount</th>
+                            <th>PnL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="7" class="loading">Loading trades...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Settings Tab -->
+        <div class="tab-content" id="settings-content">
+            <div class="card">
+                <h3>⚙️ Trading Configuration</h3>
+                <div id="trading-config">
+                    <div class="loading">Loading configuration...</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>🔑 API Configuration</h3>
+                <div id="api-config">
+                    <div class="metric">
+                        <span class="metric-label">DeepSeek API:</span>
+                        <span class="metric-value positive">Configured ✓</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Upbit API:</span>
+                        <span class="metric-value" id="upbit-api-status">Checking...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Logs Tab -->
+        <div class="tab-content" id="logs-content">
+            <div class="card">
+                <h3>📝 System Logs</h3>
+                <div class="control-panel">
+                    <button class="btn btn-primary" onclick="refreshLogs()">Refresh</button>
+                    <select id="log-filter" onchange="filterLogs()">
+                        <option value="all">All Logs</option>
+                        <option value="error">Errors Only</option>
+                        <option value="trade">Trades Only</option>
+                        <option value="ai">AI Analysis</option>
+                    </select>
+                </div>
+                <div class="log-viewer" id="log-viewer">
+                    Loading logs...
+                </div>
+            </div>
         </div>
     </div>
     
     <script>
-        // 탭 전환
-        function switchTab(tabName, element) {
-            // 모든 탭 비활성화
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.remove('active');
             });
-            
-            // 선택한 탭 활성화
-            element.classList.add('active');
-            document.getElementById(tabName + '-tab').classList.add('active');
-            
-            // 로그 탭이면 로그 로드
-            if (tabName === 'logs') {
-                loadLogs();
-            } else if (tabName === 'settings') {
-                loadSettings();
-            }
-        }
-        
-        // 모달 닫기
-        function closeModal() {
-            document.getElementById('tradeModal').style.display = 'none';
-        }
-        
-        // 거래 상세 보기
-        function showTradeDetails(trade) {
-            const modal = document.getElementById('tradeModal');
-            const details = document.getElementById('trade-details');
-            
-            const sideClass = trade.side === 'BUY' ? 'buy' : 'sell';
-            const pnlClass = trade.pnl >= 0 ? 'positive' : 'negative';
-            
-            details.innerHTML = `
-                <div class="metric">
-                    <span class="metric-label">거래 시간:</span>
-                    <span class="metric-value">${new Date(trade.timestamp).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'})}</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">거래 방향:</span>
-                    <span class="metric-value" style="color: ${trade.side === 'BUY' ? '#4CAF50' : '#f44336'}; font-weight: bold;">
-                        ${trade.side || trade.action || 'N/A'}
-                    </span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">거래 가격:</span>
-                    <span class="metric-value">₩${Math.floor(trade.price || 0).toLocaleString()}</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">거래 수량:</span>
-                    <span class="metric-value">${((trade.quantity || trade.amount || 0) / (trade.price || 1)).toFixed(8)} BTC</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">거래 금액:</span>
-                    <span class="metric-value">₩${Math.floor(trade.quantity || trade.amount || 0).toLocaleString()}</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">전략:</span>
-                    <span class="metric-value">${trade.strategy || 'ensemble'}</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">신호 강도:</span>
-                    <span class="metric-value">${(trade.signal_strength || 0).toFixed(3)}</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">거래 근거:</span>
-                    <span class="metric-value" style="font-size: 0.9em;">${trade.reason || 'N/A'}</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">손익:</span>
-                    <span class="metric-value" style="color: ${trade.pnl >= 0 ? '#4CAF50' : '#f44336'}; font-weight: bold;">
-                        ₩${Math.floor(trade.pnl || 0).toLocaleString()}
-                    </span>
-                </div>
-            `;
-            
-            modal.style.display = 'block';
-        }
-        
-        // 설정 저장
-        async function saveSettings() {
-            const settings = {
-                signal_threshold: parseFloat(document.getElementById('signal-threshold').value),
-                max_position: parseInt(document.getElementById('max-position').value),
-                trading_interval: parseInt(document.getElementById('trading-interval').value),
-                daily_loss_limit: parseFloat(document.getElementById('daily-loss-limit').value)
-            };
-            
-            try {
-                const response = await fetch('/api/settings', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(settings)
-                });
-                
-                if (response.ok) {
-                    alert('설정이 저장되었습니다. 시스템을 재시작하세요.');
-                } else {
-                    alert('설정 저장 실패');
-                }
-            } catch (error) {
-                alert('Error: ' + error);
-            }
-        }
-        
-        // 설정 불러오기
-        async function loadSettings() {
-            try {
-                const response = await fetch('/api/settings');
-                const settings = await response.json();
-                
-                document.getElementById('signal-threshold').value = settings.signal_threshold || 0.25;
-                document.getElementById('max-position').value = settings.max_position || 1000000;
-                document.getElementById('trading-interval').value = settings.trading_interval || 60;
-                document.getElementById('daily-loss-limit').value = settings.daily_loss_limit || 5;
-            } catch (error) {
-                console.error('Error loading settings:', error);
-            }
-        }
-        
-        // 가중치 합계 업데이트
-        function updateWeightTotal() {
-            const weights = [
-                'weight-market-making',
-                'weight-stat-arb', 
-                'weight-microstructure',
-                'weight-momentum',
-                'weight-mean-reversion'
-            ];
-            
-            let total = 0;
-            weights.forEach(id => {
-                total += parseFloat(document.getElementById(id).value) || 0;
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
             });
             
-            document.getElementById('weight-total').textContent = total;
+            // Show selected tab
+            document.getElementById(tabName + '-content').classList.add('active');
+            event.target.classList.add('active');
             
-            // 합계가 100이 아니면 경고 색상
-            const totalElement = document.getElementById('weight-total');
-            if (Math.abs(total - 100) < 0.01) {
-                totalElement.style.color = '#4ade80';
-            } else {
-                totalElement.style.color = '#f87171';
+            // Load tab-specific data
+            if (tabName === 'ai-analysis') {
+                loadAIAnalysis();
+            } else if (tabName === 'multi-coin') {
+                loadMultiCoinStatus();
+            } else if (tabName === 'control') {
+                loadProcessMonitor();
+            } else if (tabName === 'trades') {
+                loadTrades();
+            } else if (tabName === 'settings') {
+                loadSettings();
+            } else if (tabName === 'logs') {
+                refreshLogs();
             }
         }
         
-        // 전략 가중치 저장
-        async function saveStrategyWeights() {
-            const weights = {
-                market_making: parseFloat(document.getElementById('weight-market-making').value) / 100,
-                stat_arb: parseFloat(document.getElementById('weight-stat-arb').value) / 100,
-                microstructure: parseFloat(document.getElementById('weight-microstructure').value) / 100,
-                momentum_scalping: parseFloat(document.getElementById('weight-momentum').value) / 100,
-                mean_reversion: parseFloat(document.getElementById('weight-mean-reversion').value) / 100
-            };
-            
-            // 합계 검증
-            const total = Object.values(weights).reduce((a, b) => a + b, 0);
-            if (Math.abs(total - 1.0) > 0.01) {
-                alert('가중치 합계는 100%가 되어야 합니다. 현재: ' + (total * 100).toFixed(0) + '%');
-                return;
-            }
-            
+        // Load System Status
+        async function loadSystemStatus() {
             try {
-                const response = await fetch('/api/strategy-weights', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(weights)
+                const response = await fetch('/api/system-status');
+                const data = await response.json();
+                
+                let html = '';
+                html += `<div class="metric">
+                    <span class="metric-label">Status:</span>
+                    <span class="metric-value ${data.is_running ? 'positive' : 'negative'}">
+                        <span class="status-indicator ${data.is_running ? 'status-running' : 'status-stopped'}"></span>
+                        ${data.is_running ? 'Running' : 'Stopped'}
+                    </span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Uptime:</span>
+                    <span class="metric-value">${data.uptime || 'N/A'}</span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">CPU Usage:</span>
+                    <span class="metric-value">${data.cpu_usage || 0}%</span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Memory:</span>
+                    <span class="metric-value">${data.memory_usage || 0}%</span>
+                </div>`;
+                
+                document.getElementById('system-status').innerHTML = html;
+            } catch (error) {
+                document.getElementById('system-status').innerHTML = 
+                    '<div style="color: #ef4444;">Failed to load system status</div>';
+            }
+        }
+        
+        // Load Portfolio Summary
+        async function loadPortfolioSummary() {
+            try {
+                const response = await fetch('/api/portfolio');
+                const data = await response.json();
+                
+                let html = '';
+                html += `<div class="metric">
+                    <span class="metric-label">Total Value:</span>
+                    <span class="metric-value">₩${(data.total_value || 0).toLocaleString()}</span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Available KRW:</span>
+                    <span class="metric-value">₩${(data.krw_balance || 0).toLocaleString()}</span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Invested:</span>
+                    <span class="metric-value">₩${(data.invested || 0).toLocaleString()}</span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Total PnL:</span>
+                    <span class="metric-value ${data.total_pnl >= 0 ? 'positive' : 'negative'}">
+                        ₩${(data.total_pnl || 0).toLocaleString()}
+                    </span>
+                </div>`;
+                
+                document.getElementById('portfolio-summary').innerHTML = html;
+            } catch (error) {
+                document.getElementById('portfolio-summary').innerHTML = 
+                    '<div style="color: #ef4444;">Failed to load portfolio</div>';
+            }
+        }
+        
+        // Load Today's Performance
+        async function loadTodayPerformance() {
+            try {
+                const response = await fetch('/api/performance/today');
+                const data = await response.json();
+                
+                let html = '';
+                html += `<div class="metric">
+                    <span class="metric-label">Trades:</span>
+                    <span class="metric-value">${data.trade_count || 0}</span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Win Rate:</span>
+                    <span class="metric-value ${data.win_rate >= 50 ? 'positive' : 'negative'}">
+                        ${(data.win_rate || 0).toFixed(1)}%
+                    </span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Today's PnL:</span>
+                    <span class="metric-value ${data.daily_pnl >= 0 ? 'positive' : 'negative'}">
+                        ₩${(data.daily_pnl || 0).toLocaleString()}
+                    </span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Return:</span>
+                    <span class="metric-value ${data.return_rate >= 0 ? 'positive' : 'negative'}">
+                        ${(data.return_rate || 0).toFixed(2)}%
+                    </span>
+                </div>`;
+                
+                document.getElementById('today-performance').innerHTML = html;
+            } catch (error) {
+                document.getElementById('today-performance').innerHTML = 
+                    '<div style="color: #ef4444;">Failed to load performance</div>';
+            }
+        }
+        
+        // Load Active Strategies
+        async function loadActiveStrategies() {
+            try {
+                const response = await fetch('/api/strategies');
+                const data = await response.json();
+                
+                let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+                const strategies = data.strategies || [];
+                
+                strategies.forEach(strategy => {
+                    const statusColor = strategy.active ? 'positive' : 'neutral';
+                    html += `
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>${strategy.name}</span>
+                            <span class="${statusColor}" style="font-size: 0.9em;">
+                                ${strategy.active ? '● Active' : '○ Inactive'}
+                            </span>
+                        </div>
+                    `;
                 });
                 
-                if (response.ok) {
-                    alert('전략 가중치가 저장되었습니다. 시스템을 재시작하세요.');
-                } else {
-                    alert('가중치 저장 실패');
+                if (strategies.length === 0) {
+                    html += '<div style="color: #94a3b8;">No strategies configured</div>';
                 }
-            } catch (error) {
-                alert('Error: ' + error);
-            }
-        }
-        
-        // 전략 가중치 불러오기
-        async function loadStrategyWeights() {
-            try {
-                const response = await fetch('/api/strategy-weights');
-                const weights = await response.json();
                 
-                document.getElementById('weight-market-making').value = (weights.market_making || 0.30) * 100;
-                document.getElementById('weight-stat-arb').value = (weights.stat_arb || 0.20) * 100;
-                document.getElementById('weight-microstructure').value = (weights.microstructure || 0.20) * 100;
-                document.getElementById('weight-momentum').value = (weights.momentum_scalping || 0.15) * 100;
-                document.getElementById('weight-mean-reversion').value = (weights.mean_reversion || 0.15) * 100;
-                
-                updateWeightTotal();
+                html += '</div>';
+                document.getElementById('active-strategies').innerHTML = html;
             } catch (error) {
-                console.error('Error loading strategy weights:', error);
+                document.getElementById('active-strategies').innerHTML = 
+                    '<div style="color: #ef4444;">Failed to load strategies</div>';
             }
         }
         
-        // 로그 로드
-        async function loadLogs() {
+        // Load AI Analysis
+        async function loadAIAnalysis() {
             try {
-                const response = await fetch('/api/logs');
-                const data = await response.json();
-                document.getElementById('log-content').innerHTML = 
-                    '<pre>' + (data.logs || 'No logs available').replace(/\\n/g, '<br>') + '</pre>';
-            } catch (error) {
-                document.getElementById('log-content').textContent = 'Error loading logs';
-            }
-        }
-        
-        // 거래 시작
-        async function startTrading() {
-            if (confirm('거래를 시작하시겠습니까?')) {
-                try {
-                    const response = await fetch('/api/control', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({action: 'start'})
-                    });
-                    const data = await response.json();
-                    alert(data.message || 'Trading started');
-                } catch (error) {
-                    alert('Error: ' + error);
-                }
-            }
-        }
-        
-        // 거래 중지
-        async function stopTrading() {
-            if (confirm('정말로 거래를 중지하시겠습니까?')) {
-                try {
-                    const response = await fetch('/api/control', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({action: 'stop'})
-                    });
-                    const data = await response.json();
-                    alert(data.message || 'Trading stopped');
-                } catch (error) {
-                    alert('Error: ' + error);
-                }
-            }
-        }
-        
-        // 상태 업데이트
-        async function updateStatus() {
-            try {
-                const response = await fetch('/api/status');
+                const response = await fetch('/api/ai-analysis');
                 const data = await response.json();
                 
-                // 시스템 상태 업데이트
-                document.getElementById('system-status').textContent = data.system_status || 'Unknown';
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('ko-KR', {timeZone: 'Asia/Seoul'});
+                let html = '';
+                const analyses = data.analyses || [];
                 
-                // 상태 인디케이터
-                const indicator = document.getElementById('status-indicator');
-                indicator.className = 'status-indicator status-' + 
-                    (data.system_status === 'Running' ? 'running' : 'stopped');
-                
-                // 계좌 정보 업데이트
-                document.getElementById('total-balance').textContent = 
-                    '₩' + Math.floor(data.total_balance || 0).toLocaleString();
-                document.getElementById('krw-balance').textContent = 
-                    '₩' + Math.floor(data.krw_balance || 0).toLocaleString();
-                document.getElementById('btc-balance').textContent = 
-                    (data.btc_balance || 0).toFixed(8) + ' BTC';
-                document.getElementById('position-value').textContent = 
-                    '₩' + Math.floor(data.position_value || 0).toLocaleString();
-                    
-                // BTC 손익
-                if (data.btc_pnl) {
-                    const pnlElement = document.getElementById('btc-pnl');
-                    pnlElement.textContent = '₩' + Math.floor(data.btc_pnl).toLocaleString();
-                    pnlElement.className = data.btc_pnl >= 0 ? 'positive' : 'negative';
-                }
-                
-                // 성과 업데이트
-                const pnlElement = document.getElementById('daily-pnl');
-                const pnl = data.daily_pnl || 0;
-                pnlElement.textContent = '₩' + Math.floor(pnl).toLocaleString();
-                pnlElement.className = pnl >= 0 ? 'positive' : 'negative';
-                
-                document.getElementById('trade-count').textContent = data.trade_count || '0';
-                document.getElementById('buy-count').textContent = data.buy_count || '0';
-                document.getElementById('sell-count').textContent = data.sell_count || '0';
-                document.getElementById('win-rate').textContent = 
-                    (data.win_rate || 0).toFixed(1) + '%';
-                document.getElementById('avg-signal').textContent = 
-                    (data.avg_signal_strength || 0).toFixed(3);
-                document.getElementById('current-threshold').textContent = 
-                    (data.current_threshold || 0.25).toFixed(2);
-                
-                // 가격 범위 표시
-                if (data.min_price && data.max_price) {
-                    document.getElementById('price-range').textContent = 
-                        `₩${Math.floor(data.min_price).toLocaleString()} ~ ₩${Math.floor(data.max_price).toLocaleString()}`;
-                }
-                
-                // 최근 거래
-                if (data.recent_trades && data.recent_trades.length > 0) {
-                    const tradesHtml = data.recent_trades.map(trade => {
-                        const sideClass = trade.side === 'BUY' ? 'buy' : 'sell';
-                        const pnlClass = trade.pnl >= 0 ? 'positive' : 'negative';
-                        // quantity가 BTC 수량이면 price * quantity로 거래금액 계산
-                        // quantity가 이미 KRW 금액이면 그대로 사용
-                        const tradeAmount = trade.quantity < 1 ? 
-                            Math.floor(trade.price * trade.quantity) : 
-                            Math.floor(trade.quantity);
-                        return `
-                            <div class="trade-item ${sideClass}" onclick='showTradeDetails(${JSON.stringify(trade).replace(/'/g, "&apos;")})' style="cursor: pointer;">
-                                <span class="trade-time">${new Date(trade.timestamp).toLocaleTimeString('ko-KR', {timeZone: 'Asia/Seoul'})}</span>
-                                <span class="trade-side ${sideClass}">${trade.side}</span>
-                                <span class="trade-price">₩${tradeAmount.toLocaleString()}</span>
-                                <span class="trade-signal">신호: ${(trade.signal_strength || 0).toFixed(3)}</span>
-                                ${trade.pnl !== 0 ? `<span class="trade-pnl ${pnlClass}">₩${Math.floor(trade.pnl).toLocaleString()}</span>` : ''}
+                if (analyses.length > 0) {
+                    analyses.forEach(analysis => {
+                        const date = new Date(analysis.timestamp).toLocaleString();
+                        const implemented = analysis.implemented ? '✅' : '⏳';
+                        
+                        html += `
+                            <div class="analysis-item">
+                                <div class="analysis-header">
+                                    <span class="analysis-type">${analysis.type}</span>
+                                    <span class="analysis-date">${date} ${implemented}</span>
+                                </div>
+                                <div class="analysis-content">${analysis.analysis}</div>
                             </div>
                         `;
-                    }).join('');
-                    document.getElementById('recent-trades').innerHTML = tradesHtml;
+                    });
                 } else {
-                    document.getElementById('recent-trades').innerHTML = '<div class="trade-item">거래 내역이 없습니다</div>';
+                    html = '<div style="color: #94a3b8; text-align: center; padding: 20px;">No AI analysis available yet</div>';
                 }
                 
+                document.getElementById('ai-analysis-list').innerHTML = html;
             } catch (error) {
-                console.error('Error updating status:', error);
+                document.getElementById('ai-analysis-list').innerHTML = 
+                    '<div style="color: #ef4444;">Failed to load AI analysis</div>';
             }
         }
         
-        // 전략별 신호 업데이트 함수
-        async function updateStrategySignals() {
+        // Load Multi-Coin Status
+        async function loadMultiCoinStatus() {
             try {
-                const response = await fetch('/api/strategy-signals');
-                const signals = await response.json();
+                const response = await fetch('/api/multi-coin-status');
+                const data = await response.json();
                 
-                // Market Making
-                if (signals.market_making) {
-                    document.getElementById('signal-mm-raw').textContent = signals.market_making.raw_signal.toFixed(3);
-                    document.getElementById('signal-mm-weighted').textContent = signals.market_making.weighted_signal.toFixed(3);
-                    const mmAction = document.getElementById('signal-mm-action');
-                    mmAction.textContent = signals.market_making.action || 'HOLD';
-                    mmAction.style.color = signals.market_making.action === 'BUY' ? '#00ff00' : 
-                                          signals.market_making.action === 'SELL' ? '#ff4444' : '#ffa500';
-                }
+                // Coin grid
+                let gridHtml = '';
+                const coins = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'];
                 
-                // Statistical Arbitrage
-                if (signals.statistical_arbitrage) {
-                    document.getElementById('signal-sa-raw').textContent = signals.statistical_arbitrage.raw_signal.toFixed(3);
-                    document.getElementById('signal-sa-weighted').textContent = signals.statistical_arbitrage.weighted_signal.toFixed(3);
-                    const saAction = document.getElementById('signal-sa-action');
-                    saAction.textContent = signals.statistical_arbitrage.action || 'HOLD';
-                    saAction.style.color = signals.statistical_arbitrage.action === 'BUY' ? '#00ff00' : 
-                                          signals.statistical_arbitrage.action === 'SELL' ? '#ff4444' : '#ffa500';
-                }
-                
-                // Microstructure
-                if (signals.microstructure) {
-                    document.getElementById('signal-ms-raw').textContent = signals.microstructure.raw_signal.toFixed(3);
-                    document.getElementById('signal-ms-weighted').textContent = signals.microstructure.weighted_signal.toFixed(3);
-                    const msAction = document.getElementById('signal-ms-action');
-                    msAction.textContent = signals.microstructure.action || 'HOLD';
-                    msAction.style.color = signals.microstructure.action === 'BUY' ? '#00ff00' : 
-                                          signals.microstructure.action === 'SELL' ? '#ff4444' : '#ffa500';
-                }
-                
-                // Momentum Scalping
-                if (signals.momentum_scalping) {
-                    document.getElementById('signal-mo-raw').textContent = signals.momentum_scalping.raw_signal.toFixed(3);
-                    document.getElementById('signal-mo-weighted').textContent = signals.momentum_scalping.weighted_signal.toFixed(3);
-                    const moAction = document.getElementById('signal-mo-action');
-                    moAction.textContent = signals.momentum_scalping.action || 'HOLD';
-                    moAction.style.color = signals.momentum_scalping.action === 'BUY' ? '#00ff00' : 
-                                          signals.momentum_scalping.action === 'SELL' ? '#ff4444' : '#ffa500';
-                }
-                
-                // Mean Reversion
-                if (signals.mean_reversion) {
-                    document.getElementById('signal-mr-raw').textContent = signals.mean_reversion.raw_signal.toFixed(3);
-                    document.getElementById('signal-mr-weighted').textContent = signals.mean_reversion.weighted_signal.toFixed(3);
-                    const mrAction = document.getElementById('signal-mr-action');
-                    mrAction.textContent = signals.mean_reversion.action || 'HOLD';
-                    mrAction.style.color = signals.mean_reversion.action === 'BUY' ? '#00ff00' : 
-                                          signals.mean_reversion.action === 'SELL' ? '#ff4444' : '#ffa500';
-                }
-                
-                // 최종 집계 신호
-                if (signals.aggregate) {
-                    const buyScore = signals.aggregate.buy_score;
-                    const sellScore = signals.aggregate.sell_score;
-                    const action = signals.aggregate.action;
+                coins.forEach(coin => {
+                    const position = data.positions?.find(p => p.coin?.includes(coin)) || {};
+                    const pnl = position.unrealized_pnl || 0;
+                    const pnlColor = pnl >= 0 ? 'positive' : 'negative';
                     
-                    document.getElementById('final-buy-signal').textContent = buyScore.toFixed(3);
-                    document.getElementById('final-sell-signal').textContent = sellScore.toFixed(3);
-                    document.getElementById('final-action').textContent = action;
-                    
-                    // 액션에 따른 색상 변경
-                    const actionElement = document.getElementById('final-action');
-                    if (action === 'BUY') {
-                        actionElement.style.color = '#00ff00';
-                    } else if (action === 'SELL') {
-                        actionElement.style.color = '#ff4444';
-                    } else {
-                        actionElement.style.color = '#ffa500';
-                    }
+                    gridHtml += `
+                        <div class="coin-card">
+                            <div class="coin-symbol">${coin}</div>
+                            <div class="coin-price">₩${(position.current_value || 0).toLocaleString()}</div>
+                            <div class="coin-pnl ${pnlColor}">${pnl >= 0 ? '+' : ''}${pnl.toLocaleString()}</div>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('coin-status-grid').innerHTML = gridHtml;
+                
+                // Performance table
+                let tableHtml = '';
+                if (data.positions && data.positions.length > 0) {
+                    data.positions.forEach(pos => {
+                        const pnlPercent = pos.avg_price > 0 ? 
+                            ((pos.current_value / (pos.quantity * pos.avg_price) - 1) * 100) : 0;
+                        const pnlColor = pos.unrealized_pnl >= 0 ? 'positive' : 'negative';
+                        
+                        tableHtml += `
+                            <tr>
+                                <td>${pos.coin}</td>
+                                <td>${Number(pos.quantity).toFixed(8)}</td>
+                                <td>₩${Number(pos.avg_price).toLocaleString()}</td>
+                                <td>₩${Number(pos.current_value / pos.quantity || 0).toLocaleString()}</td>
+                                <td class="${pnlColor}">₩${Number(pos.unrealized_pnl).toLocaleString()}</td>
+                                <td class="${pnlColor}">${pnlPercent.toFixed(2)}%</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tableHtml = '<tr><td colspan="6" style="text-align: center; color: #94a3b8;">No positions</td></tr>';
                 }
                 
+                document.querySelector('#coin-performance-table tbody').innerHTML = tableHtml;
             } catch (error) {
-                console.error('Error updating strategy signals:', error);
+                document.getElementById('coin-status-grid').innerHTML = 
+                    '<div style="color: #ef4444;">Failed to load coin status</div>';
             }
         }
         
-        // 페이지 로드 시 초기화
-        window.onload = function() {
-            updateStatus();
-            loadSettings();
-            loadStrategyWeights();
-            updateStrategySignals();
-            setInterval(updateStatus, 5000);  // 5초마다 업데이트
-            setInterval(updateStrategySignals, 5000);  // 5초마다 신호 업데이트
-        };
-        
-        // 모달 외부 클릭 시 닫기
-        window.onclick = function(event) {
-            const modal = document.getElementById('tradeModal');
-            if (event.target == modal) {
-                modal.style.display = 'none';
+        // System Control
+        async function controlSystem(action) {
+            const statusDiv = document.getElementById('control-status');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status-message';
+            statusDiv.innerHTML = `Executing ${action}...`;
+            
+            try {
+                const response = await fetch(`/api/control/${action}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await response.json();
+                
+                if (data.status) {
+                    statusDiv.className = 'status-message status-success';
+                    statusDiv.innerHTML = `✅ System ${data.status}`;
+                    setTimeout(() => {
+                        loadSystemStatus();
+                        loadProcessMonitor();
+                    }, 2000);
+                } else {
+                    statusDiv.className = 'status-message status-error';
+                    statusDiv.innerHTML = `❌ Error: ${data.error}`;
+                }
+            } catch (error) {
+                statusDiv.className = 'status-message status-error';
+                statusDiv.innerHTML = `❌ Failed to ${action}`;
             }
         }
+        
+        // Emergency Stop
+        async function emergencyStop() {
+            if (confirm('Are you sure you want to execute emergency stop? This will close all positions immediately.')) {
+                await controlSystem('emergency-stop');
+            }
+        }
+        
+        // Close All Positions
+        async function closeAllPositions() {
+            if (confirm('Are you sure you want to close all positions?')) {
+                try {
+                    const response = await fetch('/api/control/close-all', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                    const data = await response.json();
+                    alert(`Positions closed: ${data.message}`);
+                } catch (error) {
+                    alert('Failed to close positions');
+                }
+            }
+        }
+        
+        // Run Backtest
+        async function runBacktest() {
+            alert('Backtest functionality will be available soon');
+        }
+        
+        // Load Process Monitor
+        async function loadProcessMonitor() {
+            try {
+                const response = await fetch('/api/processes');
+                const data = await response.json();
+                
+                let html = '<table style="width: 100%;">';
+                html += '<tr><th>Process</th><th>Status</th><th>PID</th></tr>';
+                
+                const processes = data.processes || [];
+                processes.forEach(proc => {
+                    const statusIcon = proc.running ? '🟢' : '🔴';
+                    html += `
+                        <tr>
+                            <td>${proc.name}</td>
+                            <td>${statusIcon} ${proc.running ? 'Running' : 'Stopped'}</td>
+                            <td>${proc.pid || 'N/A'}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</table>';
+                document.getElementById('process-monitor').innerHTML = html;
+            } catch (error) {
+                document.getElementById('process-monitor').innerHTML = 
+                    '<div style="color: #ef4444;">Failed to load process monitor</div>';
+            }
+        }
+        
+        // Load Trades
+        async function loadTrades() {
+            try {
+                const response = await fetch('/api/trades/recent');
+                const data = await response.json();
+                
+                let html = '';
+                const trades = data.trades || [];
+                
+                if (trades.length > 0) {
+                    trades.forEach(trade => {
+                        const time = new Date(trade.timestamp).toLocaleString();
+                        const pnlColor = trade.pnl >= 0 ? 'positive' : 'negative';
+                        const sideColor = trade.side === 'buy' ? 'positive' : 'negative';
+                        
+                        html += `
+                            <tr>
+                                <td>${time}</td>
+                                <td>${trade.coin || trade.symbol}</td>
+                                <td>${trade.strategy}</td>
+                                <td class="${sideColor}">${trade.side}</td>
+                                <td>₩${Number(trade.price).toLocaleString()}</td>
+                                <td>${Number(trade.quantity).toFixed(8)}</td>
+                                <td class="${pnlColor}">₩${Number(trade.pnl || 0).toLocaleString()}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    html = '<tr><td colspan="7" style="text-align: center; color: #94a3b8;">No trades yet</td></tr>';
+                }
+                
+                document.querySelector('#trades-table tbody').innerHTML = html;
+            } catch (error) {
+                document.querySelector('#trades-table tbody').innerHTML = 
+                    '<tr><td colspan="7" style="color: #ef4444;">Failed to load trades</td></tr>';
+            }
+        }
+        
+        // Load Settings
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                
+                let html = '';
+                html += `<div class="metric">
+                    <span class="metric-label">Trading Mode:</span>
+                    <span class="metric-value ${data.trading_mode === 'live' ? 'positive' : 'neutral'}">
+                        ${data.trading_mode || 'dry-run'}
+                    </span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Max Position Size:</span>
+                    <span class="metric-value">₩${(data.max_position || 0).toLocaleString()}</span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Daily Loss Limit:</span>
+                    <span class="metric-value negative">${(data.daily_loss_limit || -3)}%</span>
+                </div>`;
+                html += `<div class="metric">
+                    <span class="metric-label">Signal Threshold:</span>
+                    <span class="metric-value">${data.signal_threshold || 0.65}</span>
+                </div>`;
+                
+                document.getElementById('trading-config').innerHTML = html;
+                
+                // Check Upbit API
+                checkUpbitAPI();
+            } catch (error) {
+                document.getElementById('trading-config').innerHTML = 
+                    '<div style="color: #ef4444;">Failed to load configuration</div>';
+            }
+        }
+        
+        // Check Upbit API Status
+        async function checkUpbitAPI() {
+            try {
+                const response = await fetch('/api/check-upbit');
+                const data = await response.json();
+                
+                const statusElement = document.getElementById('upbit-api-status');
+                if (data.connected) {
+                    statusElement.className = 'metric-value positive';
+                    statusElement.innerHTML = 'Connected ✓';
+                } else {
+                    statusElement.className = 'metric-value negative';
+                    statusElement.innerHTML = 'Not Connected ✗';
+                }
+            } catch (error) {
+                document.getElementById('upbit-api-status').innerHTML = 'Error checking';
+            }
+        }
+        
+        // Refresh AI Analysis
+        async function refreshAIAnalysis() {
+            await loadAIAnalysis();
+        }
+        
+        // Trigger AI Analysis
+        async function triggerAnalysis() {
+            if (confirm('Trigger AI analysis now? This will run DeepSeek analysis immediately.')) {
+                try {
+                    const response = await fetch('/api/ai-analysis/trigger', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                    const data = await response.json();
+                    alert('AI analysis triggered successfully');
+                    setTimeout(refreshAIAnalysis, 3000);
+                } catch (error) {
+                    alert('Failed to trigger AI analysis');
+                }
+            }
+        }
+        
+        // Load Logs
+        async function refreshLogs() {
+            try {
+                const filter = document.getElementById('log-filter')?.value || 'all';
+                const response = await fetch(`/api/logs?filter=${filter}`);
+                const data = await response.json();
+                
+                const logs = data.logs || [];
+                let logHtml = logs.join('\n');
+                
+                if (!logHtml) {
+                    logHtml = 'No logs available';
+                }
+                
+                document.getElementById('log-viewer').textContent = logHtml;
+                // Auto-scroll to bottom
+                const viewer = document.getElementById('log-viewer');
+                viewer.scrollTop = viewer.scrollHeight;
+            } catch (error) {
+                document.getElementById('log-viewer').textContent = 'Failed to load logs';
+            }
+        }
+        
+        // Filter Logs
+        function filterLogs() {
+            refreshLogs();
+        }
+        
+        // Initialize Dashboard
+        async function initDashboard() {
+            await loadSystemStatus();
+            await loadPortfolioSummary();
+            await loadTodayPerformance();
+            await loadActiveStrategies();
+        }
+        
+        // Auto-refresh
+        setInterval(() => {
+            const activeTab = document.querySelector('.tab-content.active').id;
+            
+            if (activeTab === 'overview-content') {
+                loadSystemStatus();
+                loadPortfolioSummary();
+                loadTodayPerformance();
+            } else if (activeTab === 'multi-coin-content') {
+                loadMultiCoinStatus();
+            } else if (activeTab === 'trades-content') {
+                loadTrades();
+            }
+        }, 5000); // Refresh every 5 seconds
+        
+        // Start
+        initDashboard();
     </script>
 </body>
 </html>
 """
 
 @app.route('/')
-def dashboard():
-    """메인 대시보드"""
+def index():
+    """메인 대시보드 페이지"""
     return render_template_string(DASHBOARD_HTML)
 
-@app.route('/api/status')
-def get_status():
-    """시스템 상태 API"""
+@app.route('/api/system-status')
+def get_system_status():
+    """시스템 상태 조회"""
     try:
-        # 프로세스 실행 상태 확인
-        result = os.popen("ps aux | grep 'quantum_trading.py' | grep -v grep").read()
-        is_running = bool(result.strip())
+        # Check if processes are running
+        is_running = False
+        processes = []
         
-        status = {
-            'system_status': 'Running' if is_running else 'Stopped',
-            'timestamp': datetime.now(KST).isoformat(),
-            'is_running': is_running
-        }
-        
-        # 설정 파일에서 현재 임계값 읽기
-        try:
-            with open('config/config.yaml', 'r') as f:
-                config = yaml.safe_load(f)
-                status['current_threshold'] = config.get('trading', {}).get('signal_threshold', 0.25)
-        except:
-            status['current_threshold'] = 0.25
-        
-        # Upbit 잔고 조회
-        try:
-            upbit = pyupbit.Upbit(
-                os.getenv('UPBIT_ACCESS_KEY'),
-                os.getenv('UPBIT_SECRET_KEY')
-            )
-            balances = upbit.get_balances()
-            
-            krw_balance = 0
-            btc_balance = 0
-            btc_avg_price = 0
-            position_value = 0
-            
-            for b in balances:
-                currency = b['currency']
-                balance = float(b['balance'])
-                
-                if currency == 'KRW':
-                    krw_balance = balance
-                elif currency == 'BTC' and balance > 0:
-                    btc_balance = balance
-                    btc_avg_price = float(b['avg_buy_price'])
-                    # BTC 현재가 조회
-                    try:
-                        current_btc_price = pyupbit.get_current_price('KRW-BTC')
-                        if current_btc_price:
-                            position_value = btc_balance * current_btc_price
-                            status['btc_current_price'] = current_btc_price
-                            status['btc_pnl'] = position_value - (btc_balance * btc_avg_price)
-                            status['btc_pnl_percent'] = ((current_btc_price - btc_avg_price) / btc_avg_price * 100) if btc_avg_price > 0 else 0
-                    except:
-                        position_value = btc_balance * btc_avg_price
-            
-            status['krw_balance'] = krw_balance
-            status['btc_balance'] = btc_balance
-            status['btc_avg_price'] = btc_avg_price
-            status['position_value'] = position_value
-            status['total_balance'] = krw_balance + position_value
-            status['available_balance'] = krw_balance
-            
-        except Exception as e:
-            logger.error(f"Error getting balances: {e}")
-            status['total_balance'] = 0
-            status['krw_balance'] = 0
-            status['btc_balance'] = 0
-        
-        # 실제 거래 통계 (DB와 Upbit API 조합)
-        try:
-            # DB 연결
-            conn = sqlite3.connect('data/quantum.db')
-            cursor = conn.cursor()
-            
-            # 오늘의 거래 통계 (DB에서)
-            today = datetime.now(KST).strftime('%Y-%m-%d')
-            
-            # 오늘의 거래 데이터 조회
-            cursor.execute("""
-                SELECT 
-                    COUNT(*) as trade_count,
-                    SUM(CASE WHEN side = 'BUY' THEN 1 ELSE 0 END) as buy_count,
-                    SUM(CASE WHEN side = 'SELL' THEN 1 ELSE 0 END) as sell_count,
-                    SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as win_count,
-                    SUM(pnl) as daily_pnl,
-                    MIN(price) as min_price,
-                    MAX(price) as max_price,
-                    AVG(price) as avg_price,
-                    AVG(signal_strength) as avg_signal_strength
-                FROM trades
-                WHERE DATE(timestamp) = ?
-            """, (today,))
-            
-            stats = cursor.fetchone()
-            
-            if stats:
-                trade_count = stats[0] or 0
-                buy_count = stats[1] or 0
-                sell_count = stats[2] or 0
-                win_count = stats[3] or 0
-                daily_pnl = stats[4] or 0
-                min_price = stats[5] or 0
-                max_price = stats[6] or 0
-                avg_price = stats[7] or 0
-                avg_signal_strength = stats[8] or 0
-            else:
-                trade_count = buy_count = sell_count = win_count = 0
-                daily_pnl = min_price = max_price = avg_price = avg_signal_strength = 0
-            
-            # 현재 포지션의 미실현 손익 추가
-            if btc_balance > 0 and 'btc_pnl' in status:
-                daily_pnl += status.get('btc_pnl', 0)
-            
-            status['trade_count'] = trade_count
-            status['buy_count'] = buy_count
-            status['sell_count'] = sell_count
-            status['daily_pnl'] = daily_pnl
-            status['min_price'] = min_price
-            status['max_price'] = max_price
-            status['avg_price'] = avg_price
-            status['avg_signal_strength'] = avg_signal_strength
-            
-            # 승률 계산
-            if sell_count > 0:
-                status['win_rate'] = (win_count / sell_count) * 100 if sell_count > 0 else 0
-            else:
-                status['win_rate'] = 0
-            
-            # 최근 실제 거래 내역 (DB에서 신호 정보와 함께)
-            cursor.execute("""
-                SELECT 
-                    t.timestamp,
-                    t.side,
-                    t.price,
-                    t.quantity,
-                    t.pnl,
-                    t.strategy_name,
-                    t.signal_strength,
-                    t.signal_reason
-                FROM trades t
-                ORDER BY t.timestamp DESC
-                LIMIT 10
-            """)
-            
-            recent_trades = []
-            for row in cursor.fetchall():
-                trade_info = {
-                    'timestamp': row[0],
-                    'side': row[1],
-                    'price': row[2],
-                    'quantity': row[3],
-                    'pnl': row[4] or 0,
-                    'strategy': row[5] or 'quantum',
-                    'signal_strength': row[6] or 0,
-                    'reason': row[7] or 'ensemble signal'
-                }
-                recent_trades.append(trade_info)
-            
-            status['recent_trades'] = recent_trades
-            
-            conn.close()
-            
-            # 현재 신호 강도 (Redis에서 최근 값 - 실시간 모니터링용)
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
-                import redis
-                r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-                aggregate = r.hgetall("signal:aggregate")
-                if aggregate:
-                    buy_score = float(aggregate.get('buy_score', 0))
-                    sell_score = float(aggregate.get('sell_score', 0))
-                    status['current_signal_strength'] = max(buy_score, sell_score)
-                else:
-                    status['current_signal_strength'] = 0
+                cmdline = ' '.join(proc.info['cmdline'] or [])
+                if 'integrated_trading_system.py' in cmdline or 'quantum_trading.py' in cmdline:
+                    is_running = True
+                    processes.append(proc.info['pid'])
             except:
-                status['current_signal_strength'] = 0
-            
-        except Exception as e:
-            logger.error(f"Error getting trade data: {e}")
-            status['trade_count'] = 0
-            status['daily_pnl'] = 0
-            status['win_rate'] = 0
-            status['recent_trades'] = []
+                pass
         
-        return jsonify(status)
+        # Get system metrics
+        cpu_usage = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
         
+        # Calculate uptime if running
+        uptime = "N/A"
+        if is_running and processes:
+            try:
+                proc = psutil.Process(processes[0])
+                create_time = datetime.fromtimestamp(proc.create_time())
+                uptime_delta = datetime.now() - create_time
+                hours = int(uptime_delta.total_seconds() // 3600)
+                minutes = int((uptime_delta.total_seconds() % 3600) // 60)
+                uptime = f"{hours}h {minutes}m"
+            except:
+                pass
+        
+        return jsonify({
+            'is_running': is_running,
+            'uptime': uptime,
+            'cpu_usage': round(cpu_usage, 1),
+            'memory_usage': round(memory.percent, 1),
+            'processes': processes
+        })
     except Exception as e:
-        logger.error(f"Error in get_status: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/control', methods=['POST'])
-def control():
-    """시스템 제어 API"""
+@app.route('/api/portfolio')
+def get_portfolio():
+    """포트폴리오 정보 조회"""
     try:
-        data = request.json
-        action = data.get('action')
+        # Get from Redis if available
+        if redis_client:
+            portfolio = redis_client.hgetall('portfolio:summary')
+            if portfolio:
+                return jsonify({
+                    'total_value': float(portfolio.get('total_value', 0)),
+                    'krw_balance': float(portfolio.get('krw_balance', 0)),
+                    'invested': float(portfolio.get('invested', 0)),
+                    'total_pnl': float(portfolio.get('total_pnl', 0))
+                })
         
-        if action == 'start':
-            # 거래 시작 - 프로세스 직접 실행
-            # 이미 실행 중인지 확인
-            result = os.popen("ps aux | grep 'quantum_trading.py' | grep -v grep").read()
-            if result:
-                return jsonify({'status': 'warning', 'message': 'Trading already running'})
-            
-            # 새로 시작
-            subprocess.Popen(
-                ['bash', '-c', 'cd /opt/bit_auto_v2_250712 && source venv/bin/activate && nohup python3 quantum_trading.py > logs/quantum_trading.log 2>&1 &'],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            
-            return jsonify({'status': 'success', 'message': 'Trading started'})
-            
-        elif action == 'stop':
-            # 거래 중지 - 프로세스 종료
-            os.system("pkill -f 'quantum_trading.py'")
-            
-            return jsonify({'status': 'success', 'message': 'Trading stopped'})
-            
-        elif action == 'restart':
-            # 재시작
-            os.system("pkill -f 'quantum_trading.py'")
-            os.system('sleep 2')
-            subprocess.Popen(
-                ['bash', '-c', 'cd /opt/bit_auto_v2_250712 && source venv/bin/activate && nohup python3 quantum_trading.py > logs/quantum_trading.log 2>&1 &'],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            
-            return jsonify({'status': 'success', 'message': 'Trading restarted'})
-            
-        else:
-            return jsonify({'error': 'Unknown action'}), 400
-            
+        # Fallback to database
+        conn = sqlite3.connect('data/multi_coin.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT SUM(current_value), SUM(unrealized_pnl)
+            FROM positions
+        """)
+        result = cursor.fetchone()
+        total_value = result[0] or 0
+        total_pnl = result[1] or 0
+        
+        conn.close()
+        
+        return jsonify({
+            'total_value': total_value,
+            'krw_balance': 0,  # Would need Upbit API
+            'invested': total_value - total_pnl,
+            'total_pnl': total_pnl
+        })
     except Exception as e:
-        logger.error(f"Error in control: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/settings', methods=['GET', 'POST'])
-def settings():
-    """설정 관리 API"""
-    config_path = 'config/config.yaml'
-    
-    if request.method == 'GET':
-        try:
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-                
-            return jsonify({
-                'signal_threshold': config.get('trading', {}).get('signal_threshold', 0.25),
-                'max_position': config.get('trading', {}).get('limits', {}).get('max_position', 1000000),
-                'trading_interval': config.get('trading', {}).get('interval', 60),
-                'daily_loss_limit': config.get('risk_management', {}).get('limits', {}).get('max_daily_loss_percent', 5.0)
-            })
-        except Exception as e:
-            logger.error(f"Error loading settings: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    else:  # POST
-        try:
-            data = request.json
-            
-            # 현재 설정 로드
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-            
-            # 설정 업데이트
-            if 'signal_threshold' in data:
-                config['trading']['signal_threshold'] = float(data['signal_threshold'])
-            if 'max_position' in data:
-                config['trading']['limits']['max_position'] = int(data['max_position'])
-            if 'trading_interval' in data:
-                config['trading']['interval'] = int(data['trading_interval'])
-            if 'daily_loss_limit' in data:
-                # risk_management 섹션이 없으면 생성
-                if 'risk_management' not in config:
-                    config['risk_management'] = {}
-                if 'limits' not in config['risk_management']:
-                    config['risk_management']['limits'] = {}
-                config['risk_management']['limits']['max_daily_loss_percent'] = float(data['daily_loss_limit'])
-            
-            # 설정 저장
-            with open(config_path, 'w') as f:
-                yaml.dump(config, f, default_flow_style=False)
-            
-            return jsonify({'status': 'success', 'message': 'Settings saved'})
-            
-        except Exception as e:
-            logger.error(f"Error saving settings: {e}")
-            return jsonify({'error': str(e)}), 500
-
-@app.route('/api/trades')
-def get_trades():
-    """거래 내역 조회 API (상세 정보 포함)"""
+@app.route('/api/performance/today')
+def get_today_performance():
+    """오늘의 성과 조회"""
     try:
         conn = sqlite3.connect('data/quantum.db')
         cursor = conn.cursor()
         
-        # 거래 내역과 신호 정보 조인
-        cursor.execute('''
-            SELECT 
-                t.id,
-                t.timestamp,
-                t.strategy_name,
-                t.symbol,
-                t.side,
-                t.price,
-                t.quantity,
-                t.fee,
-                t.pnl,
-                s.strength,
-                s.reason
-            FROM trades t
-            LEFT JOIN signals s ON 
-                s.timestamp BETWEEN datetime(t.timestamp, '-5 seconds') 
-                AND datetime(t.timestamp, '+5 seconds')
-                AND s.action = t.side
-            ORDER BY t.timestamp DESC
-            LIMIT 50
-        ''')
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        cursor.execute("""
+            SELECT COUNT(*), 
+                   SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END),
+                   SUM(pnl)
+            FROM trades
+            WHERE DATE(timestamp) = ?
+        """, (today,))
+        
+        result = cursor.fetchone()
+        trade_count = result[0] or 0
+        win_count = result[1] or 0
+        daily_pnl = result[2] or 0
+        
+        win_rate = (win_count / trade_count * 100) if trade_count > 0 else 0
+        return_rate = (daily_pnl / 10000000 * 100) if daily_pnl else 0
+        
+        conn.close()
+        
+        return jsonify({
+            'trade_count': trade_count,
+            'win_rate': win_rate,
+            'daily_pnl': daily_pnl,
+            'return_rate': return_rate
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/strategies')
+def get_strategies():
+    """전략 목록 조회"""
+    strategies = [
+        {'name': 'Market Making', 'active': True},
+        {'name': 'Statistical Arbitrage', 'active': True},
+        {'name': 'Momentum Scalping', 'active': True},
+        {'name': 'Mean Reversion', 'active': True},
+        {'name': 'AI Prediction', 'active': False}
+    ]
+    return jsonify({'strategies': strategies})
+
+@app.route('/api/ai-analysis')
+def get_ai_analysis():
+    """AI 분석 결과 조회"""
+    try:
+        conn = sqlite3.connect('data/ai_analysis.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT timestamp, type, analysis, implemented
+            FROM analyses
+            ORDER BY timestamp DESC
+            LIMIT 10
+        """)
+        
+        analyses = []
+        for row in cursor.fetchall():
+            analyses.append({
+                'timestamp': row[0],
+                'type': row[1],
+                'analysis': row[2],
+                'implemented': row[3]
+            })
+        
+        conn.close()
+        return jsonify({'analyses': analyses})
+    except Exception as e:
+        return jsonify({'analyses': []})
+
+@app.route('/api/multi-coin-status')
+def get_multi_coin_status():
+    """멀티코인 거래 상태 조회"""
+    try:
+        conn = sqlite3.connect('data/multi_coin.db')
+        cursor = conn.cursor()
+        
+        # Current positions
+        cursor.execute("""
+            SELECT coin, quantity, avg_price, current_value, unrealized_pnl, last_updated
+            FROM positions
+            ORDER BY coin
+        """)
+        
+        positions = []
+        for row in cursor.fetchall():
+            positions.append({
+                'coin': row[0],
+                'quantity': row[1],
+                'avg_price': row[2],
+                'current_value': row[3],
+                'unrealized_pnl': row[4],
+                'last_updated': row[5]
+            })
+        
+        # Recent trades
+        cursor.execute("""
+            SELECT timestamp, coin, strategy, side, price, quantity, pnl
+            FROM trades
+            ORDER BY timestamp DESC
+            LIMIT 20
+        """)
         
         trades = []
         for row in cursor.fetchall():
             trades.append({
-                'id': row[0],
-                'timestamp': row[1],
+                'timestamp': row[0],
+                'coin': row[1],
                 'strategy': row[2],
-                'symbol': row[3],
-                'side': row[4],
-                'price': row[5],
-                'quantity': row[6],
-                'fee': row[7] or 0,
-                'pnl': row[8] or 0,
-                'signal_strength': row[9] or 0,
-                'reason': row[10] or 'N/A'
+                'side': row[3],
+                'price': row[4],
+                'quantity': row[5],
+                'pnl': row[6]
+            })
+        
+        conn.close()
+        
+        return jsonify({
+            'positions': positions,
+            'trades': trades
+        })
+    except Exception as e:
+        return jsonify({'positions': [], 'trades': []})
+
+@app.route('/api/control/<action>', methods=['POST'])
+def control_system(action):
+    """시스템 제어"""
+    try:
+        if action == 'start':
+            subprocess.Popen(['python3', 'integrated_trading_system.py'])
+            return jsonify({'status': 'started'})
+        
+        elif action == 'stop':
+            subprocess.run(['pkill', '-f', 'integrated_trading_system.py'])
+            subprocess.run(['pkill', '-f', 'quantum_trading.py'])
+            subprocess.run(['pkill', '-f', 'multi_coin_trading.py'])
+            return jsonify({'status': 'stopped'})
+        
+        elif action == 'restart':
+            subprocess.run(['pkill', '-f', 'integrated_trading_system.py'])
+            import time
+            time.sleep(2)
+            subprocess.Popen(['python3', 'integrated_trading_system.py'])
+            return jsonify({'status': 'restarted'})
+        
+        elif action == 'emergency-stop':
+            subprocess.run(['pkill', '-9', '-f', 'trading'])
+            return jsonify({'status': 'emergency stopped'})
+        
+        else:
+            return jsonify({'error': 'Unknown action'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/processes')
+def get_processes():
+    """프로세스 모니터 정보"""
+    processes = []
+    
+    process_names = [
+        ('integrated_trading_system.py', 'Integrated System'),
+        ('quantum_trading.py', 'Quantum Trading'),
+        ('multi_coin_trading.py', 'Multi-Coin Trading'),
+        ('feedback_scheduler.py', 'AI Feedback'),
+        ('dashboard.py', 'Dashboard')
+    ]
+    
+    for script, name in process_names:
+        running = False
+        pid = None
+        
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = ' '.join(proc.info['cmdline'] or [])
+                if script in cmdline:
+                    running = True
+                    pid = proc.info['pid']
+                    break
+            except:
+                pass
+        
+        processes.append({
+            'name': name,
+            'running': running,
+            'pid': pid
+        })
+    
+    return jsonify({'processes': processes})
+
+@app.route('/api/trades/recent')
+def get_recent_trades():
+    """최근 거래 내역"""
+    try:
+        conn = sqlite3.connect('data/quantum.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT timestamp, symbol, strategy, side, price, quantity, pnl
+            FROM trades
+            ORDER BY timestamp DESC
+            LIMIT 50
+        """)
+        
+        trades = []
+        for row in cursor.fetchall():
+            trades.append({
+                'timestamp': row[0],
+                'symbol': row[1],
+                'strategy': row[2],
+                'side': row[3],
+                'price': row[4],
+                'quantity': row[5],
+                'pnl': row[6]
             })
         
         conn.close()
         return jsonify({'trades': trades})
     except Exception as e:
-        logger.error(f"Error fetching trades: {e}")
+        return jsonify({'trades': []})
+
+@app.route('/api/config')
+def get_config():
+    """설정 정보 조회"""
+    try:
+        # Load from environment
+        config = {
+            'trading_mode': os.getenv('TRADING_MODE', 'dry-run'),
+            'max_position': int(os.getenv('MAX_POSITION_SIZE', 10000000)),
+            'daily_loss_limit': float(os.getenv('DAILY_LOSS_LIMIT', -0.03)) * 100,
+            'signal_threshold': float(os.getenv('SIGNAL_THRESHOLD', 0.65))
+        }
+        return jsonify(config)
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/strategy-weights', methods=['GET', 'POST'])
-def strategy_weights():
-    """전략별 가중치 관리 API"""
-    config_file = 'config/config.yaml'
-    
-    if request.method == 'GET':
-        try:
-            with open(config_file, 'r') as f:
-                config = yaml.safe_load(f)
-            
-            weights = {
-                'market_making': config.get('strategies', {}).get('market_making', {}).get('weight', 0.30),
-                'stat_arb': config.get('strategies', {}).get('statistical_arbitrage', {}).get('weight', 0.20),
-                'microstructure': config.get('strategies', {}).get('microstructure', {}).get('weight', 0.20),
-                'momentum_scalping': config.get('strategies', {}).get('momentum_scalping', {}).get('weight', 0.15),
-                'mean_reversion': config.get('strategies', {}).get('mean_reversion', {}).get('weight', 0.15)
-            }
-            
-            return jsonify(weights)
-        except Exception as e:
-            logger.error(f"Error loading strategy weights: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    elif request.method == 'POST':
-        try:
-            weights = request.json
-            
-            # config 파일 읽기
-            with open(config_file, 'r') as f:
-                config = yaml.safe_load(f)
-            
-            # 가중치 업데이트
-            if 'strategies' not in config:
-                config['strategies'] = {}
-            
-            config['strategies']['market_making']['weight'] = weights['market_making']
-            config['strategies']['statistical_arbitrage']['weight'] = weights['stat_arb']
-            config['strategies']['microstructure']['weight'] = weights['microstructure']
-            config['strategies']['momentum_scalping']['weight'] = weights['momentum_scalping']
-            config['strategies']['mean_reversion']['weight'] = weights['mean_reversion']
-            
-            # 파일 저장
-            with open(config_file, 'w') as f:
-                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-            
-            logger.info(f"Strategy weights updated: {weights}")
-            return jsonify({'status': 'success', 'message': 'Strategy weights saved'})
-            
-        except Exception as e:
-            logger.error(f"Error saving strategy weights: {e}")
-            return jsonify({'error': str(e)}), 500
-
-@app.route('/api/strategy-signals')
-def get_strategy_signals():
-    """전략별 신호 강도 조회 API"""
+@app.route('/api/check-upbit')
+def check_upbit():
+    """Upbit API 연결 확인"""
     try:
-        signals = {}
+        access_key = os.getenv('UPBIT_ACCESS_KEY')
+        secret_key = os.getenv('UPBIT_SECRET_KEY')
         
-        # Redis에서 신호 데이터 가져오기
-        try:
-            import redis
-            r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-            
-            # quantum_trading.py에서 사용하는 실제 키 이름과 매핑
-            strategy_map = {
-                'market_making': 'market_making',
-                'statistical_arbitrage': 'stat_arb',
-                'microstructure': 'microstructure', 
-                'momentum_scalping': 'momentum',
-                'mean_reversion': 'mean_reversion'
-            }
-            
-            for display_name, redis_key in strategy_map.items():
-                signal_data = r.hgetall(f"signal:{redis_key}")
-                if signal_data:
-                    signals[display_name] = {
-                        'action': signal_data.get('action', 'HOLD'),
-                        'raw_signal': float(signal_data.get('raw_signal', 0)),
-                        'weight': float(signal_data.get('weight', 0)),
-                        'weighted_signal': float(signal_data.get('weighted_signal', 0)),
-                        'timestamp': float(signal_data.get('timestamp', 0))
-                    }
-                else:
-                    signals[display_name] = {
-                        'action': 'HOLD',
-                        'raw_signal': 0,
-                        'weight': 0,
-                        'weighted_signal': 0,
-                        'timestamp': 0
-                    }
-        except Exception as redis_error:
-            logger.warning(f"Redis not available: {redis_error}")
-            # Redis가 없을 경우 기본값 반환
-            strategies = {
-                'market_making': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.30, 'weighted_signal': 0},
-                'statistical_arbitrage': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.20, 'weighted_signal': 0},
-                'microstructure': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.20, 'weighted_signal': 0},
-                'momentum_scalping': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.15, 'weighted_signal': 0},
-                'mean_reversion': {'action': 'HOLD', 'raw_signal': 0, 'weight': 0.15, 'weighted_signal': 0}
-            }
-            signals = strategies
+        if access_key and secret_key and len(access_key) > 10:
+            # Try to connect
+            upbit = pyupbit.Upbit(access_key, secret_key)
+            balances = upbit.get_balances()
+            if balances is not None:
+                return jsonify({'connected': True})
         
-        # 최종 집계 신호도 가져오기
-        try:
-            aggregate_data = r.hgetall("signal:aggregate")
-            if aggregate_data:
-                # numpy float64 문자열 처리
-                buy_score_str = aggregate_data.get('buy_score', '0')
-                sell_score_str = aggregate_data.get('sell_score', '0')
-                
-                # "np.float64(값)" 형식 처리
-                if 'np.float64' in str(buy_score_str):
-                    buy_score_str = buy_score_str.replace('np.float64(', '').replace(')', '')
-                if 'np.float64' in str(sell_score_str):
-                    sell_score_str = sell_score_str.replace('np.float64(', '').replace(')', '')
-                    
-                signals['aggregate'] = {
-                    'buy_score': float(buy_score_str),
-                    'sell_score': float(sell_score_str),
-                    'action': aggregate_data.get('action', 'HOLD'),
-                    'timestamp': float(aggregate_data.get('timestamp', 0))
-                }
-        except:
-            signals['aggregate'] = {
-                'buy_score': 0,
-                'sell_score': 0,
-                'action': 'HOLD',
-                'timestamp': 0
-            }
+        return jsonify({'connected': False})
+    except:
+        return jsonify({'connected': False})
+
+@app.route('/api/ai-analysis/trigger', methods=['POST'])
+def trigger_ai_analysis():
+    """AI 분석 수동 트리거"""
+    try:
+        # Run AI analysis
+        subprocess.Popen(['python3', '-c', '''
+import asyncio
+from ai_analyzer import FeedbackLoop
+
+async def run():
+    feedback = FeedbackLoop()
+    await feedback.run_daily_analysis()
+    await feedback.close()
+
+asyncio.run(run())
+'''])
         
-        return jsonify(signals)
+        return jsonify({'status': 'triggered'})
     except Exception as e:
-        logger.error(f"Error fetching strategy signals: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/logs')
 def get_logs():
-    """로그 조회 API"""
+    """로그 조회"""
     try:
-        log_path = 'logs/quantum_trading.log'
-        if os.path.exists(log_path):
-            # 마지막 100줄만 읽기
-            with open(log_path, 'r') as f:
-                lines = f.readlines()
-                recent_logs = ''.join(lines[-100:])
-                return jsonify({'logs': recent_logs})
-        else:
-            return jsonify({'logs': 'Log file not found'})
+        filter_type = request.args.get('filter', 'all')
+        log_file = 'logs/integrated_system.log'
+        
+        if not os.path.exists(log_file):
+            return jsonify({'logs': ['No logs available']})
+        
+        with open(log_file, 'r') as f:
+            lines = f.readlines()[-100:]  # Last 100 lines
+        
+        if filter_type == 'error':
+            lines = [l for l in lines if 'ERROR' in l or 'error' in l]
+        elif filter_type == 'trade':
+            lines = [l for l in lines if 'trade' in l.lower() or 'order' in l.lower()]
+        elif filter_type == 'ai':
+            lines = [l for l in lines if 'AI' in l or 'analysis' in l.lower()]
+        
+        return jsonify({'logs': lines})
     except Exception as e:
-        logger.error(f"Error reading logs: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'logs': [f'Error loading logs: {str(e)}']})
 
 @app.route('/health')
 def health():
-    """헬스 체크 엔드포인트"""
-    return jsonify({'status': 'healthy', 'timestamp': datetime.now(KST).isoformat()})
+    """헬스 체크"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
 
 if __name__ == '__main__':
     port = int(os.getenv('DASHBOARD_PORT', 8080))
