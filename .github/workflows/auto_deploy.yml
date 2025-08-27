@@ -52,10 +52,9 @@ jobs:
         username: ${{ secrets.ORACLE_USER }}
         key: ${{ secrets.ORACLE_SSH_KEY }}
         script: |
-          set -e
           echo "========================================="
           echo "🚀 Starting Auto Deployment..."
-          echo "========================================="
+          echo "=========================================""
           
           # 1. 프로젝트 디렉토리로 이동
           cd /home/ubuntu/bit_auto_v2
