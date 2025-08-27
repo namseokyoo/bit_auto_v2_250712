@@ -48,9 +48,9 @@ strategies:
     weight: 0.15
     params:
       momentum_period: 20
-      entry_threshold: 0.001  # 0.1% (더 민감하게)
-      stop_loss: 0.001  # 0.1%
-      take_profit: 0.003  # 0.3%
+      entry_threshold: 0.0015  # 0.15% - 현실적 목표
+      stop_loss: 0.002  # 0.2% - 더 보수적인 손절
+      take_profit: 0.0015  # 0.15% - 일일 목표와 일치
       
   mean_reversion:
     enabled: true
@@ -71,11 +71,11 @@ risk_management:
     max_position_percent: 30  # Max 30% of capital per position
     
   limits:
-    max_daily_loss_percent: 5.0
-    max_weekly_loss_percent: 10.0
-    max_monthly_loss_percent: 15.0
-    emergency_stop_percent: 3.0
-    max_drawdown_percent: 10.0
+    max_daily_loss_percent: 2.0  # 일일 최대 손실 -2%
+    max_weekly_loss_percent: 5.0  # 주간 최대 손실 -5%
+    max_monthly_loss_percent: 10.0  # 월간 최대 손실 -10%
+    emergency_stop_percent: 1.5  # 긴급 중단 -1.5%
+    max_drawdown_percent: 5.0  # 최대 낙폭 -5%
     
 execution:
   algorithm: "smart"  # smart, twap, vwap, iceberg

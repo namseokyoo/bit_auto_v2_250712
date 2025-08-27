@@ -1298,6 +1298,141 @@ def control_system(action):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/trading-mode', methods=['GET', 'POST'])
+def trading_mode():
+    """거래 모드 조회 및 변경"""
+    try:
+        config_path = 'config/config.yaml'
+        
+        if request.method == 'GET':
+            # 현재 모드 조회
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            current_mode = config.get('trading', {}).get('mode', 'dry_run')
+            return jsonify({'mode': current_mode})
+        
+        elif request.method == 'POST':
+            # 모드 변경
+            data = request.get_json()
+            new_mode = data.get('mode')
+            
+            if new_mode not in ['dry_run', 'paper', 'live']:
+                return jsonify({'error': 'Invalid mode'}), 400
+            
+            # config.yaml 업데이트
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            config['trading']['mode'] = new_mode
+            
+            with open(config_path, 'w') as f:
+                yaml.safe_dump(config, f, default_flow_style=False, allow_unicode=True)
+            
+            # Redis에 상태 저장
+            if redis_client:
+                redis_client.set('trading_mode', new_mode)
+                redis_client.set('mode_changed_at', datetime.now(KST).isoformat())
+            
+            # 프로세스 재시작 필요 알림
+            return jsonify({
+                'status': 'success',
+                'mode': new_mode,
+                'message': '모드가 변경되었습니다. 시스템을 재시작하세요.'
+            })
+    
+    except Exception as e:
+        logger.error(f"Trading mode error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/system-control', methods=['POST'])
+def system_control():
+    """시스템 제어 (시작/중지/재시작)"""
+    try:
+        data = request.get_json()
+        action = data.get('action')
+        
+        if action == 'start':
+            # 현재 모드 확인
+            with open('config/config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+            mode = config.get('trading', {}).get('mode', 'dry_run')
+            
+            # 모드에 따라 다른 스크립트 실행
+            if mode == 'dry_run':
+                subprocess.Popen(['python3', 'quantum_trading.py', '--dry-run'])
+            else:
+                subprocess.Popen(['python3', 'quantum_trading.py'])
+            
+            return jsonify({
+                'status': 'started',
+                'mode': mode,
+                'timestamp': datetime.now(KST).isoformat()
+            })
+        
+        elif action == 'stop':
+            subprocess.run(['pkill', '-f', 'quantum_trading.py'])
+            subprocess.run(['pkill', '-f', 'enhanced_trading_system.py'])
+            return jsonify({
+                'status': 'stopped',
+                'timestamp': datetime.now(KST).isoformat()
+            })
+        
+        elif action == 'restart':
+            # 중지
+            subprocess.run(['pkill', '-f', 'quantum_trading.py'])
+            subprocess.run(['pkill', '-f', 'enhanced_trading_system.py'])
+            
+            import time
+            time.sleep(2)
+            
+            # 시작
+            with open('config/config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+            mode = config.get('trading', {}).get('mode', 'dry_run')
+            
+            if mode == 'dry_run':
+                subprocess.Popen(['python3', 'quantum_trading.py', '--dry-run'])
+            else:
+                subprocess.Popen(['python3', 'quantum_trading.py'])
+            
+            return jsonify({
+                'status': 'restarted',
+                'mode': mode,
+                'timestamp': datetime.now(KST).isoformat()
+            })
+        
+        else:
+            return jsonify({'error': 'Invalid action'}), 400
+    
+    except Exception as e:
+        logger.error(f"System control error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/emergency-stop', methods=['POST'])
+def emergency_stop():
+    """긴급 정지"""
+    try:
+        # 모든 거래 프로세스 강제 종료
+        subprocess.run(['pkill', '-9', '-f', 'trading'])
+        subprocess.run(['pkill', '-9', '-f', 'quantum'])
+        
+        # Redis에 긴급 정지 상태 저장
+        if redis_client:
+            redis_client.set('emergency_stop', 'true')
+            redis_client.set('emergency_stop_at', datetime.now(KST).isoformat())
+        
+        logger.warning("EMERGENCY STOP ACTIVATED")
+        
+        return jsonify({
+            'status': 'emergency_stopped',
+            'timestamp': datetime.now(KST).isoformat(),
+            'message': '모든 거래가 긴급 중지되었습니다.'
+        })
+    
+    except Exception as e:
+        logger.error(f"Emergency stop error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/processes')
 def get_processes():
     """프로세스 모니터 정보"""
