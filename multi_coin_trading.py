@@ -315,7 +315,7 @@ class MultiCoinTrader:
         """시장 데이터 수집"""
         
         # 현재가
-        current_price = self.upbit.get_current_price(symbol)
+        current_price = pyupbit.get_current_price(symbol)
         
         # 호가창
         orderbook = pyupbit.get_orderbook(symbol)
@@ -441,7 +441,7 @@ class MultiCoinTrader:
         
         # 포지션 한도 체크
         config = self.COIN_CONFIGS[symbol]
-        current_position_value = self.positions.get(symbol, 0) * self.upbit.get_current_price(symbol)
+        current_position_value = self.positions.get(symbol, 0) * pyupbit.get_current_price(symbol)
         
         if current_position_value >= config.max_position:
             logger.warning(f"{symbol}: Position limit reached")
@@ -562,7 +562,7 @@ class MultiCoinTrader:
         for symbol in self.COIN_CONFIGS.keys():
             coin = symbol.split('-')[1]
             balance = self.upbit.get_balance(coin)
-            price = self.upbit.get_current_price(symbol)
+            price = pyupbit.get_current_price(symbol)
             
             value = balance * price if balance and price else 0
             total_value += value
@@ -628,7 +628,7 @@ class MultiCoinTrader:
         cursor = self.db.cursor()
         
         for symbol, position in self.positions.items():
-            price = self.upbit.get_current_price(symbol)
+            price = pyupbit.get_current_price(symbol)
             
             cursor.execute('''
                 INSERT OR REPLACE INTO positions 

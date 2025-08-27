@@ -566,7 +566,7 @@ class QuantumTradingSystem:
                         # 실제 체결 가격과 수량 사용
                         # BUY의 경우 현재 BTC 가격을 가져옴
                         if signal.action == "BUY":
-                            current_price = self.upbit.get_current_price(symbol)
+                            current_price = pyupbit.get_current_price(symbol)
                             actual_price = float(current_price) if current_price else signal.price
                         else:
                             actual_price = float(order_detail.get("price", signal.price))
