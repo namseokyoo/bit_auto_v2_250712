@@ -253,4 +253,4 @@ else
     echo "  tail -f logs/dashboard.log"
     echo "  tail -f logs/integrated_system.log"
 fi
-echo "=========================================
+echo "========================================="
