@@ -22,6 +22,7 @@ import requests
 from dotenv import load_dotenv
 
 from backtest_engine import BacktestEngine, Trade
+from advanced_strategies import AdvancedStrategies
 
 # 환경변수 로드
 load_dotenv('config/.env')
@@ -41,6 +42,9 @@ class StrategyTester:
         # DeepSeek AI 설정 (선택적)
         self.deepseek_api_key = os.getenv('DEEPSEEK_API_KEY')
         self.use_ai_analysis = bool(self.deepseek_api_key)
+        
+        # 고급 전략 초기화
+        self.advanced_strategies = AdvancedStrategies()
         
         if self.use_ai_analysis:
             logger.info("DeepSeek AI 분석 활성화")
@@ -88,6 +92,9 @@ class StrategyTester:
         df['SMA_50'] = df['close'].rolling(window=50).mean()
         df['EMA_12'] = df['close'].ewm(span=12).mean()
         df['EMA_26'] = df['close'].ewm(span=26).mean()
+        
+        # 고급 지표 추가
+        df = self.advanced_strategies.calculate_advanced_indicators(df)
         
         # MACD
         df['MACD'] = df['EMA_12'] - df['EMA_26']
@@ -269,6 +276,18 @@ class StrategyTester:
             df = self.strategy_mean_reversion(df, params or {})
         elif strategy_name == "trend_following":
             df = self.strategy_trend_following(df, params or {})
+        elif strategy_name == "ml_prediction":
+            df = self.advanced_strategies.strategy_ml_prediction(df, params or {})
+        elif strategy_name == "statistical_arbitrage":
+            df = self.advanced_strategies.strategy_statistical_arbitrage(df, params or {})
+        elif strategy_name == "orderbook_imbalance":
+            df = self.advanced_strategies.strategy_orderbook_imbalance(df, params or {})
+        elif strategy_name == "vwap_trading":
+            df = self.advanced_strategies.strategy_vwap_trading(df, params or {})
+        elif strategy_name == "ichimoku_cloud":
+            df = self.advanced_strategies.strategy_ichimoku_cloud(df, params or {})
+        elif strategy_name == "combined_signal":
+            df = self.advanced_strategies.strategy_combined_signal(df, params or {})
         else:
             return {"error": f"알 수 없는 전략: {strategy_name}"}
             

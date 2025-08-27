@@ -309,6 +309,7 @@ DASHBOARD_HTML = """
             <button class="tab" data-tab="ai">🤖 AI 분석</button>
             <button class="tab" data-tab="multi-coin">💰 멀티코인</button>
             <button class="tab" data-tab="backtest">🧪 백테스트</button>
+            <button class="tab" data-tab="optimization">🎯 최적화</button>
             <button class="tab" data-tab="control">🎮 제어판</button>
             <button class="tab" data-tab="trades">📈 거래내역</button>
             <button class="tab" data-tab="settings">⚙️ 설정</button>
@@ -388,6 +389,110 @@ DASHBOARD_HTML = """
                         <tr><td colspan="6" class="loading">로딩중...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+        
+        <!-- Optimization Tab -->
+        <div class="tab-content" id="optimization-content">
+            <div class="card">
+                <h3>⚙️ 파라미터 최적화</h3>
+                <div class="optimization-controls">
+                    <div class="form-group">
+                        <label>전략 선택:</label>
+                        <select id="opt-strategy">
+                            <option value="momentum_scalping">모멘텀 스캘핑</option>
+                            <option value="mean_reversion">평균 회귀</option>
+                            <option value="trend_following">추세 추종</option>
+                            <option value="ml_prediction">ML 예측</option>
+                            <option value="statistical_arbitrage">통계적 차익거래</option>
+                            <option value="orderbook_imbalance">오더북 불균형</option>
+                            <option value="vwap_trading">VWAP 트레이딩</option>
+                            <option value="ichimoku_cloud">일목균형표</option>
+                            <option value="combined_signal">복합 신호</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>최적화 방법:</label>
+                        <select id="opt-method">
+                            <option value="grid_search">Grid Search</option>
+                            <option value="random_search">Random Search</option>
+                            <option value="genetic_algorithm">Genetic Algorithm</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>심볼:</label>
+                        <select id="opt-symbol">
+                            <option value="KRW-BTC">BTC</option>
+                            <option value="KRW-ETH">ETH</option>
+                            <option value="KRW-XRP">XRP</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>테스트 기간 (일):</label>
+                        <input type="number" id="opt-days" value="30" min="7" max="90">
+                    </div>
+                    <button class="btn btn-primary" onclick="runOptimization()">🚀 최적화 시작</button>
+                </div>
+                <div id="opt-status" class="status-message"></div>
+            </div>
+            
+            <div class="card" id="opt-progress" style="display: none;">
+                <h3>⏳ 최적화 진행 상황</h3>
+                <div class="progress-bar">
+                    <div id="opt-progress-fill" style="width: 0%; background: #4ade80; height: 30px; transition: width 0.5s;"></div>
+                </div>
+                <div id="opt-progress-text" style="text-align: center; margin-top: 10px;">준비중...</div>
+            </div>
+            
+            <div class="card" id="opt-results" style="display: none;">
+                <h3>📊 최적화 결과</h3>
+                <div id="opt-best-params" class="analysis-item">
+                    <h4>최적 파라미터</h4>
+                    <div id="best-params-content"></div>
+                </div>
+                <div id="opt-comparison" style="margin-top: 20px;">
+                    <h4>파라미터 성능 비교</h4>
+                    <table id="opt-comparison-table">
+                        <thead>
+                            <tr>
+                                <th>파라미터</th>
+                                <th>ROI (%)</th>
+                                <th>Sharpe</th>
+                                <th>Max DD (%)</th>
+                                <th>승률 (%)</th>
+                                <th>거래수</th>
+                                <th>Fitness</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="7">최적화를 실행하세요</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>📚 최적화 히스토리</h3>
+                <div id="opt-history">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>시간</th>
+                                <th>전략</th>
+                                <th>방법</th>
+                                <th>심볼</th>
+                                <th>최적 ROI</th>
+                                <th>Fitness</th>
+                                <th>상세</th>
+                            </tr>
+                        </thead>
+                        <tbody id="opt-history-tbody">
+                            <tr>
+                                <td colspan="7" style="text-align: center;">히스토리가 없습니다</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
         
@@ -1366,6 +1471,9 @@ DASHBOARD_HTML = """
                 case 'multi-coin':
                     loadMultiCoinStatus();
                     break;
+                case 'optimization':
+                    loadOptimizationHistory();
+                    break;
                 case 'control':
                     loadProcessMonitor();
                     break;
@@ -1422,6 +1530,175 @@ DASHBOARD_HTML = """
                 }
             }
         }, 5000); // Refresh every 5 seconds
+        
+        // Optimization Functions
+        async function runOptimization() {
+            const strategy = document.getElementById('opt-strategy').value;
+            const method = document.getElementById('opt-method').value;
+            const symbol = document.getElementById('opt-symbol').value;
+            const days = parseInt(document.getElementById('opt-days').value);
+            
+            // UI 초기화
+            document.getElementById('opt-status').style.display = 'none';
+            document.getElementById('opt-progress').style.display = 'block';
+            document.getElementById('opt-results').style.display = 'none';
+            document.getElementById('opt-progress-fill').style.width = '0%';
+            document.getElementById('opt-progress-text').textContent = '최적화 시작 중...';
+            
+            try {
+                // 진행 상황 업데이트
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 5;
+                    if (progress <= 90) {
+                        document.getElementById('opt-progress-fill').style.width = progress + '%';
+                        document.getElementById('opt-progress-text').textContent = `최적화 진행 중... ${progress}%`;
+                    }
+                }, 1000);
+                
+                // API 호출
+                const response = await fetch('/api/optimization/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        strategy: strategy,
+                        method: method,
+                        symbol: symbol,
+                        days: days
+                    })
+                });
+                
+                clearInterval(progressInterval);
+                document.getElementById('opt-progress-fill').style.width = '100%';
+                document.getElementById('opt-progress-text').textContent = '완료!';
+                
+                const result = await response.json();
+                
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+                
+                // 결과 표시
+                setTimeout(() => {
+                    displayOptimizationResults(result);
+                }, 500);
+                
+            } catch (error) {
+                document.getElementById('opt-progress').style.display = 'none';
+                const statusDiv = document.getElementById('opt-status');
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'status-message status-error';
+                statusDiv.innerHTML = `❌ 최적화 실패: ${error.message}`;
+            }
+        }
+        
+        function displayOptimizationResults(result) {
+            document.getElementById('opt-progress').style.display = 'none';
+            document.getElementById('opt-results').style.display = 'block';
+            
+            // 최적 파라미터 표시
+            const bestParamsContent = document.getElementById('best-params-content');
+            let paramsHtml = '<div style="font-family: monospace; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px;">';
+            for (const [key, value] of Object.entries(result.best_params)) {
+                paramsHtml += `<div><strong>${key}:</strong> ${value}</div>`;
+            }
+            paramsHtml += `<div style="margin-top: 10px; color: #4ade80;"><strong>Best ROI:</strong> ${result.best_roi}%</div>`;
+            paramsHtml += `<div><strong>Fitness Score:</strong> ${result.best_fitness.toFixed(4)}</div>`;
+            paramsHtml += '</div>';
+            bestParamsContent.innerHTML = paramsHtml;
+            
+            // 비교 테이블 표시
+            const tbody = document.querySelector('#opt-comparison-table tbody');
+            let tableHtml = '';
+            
+            result.all_results.forEach((res, idx) => {
+                const isBest = idx === 0;
+                const rowClass = isBest ? 'style="background: rgba(74, 222, 128, 0.1);"' : '';
+                tableHtml += `
+                    <tr ${rowClass}>
+                        <td><small>${JSON.stringify(res.params).substring(0, 30)}...</small></td>
+                        <td style="color: ${res.roi >= 0 ? '#4ade80' : '#ef4444'}">${res.roi}%</td>
+                        <td>${res.sharpe.toFixed(2)}</td>
+                        <td style="color: #ef4444">${res.max_drawdown}%</td>
+                        <td>${res.win_rate}%</td>
+                        <td>${res.trades}</td>
+                        <td><strong>${res.fitness.toFixed(4)}</strong></td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = tableHtml;
+            
+            // 히스토리에 추가
+            addToOptimizationHistory(result);
+        }
+        
+        function addToOptimizationHistory(result) {
+            const tbody = document.getElementById('opt-history-tbody');
+            
+            // 빈 메시지 제거
+            if (tbody.querySelector('td[colspan="7"]')) {
+                tbody.innerHTML = '';
+            }
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${new Date().toLocaleString('ko-KR')}</td>
+                <td>${result.strategy}</td>
+                <td>${result.method}</td>
+                <td>${result.symbol}</td>
+                <td style="color: ${result.best_roi >= 0 ? '#4ade80' : '#ef4444'}">${result.best_roi}%</td>
+                <td>${result.best_fitness.toFixed(4)}</td>
+                <td><button class="btn btn-sm" onclick="viewOptimizationDetail('${result.session_id}')">상세</button></td>
+            `;
+            
+            tbody.insertBefore(row, tbody.firstChild);
+            
+            // 최대 10개만 유지
+            while (tbody.children.length > 10) {
+                tbody.removeChild(tbody.lastChild);
+            }
+        }
+        
+        async function loadOptimizationHistory() {
+            try {
+                const response = await fetch('/api/optimization/history');
+                const data = await response.json();
+                
+                const tbody = document.getElementById('opt-history-tbody');
+                
+                if (data.history && data.history.length > 0) {
+                    let html = '';
+                    data.history.forEach(item => {
+                        html += `
+                            <tr>
+                                <td>${item.timestamp}</td>
+                                <td>${item.strategy}</td>
+                                <td>${item.method}</td>
+                                <td>${item.symbol}</td>
+                                <td style="color: ${item.best_roi >= 0 ? '#4ade80' : '#ef4444'}">${item.best_roi}%</td>
+                                <td>${item.fitness.toFixed(4)}</td>
+                                <td><button class="btn btn-sm" onclick="viewOptimizationDetail('${item.id}')">상세</button></td>
+                            </tr>
+                        `;
+                    });
+                    tbody.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Failed to load optimization history:', error);
+            }
+        }
+        
+        async function viewOptimizationDetail(sessionId) {
+            try {
+                const response = await fetch(`/api/optimization/detail/${sessionId}`);
+                const detail = await response.json();
+                console.log('Optimization detail:', detail);
+                alert('최적화 상세 정보는 콘솔에서 확인하세요.');
+            } catch (error) {
+                alert('상세 정보를 불러올 수 없습니다.');
+            }
+        }
         
         // Start
         initDashboard();
@@ -2132,6 +2409,183 @@ def get_logs():
         return jsonify({'logs': lines})
     except Exception as e:
         return jsonify({'logs': [f'Error loading logs: {str(e)}']})
+
+@app.route('/api/optimization/run', methods=['POST'])
+def run_optimization_api():
+    """파라미터 최적화 실행 API"""
+    try:
+        data = request.get_json()
+        strategy = data.get('strategy', 'momentum_scalping')
+        method = data.get('method', 'grid_search')
+        symbol = data.get('symbol', 'KRW-BTC')
+        days = data.get('days', 30)
+        
+        logger.info(f"최적화 요청: {strategy} / {method} / {symbol} / {days}일")
+        
+        # 최적화 실행
+        import sys
+        sys.path.append('.')
+        from parameter_optimizer import ParameterOptimizer
+        
+        optimizer = ParameterOptimizer()
+        
+        # 최적화 방법에 따른 실행
+        if method == 'grid_search':
+            result = optimizer.grid_search(
+                strategy_name=strategy,
+                symbol=symbol,
+                days=days
+            )
+        elif method == 'random_search':
+            result = optimizer.random_search(
+                strategy_name=strategy,
+                symbol=symbol,
+                days=days,
+                n_iterations=20
+            )
+        elif method == 'genetic_algorithm':
+            result = optimizer.genetic_algorithm(
+                strategy_name=strategy,
+                symbol=symbol,
+                days=days,
+                population_size=20,
+                generations=10
+            )
+        else:
+            return jsonify({'error': 'Unknown optimization method'}), 400
+            
+        if result is None:
+            return jsonify({'error': 'Optimization failed'}), 500
+            
+        # 결과 형식화
+        response = {
+            'strategy': strategy,
+            'method': method,
+            'symbol': symbol,
+            'best_params': result['best_params'],
+            'best_roi': round(result['best_metrics']['roi'], 2),
+            'best_fitness': result['best_fitness'],
+            'all_results': []
+        }
+        
+        # 상위 10개 결과 정렬
+        for params, metrics, fitness in result.get('all_results', [])[:10]:
+            response['all_results'].append({
+                'params': params,
+                'roi': round(metrics['roi'], 2),
+                'sharpe': metrics['sharpe_ratio'],
+                'max_drawdown': round(metrics['max_drawdown'], 2),
+                'win_rate': round(metrics['win_rate'], 1),
+                'trades': metrics['total_trades'],
+                'fitness': fitness
+            })
+        
+        # 세션 ID 생성 (타임스탬프 기반)
+        import time
+        response['session_id'] = int(time.time())
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"최적화 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/optimization/history')
+def get_optimization_history():
+    """최적화 히스토리 조회"""
+    try:
+        import sqlite3
+        conn = sqlite3.connect('data/optimization_results.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT id, timestamp, strategy, method, symbol, 
+                   best_roi, best_fitness, best_params
+            FROM optimization_sessions
+            ORDER BY timestamp DESC
+            LIMIT 20
+        """)
+        
+        history = []
+        for row in cursor.fetchall():
+            history.append({
+                'id': row[0],
+                'timestamp': row[1],
+                'strategy': row[2],
+                'method': row[3],
+                'symbol': row[4],
+                'best_roi': round(row[5], 2),
+                'fitness': row[6],
+                'best_params': row[7]
+            })
+        
+        conn.close()
+        return jsonify({'history': history})
+        
+    except Exception as e:
+        logger.error(f"히스토리 조회 오류: {e}")
+        return jsonify({'history': []})
+
+@app.route('/api/optimization/detail/<int:session_id>')
+def get_optimization_detail(session_id):
+    """최적화 상세 정보 조회"""
+    try:
+        import sqlite3
+        conn = sqlite3.connect('data/optimization_results.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM optimization_sessions WHERE id = ?
+        """, (session_id,))
+        
+        session = cursor.fetchone()
+        if not session:
+            return jsonify({'error': 'Session not found'}), 404
+            
+        # 상세 결과 조회
+        cursor.execute("""
+            SELECT params, roi, sharpe_ratio, max_drawdown, 
+                   win_rate, total_trades, fitness
+            FROM optimization_results
+            WHERE session_id = ?
+            ORDER BY fitness DESC
+            LIMIT 20
+        """, (session_id,))
+        
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'params': row[0],
+                'roi': round(row[1], 2),
+                'sharpe': round(row[2], 2),
+                'max_drawdown': round(row[3], 2),
+                'win_rate': round(row[4], 1),
+                'trades': row[5],
+                'fitness': round(row[6], 4)
+            })
+        
+        conn.close()
+        
+        return jsonify({
+            'session': {
+                'id': session[0],
+                'timestamp': session[1],
+                'strategy': session[2],
+                'method': session[3],
+                'symbol': session[4],
+                'days': session[5],
+                'best_roi': round(session[6], 2),
+                'best_fitness': round(session[7], 4),
+                'best_params': session[8]
+            },
+            'results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"상세 조회 오류: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/health')
 def health():
