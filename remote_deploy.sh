@@ -67,8 +67,8 @@ if [ ! -f "config/.env" ]; then
 UPBIT_ACCESS_KEY=your_access_key_here
 UPBIT_SECRET_KEY=your_secret_key_here
 
-# DeepSeek API Key
-DEEPSEEK_API_KEY=sk-ae644f698503467d80dbd125f443fa5d
+# DeepSeek API Key (ADD YOUR KEY HERE)
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 
 # Dashboard
 DASHBOARD_PORT=8080

@@ -28,7 +28,7 @@ GitHub Repository → Settings → Secrets and variables → Actions에서 다�
 `config/.env.example` 파일 참고하여 실제 API 키 설정:
 - `UPBIT_ACCESS_KEY`: Upbit API 액세스 키
 - `UPBIT_SECRET_KEY`: Upbit API 시크릿 키
-- `DEEPSEEK_API_KEY`: sk-ae644f698503467d80dbd125f443fa5d (이미 설정됨)
+- `DEEPSEEK_API_KEY`: 서버에서 직접 설정 필요 (보안상 GitHub에 저장 안 함)
 
 ## 🚀 자동 배포 (GitHub Actions)
 
