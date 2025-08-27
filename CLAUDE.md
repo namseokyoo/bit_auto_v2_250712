@@ -2,33 +2,35 @@
 
 ## 🔴 중요: 개발 워크플로우
 
-### SSH를 통한 Oracle 서버 직접 개발
-모든 코드 개선 작업은 **반드시 Oracle Cloud 서버에서 직접** 수행해야 합니다:
+### GitHub Actions 기반 자동 배포 워크플로우
+모든 개발은 **로컬에서 수행**하고, **GitHub Actions를 통해 자동 배포**됩니다:
 
 ```bash
-# 1. Oracle 서버 SSH 접속
-ssh ubuntu@158.180.82.112
+# 1. 로컬에서 개발
+cd /Users/namseokyoo/project/bit_auto_v2_250712
+code .  # VSCode 또는 선호하는 에디터
 
-# 2. 프로젝트 디렉토리 이동
-cd /home/ubuntu/bit_auto_v2
+# 2. 코드 수정 및 테스트
+python test_system.py  # 로컬 테스트
 
-# 3. 코드 수정 작업 진행
-vim [파일명]  # 또는 nano, vi 등
-
-# 4. 테스트 실행
-python quantum_trading.py --dry-run
-
-# 5. Git 커밋 및 푸시
+# 3. 변경사항 커밋
 git add .
 git commit -m "feat: [변경 내용]"
+
+# 4. GitHub 푸시 (자동 배포 트리거)
 git push origin main
+
+# 5. 배포 확인
+# GitHub Actions 탭에서 배포 상태 확인
+# 또는 대시보드 접속: http://158.180.82.112:8080/
 ```
 
 ### 개발 원칙
-- ✅ **서버에서 직접 개발**: 실시간 테스트 및 검증 가능
-- ✅ **즉시 GitHub 푸시**: 코드 변경사항 즉시 백업
-- ✅ **로컬은 읽기 전용**: 로컬에서는 분석만, 수정은 서버에서
-- ❌ **로컬 수정 금지**: 동기화 충돌 방지
+- ✅ **로컬 개발**: 모든 코드 수정은 로컬에서 수행
+- ✅ **자동 테스트**: GitHub Actions에서 자동 테스트 실행
+- ✅ **자동 배포**: main 브랜치 푸시 시 자동 배포
+- ✅ **무중단 배포**: 기존 서비스 중단 없이 새 버전 배포
+- ❌ **서버 직접 수정 금지**: 서버에서 직접 코드 수정 방지
 
 ## 🚀 프로젝트 개요
 
@@ -202,44 +204,21 @@ quantum-trading-system/
 
 ## 🚀 GitHub Actions 자동 배포
 
-### 1. 배포 워크플로우 (.github/workflows/deploy.yml)
+### 1. 배포 워크플로우 (.github/workflows/auto_deploy.yml)
 ```yaml
-name: Deploy to Oracle Cloud
+name: Auto Deploy to Oracle Cloud
 
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
   workflow_dispatch:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-      
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio
-      
-      - name: Run tests
-        run: |
-          pytest tests/ -v
-      
-      - name: Run backtest
-        run: |
-          python scripts/backtest.py --days 30
-
   deploy:
-    needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
     steps:
       - uses: actions/checkout@v3
       
@@ -250,35 +229,30 @@ jobs:
           username: ${{ secrets.ORACLE_USER }}
           key: ${{ secrets.ORACLE_SSH_KEY }}
           script: |
-            cd /opt/quantum-trading
-            git pull origin main
+            cd /home/ubuntu/bit_auto_v2
             
-            # 백업
-            cp data/quantum.db data/quantum.db.backup
+            # 프로세스 중지
+            pkill -f integrated_trading_system.py || true
+            pkill -f multi_coin_trading.py || true
             
-            # 의존성 업데이트
+            # 최신 코드 가져오기
+            git fetch origin
+            git reset --hard origin/main
+            
+            # 가상환경 및 의존성
             source venv/bin/activate
-            pip install -r requirements.txt
+            pip install --upgrade pip
+            pip install pyupbit pandas numpy redis apscheduler httpx psutil pyyaml flask flask-cors python-dotenv
             
-            # 서비스 재시작
-            sudo systemctl restart quantum-trading
-            sudo systemctl restart quantum-dashboard
+            # 시스템 재시작
+            nohup python integrated_trading_system.py > logs/integrated_system.log 2>&1 &
             
-            # 헬스 체크
-            sleep 10
-            curl -f http://localhost:8080/health || exit 1
+            # 대시보드 재시작
+            if ! pgrep -f dashboard.py > /dev/null; then
+              nohup python dashboard.py > logs/dashboard.log 2>&1 &
+            fi
             
-      - name: Notify Telegram
-        if: always()
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            MESSAGE="✅ 배포 성공: ${{ github.sha }}"
-          else
-            MESSAGE="❌ 배포 실패: ${{ github.sha }}"
-          fi
-          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d "text=$MESSAGE"
+            echo "✅ Deployment completed!"
 ```
 
 ### 2. 시크릿 설정 (GitHub Repository Settings)
