@@ -316,6 +316,8 @@ class MultiCoinTrader:
         
         # 현재가
         current_price = pyupbit.get_current_price(symbol)
+        if not current_price or current_price == 0:
+            raise ValueError(f"Invalid price for {symbol}: {current_price}")
         
         # 호가창
         orderbook = pyupbit.get_orderbook(symbol)

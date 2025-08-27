@@ -140,7 +140,9 @@ jobs:
           echo "Starting integrated trading system..."
           source venv/bin/activate
           nohup python integrated_trading_system.py > logs/integrated_system.log 2>&1 &
-          echo $! > integrated_system.pid
+          INTEGRATED_PID=$!
+          echo $INTEGRATED_PID > integrated_system.pid
+          echo "Started integrated_trading_system with PID: $INTEGRATED_PID"
           
           # 7. 대시보드가 실행 중이 아니면 시작
           if ! pgrep -f dashboard.py > /dev/null; then
