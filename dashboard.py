@@ -305,13 +305,13 @@ DASHBOARD_HTML = """
         </div>
         
         <div class="tabs">
-            <button class="tab active" onclick="showTab('overview')">📊 Overview</button>
-            <button class="tab" onclick="showTab('ai-analysis')">🤖 AI Analysis</button>
-            <button class="tab" onclick="showTab('multi-coin')">💰 Multi-Coin</button>
-            <button class="tab" onclick="showTab('control')">🎮 Control</button>
-            <button class="tab" onclick="showTab('trades')">📈 Trades</button>
-            <button class="tab" onclick="showTab('settings')">⚙️ Settings</button>
-            <button class="tab" onclick="showTab('logs')">📝 Logs</button>
+            <button class="tab active" data-tab="overview">📊 Overview</button>
+            <button class="tab" data-tab="ai">🤖 AI Analysis</button>
+            <button class="tab" data-tab="multi-coin">💰 Multi-Coin</button>
+            <button class="tab" data-tab="control">🎮 Control</button>
+            <button class="tab" data-tab="trades">📈 Trades</button>
+            <button class="tab" data-tab="settings">⚙️ Settings</button>
+            <button class="tab" data-tab="logs">📝 Logs</button>
         </div>
         
         <!-- Overview Tab -->
@@ -995,7 +995,7 @@ DASHBOARD_HTML = """
             }
             
             // Add active class to selected tab
-            const selectedTab = document.querySelector(`[onclick="switchTab('${tabName}')"]`);
+            const selectedTab = document.querySelector(`[data-tab="${tabName}"]`);
             if (selectedTab) {
                 selectedTab.classList.add('active');
             }
@@ -1040,21 +1040,9 @@ DASHBOARD_HTML = """
             // Add click event listeners to tabs
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.addEventListener('click', function() {
-                    const tabName = this.textContent.trim().toLowerCase().replace(/\s+/g, '-');
-                    if (tabName === 'overview') {
-                        switchTab('overview');
-                    } else if (tabName === 'ai-analysis') {
-                        switchTab('ai');
-                    } else if (tabName === 'multi-coin') {
-                        switchTab('multi-coin');
-                    } else if (tabName === 'control') {
-                        switchTab('control');
-                    } else if (tabName === 'trades') {
-                        switchTab('trades');
-                    } else if (tabName === 'settings') {
-                        switchTab('settings');
-                    } else if (tabName === 'logs') {
-                        switchTab('logs');
+                    const tabName = this.getAttribute('data-tab');
+                    if (tabName) {
+                        switchTab(tabName);
                     }
                 });
             });
