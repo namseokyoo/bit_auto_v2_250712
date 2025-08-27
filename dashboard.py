@@ -308,6 +308,7 @@ DASHBOARD_HTML = """
             <button class="tab active" data-tab="overview">📊 개요</button>
             <button class="tab" data-tab="ai">🤖 AI 분석</button>
             <button class="tab" data-tab="multi-coin">💰 멀티코인</button>
+            <button class="tab" data-tab="backtest">🧪 백테스트</button>
             <button class="tab" data-tab="control">🎮 제어판</button>
             <button class="tab" data-tab="trades">📈 거래내역</button>
             <button class="tab" data-tab="settings">⚙️ 설정</button>
@@ -387,6 +388,114 @@ DASHBOARD_HTML = """
                         <tr><td colspan="6" class="loading">로딩중...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+        
+        <!-- Backtest Tab -->
+        <div class="tab-content" id="backtest-content">
+            <div class="card">
+                <h3>📊 백테스트 설정</h3>
+                <div class="backtest-controls">
+                    <div class="form-group">
+                        <label>전략 선택:</label>
+                        <select id="backtest-strategy">
+                            <option value="momentum_scalping">모멘텀 스캘핑</option>
+                            <option value="mean_reversion">평균 회귀</option>
+                            <option value="trend_following">추세 추종</option>
+                            <option value="all">모든 전략 비교</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>심볼:</label>
+                        <select id="backtest-symbol">
+                            <option value="KRW-BTC">BTC</option>
+                            <option value="KRW-ETH">ETH</option>
+                            <option value="KRW-XRP">XRP</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>기간 (일):</label>
+                        <input type="number" id="backtest-days" value="30" min="1" max="365">
+                    </div>
+                    <div class="form-group">
+                        <label>초기 자본:</label>
+                        <input type="number" id="backtest-capital" value="1000000" step="100000">
+                    </div>
+                    <button class="btn btn-primary" onclick="runBacktest()">🚀 백테스트 실행</button>
+                </div>
+                <div id="backtest-status" class="status-message"></div>
+            </div>
+            
+            <div class="card" id="backtest-progress" style="display: none;">
+                <h3>⏳ 진행 상황</h3>
+                <div class="progress-bar">
+                    <div id="progress-fill" style="width: 0%; background: #4CAF50; height: 30px; transition: width 0.5s;"></div>
+                </div>
+                <div id="progress-text" style="text-align: center; margin-top: 10px;">준비중...</div>
+            </div>
+            
+            <div class="card" id="backtest-results" style="display: none;">
+                <h3>📈 백테스트 결과</h3>
+                <div class="grid">
+                    <div class="metric-card">
+                        <h4>총 수익</h4>
+                        <div id="result-pnl" class="metric-value">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>수익률 (ROI)</h4>
+                        <div id="result-roi" class="metric-value">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>승률</h4>
+                        <div id="result-winrate" class="metric-value">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>최대 낙폭</h4>
+                        <div id="result-mdd" class="metric-value">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Sharpe Ratio</h4>
+                        <div id="result-sharpe" class="metric-value">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>총 거래</h4>
+                        <div id="result-trades" class="metric-value">-</div>
+                    </div>
+                </div>
+                
+                <div id="equity-chart" style="margin-top: 20px;">
+                    <h4>자산 곡선</h4>
+                    <canvas id="equity-canvas" width="800" height="300"></canvas>
+                </div>
+                
+                <div id="ai-analysis" style="margin-top: 20px; display: none;">
+                    <h4>🤖 AI 분석 (DeepSeek)</h4>
+                    <div id="ai-analysis-text" style="padding: 15px; background: #f5f5f5; border-radius: 5px;"></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>📚 백테스트 히스토리</h3>
+                <div id="backtest-history">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>시간</th>
+                                <th>전략</th>
+                                <th>심볼</th>
+                                <th>기간</th>
+                                <th>ROI</th>
+                                <th>승률</th>
+                                <th>상세</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody">
+                            <tr>
+                                <td colspan="7" style="text-align: center;">히스토리가 없습니다</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
         
@@ -853,7 +962,193 @@ DASHBOARD_HTML = """
         
         // Run Backtest
         async function runBacktest() {
-            alert('Backtest functionality will be available soon');
+            const strategy = document.getElementById('backtest-strategy').value;
+            const symbol = document.getElementById('backtest-symbol').value;
+            const days = parseInt(document.getElementById('backtest-days').value);
+            const capital = parseInt(document.getElementById('backtest-capital').value);
+            
+            // UI 초기화
+            document.getElementById('backtest-status').style.display = 'none';
+            document.getElementById('backtest-progress').style.display = 'block';
+            document.getElementById('backtest-results').style.display = 'none';
+            document.getElementById('progress-fill').style.width = '0%';
+            document.getElementById('progress-text').textContent = '백테스트 시작 중...';
+            
+            try {
+                // 진행 상황 업데이트
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 10;
+                    if (progress <= 90) {
+                        document.getElementById('progress-fill').style.width = progress + '%';
+                        document.getElementById('progress-text').textContent = `처리 중... ${progress}%`;
+                    }
+                }, 500);
+                
+                // API 호출
+                const response = await fetch('/api/backtest/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        strategy: strategy,
+                        symbol: symbol,
+                        days: days,
+                        initial_capital: capital,
+                        position_size: 0.1
+                    })
+                });
+                
+                clearInterval(progressInterval);
+                document.getElementById('progress-fill').style.width = '100%';
+                document.getElementById('progress-text').textContent = '완료!';
+                
+                const result = await response.json();
+                
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+                
+                // 결과 표시
+                setTimeout(() => {
+                    displayBacktestResults(result);
+                }, 500);
+                
+            } catch (error) {
+                document.getElementById('backtest-progress').style.display = 'none';
+                const statusDiv = document.getElementById('backtest-status');
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'status-message status-error';
+                statusDiv.innerHTML = `❌ 백테스트 실패: ${error.message}`;
+            }
+        }
+        
+        function displayBacktestResults(result) {
+            document.getElementById('backtest-progress').style.display = 'none';
+            document.getElementById('backtest-results').style.display = 'block';
+            
+            // 메트릭 표시
+            document.getElementById('result-pnl').textContent = `₩${result.metrics.net_pnl.toLocaleString()}`;
+            document.getElementById('result-roi').textContent = `${result.metrics.roi}%`;
+            document.getElementById('result-winrate').textContent = `${result.metrics.win_rate}%`;
+            document.getElementById('result-mdd').textContent = `${result.metrics.max_drawdown}%`;
+            document.getElementById('result-sharpe').textContent = result.metrics.sharpe_ratio.toFixed(2);
+            document.getElementById('result-trades').textContent = result.metrics.total_trades;
+            
+            // 색상 적용
+            const roiElement = document.getElementById('result-roi');
+            roiElement.style.color = result.metrics.roi >= 0 ? '#4CAF50' : '#f44336';
+            
+            const pnlElement = document.getElementById('result-pnl');
+            pnlElement.style.color = result.metrics.net_pnl >= 0 ? '#4CAF50' : '#f44336';
+            
+            // 자산 곡선 그리기
+            if (result.equity_curve && result.equity_curve.length > 0) {
+                drawEquityChart(result.equity_curve);
+            }
+            
+            // AI 분석 표시
+            if (result.ai_analysis) {
+                document.getElementById('ai-analysis').style.display = 'block';
+                document.getElementById('ai-analysis-text').textContent = result.ai_analysis;
+            }
+            
+            // 히스토리에 추가
+            addToHistory(result);
+        }
+        
+        function drawEquityChart(equityData) {
+            const canvas = document.getElementById('equity-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 캔버스 클리어
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (equityData.length === 0) return;
+            
+            const padding = 40;
+            const width = canvas.width - padding * 2;
+            const height = canvas.height - padding * 2;
+            
+            // 최소/최대값 찾기
+            const minValue = Math.min(...equityData);
+            const maxValue = Math.max(...equityData);
+            const range = maxValue - minValue || 1;
+            
+            // 축 그리기
+            ctx.strokeStyle = '#ddd';
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            ctx.stroke();
+            
+            // 자산 곡선 그리기
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            equityData.forEach((value, index) => {
+                const x = padding + (index / (equityData.length - 1)) * width;
+                const y = padding + height - ((value - minValue) / range) * height;
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            
+            ctx.stroke();
+            
+            // 초기 자본선 그리기
+            const initialCapital = equityData[0];
+            const initialY = padding + height - ((initialCapital - minValue) / range) * height;
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(padding, initialY);
+            ctx.lineTo(canvas.width - padding, initialY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
+        function addToHistory(result) {
+            const tbody = document.getElementById('history-tbody');
+            
+            // 빈 메시지 제거
+            if (tbody.querySelector('td[colspan="7"]')) {
+                tbody.innerHTML = '';
+            }
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${new Date().toLocaleString('ko-KR')}</td>
+                <td>${result.strategy}</td>
+                <td>${result.symbol}</td>
+                <td>${result.period}</td>
+                <td style="color: ${result.metrics.roi >= 0 ? '#4CAF50' : '#f44336'}">${result.metrics.roi}%</td>
+                <td>${result.metrics.win_rate}%</td>
+                <td><button class="btn btn-sm" onclick="viewBacktestDetail(${result.session_id})">상세</button></td>
+            `;
+            
+            tbody.insertBefore(row, tbody.firstChild);
+            
+            // 최대 10개만 유지
+            while (tbody.children.length > 10) {
+                tbody.removeChild(tbody.lastChild);
+            }
+        }
+        
+        async function viewBacktestDetail(sessionId) {
+            try {
+                const response = await fetch(`/api/backtest/detail/${sessionId}`);
+                const detail = await response.json();
+                console.log('Backtest detail:', detail);
+                alert('상세 정보는 콘솔에서 확인하세요.');
+            } catch (error) {
+                alert('상세 정보를 불러올 수 없습니다.');
+            }
         }
         
         // Load Process Monitor
@@ -1517,6 +1812,164 @@ def emergency_stop():
     except Exception as e:
         logger.error(f"Emergency stop error: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/backtest/run', methods=['POST'])
+def run_backtest_api():
+    """백테스트 실행 API"""
+    try:
+        data = request.get_json()
+        strategy = data.get('strategy', 'momentum_scalping')
+        symbol = data.get('symbol', 'KRW-BTC')
+        days = data.get('days', 30)
+        initial_capital = data.get('initial_capital', 1_000_000)
+        position_size = data.get('position_size', 0.1)
+        
+        logger.info(f"백테스트 요청: {strategy} / {symbol} / {days}일")
+        
+        # 백테스트 실행을 위한 서브프로세스 (비동기 처리를 위해)
+        import sys
+        sys.path.append('.')
+        from backtest_runner import StrategyTester
+        
+        tester = StrategyTester()
+        
+        # 전략별 백테스트 또는 전체 비교
+        if strategy == 'all':
+            # 모든 전략 비교
+            strategies = ['momentum_scalping', 'mean_reversion', 'trend_following']
+            results = []
+            
+            for strat in strategies:
+                result = tester.run_backtest(
+                    strategy_name=strat,
+                    symbol=symbol,
+                    days=days,
+                    initial_capital=initial_capital,
+                    position_size=position_size
+                )
+                if 'error' not in result:
+                    results.append(result)
+            
+            # 최고 성과 전략 선택
+            if results:
+                best_result = max(results, key=lambda x: x['metrics']['roi'])
+                best_result['comparison'] = results
+                return jsonify(best_result)
+            else:
+                return jsonify({'error': '모든 전략 실행 실패'}), 500
+        else:
+            # 단일 전략 백테스트
+            result = tester.run_backtest(
+                strategy_name=strategy,
+                symbol=symbol,
+                days=days,
+                initial_capital=initial_capital,
+                position_size=position_size
+            )
+            
+            if 'error' in result:
+                return jsonify(result), 400
+                
+            return jsonify(result)
+            
+    except Exception as e:
+        logger.error(f"백테스트 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/backtest/detail/<int:session_id>')
+def get_backtest_detail(session_id):
+    """백테스트 상세 정보 조회"""
+    try:
+        import sqlite3
+        conn = sqlite3.connect('data/backtest_results.db')
+        cursor = conn.cursor()
+        
+        # 세션 정보 조회
+        cursor.execute("""
+            SELECT * FROM backtest_sessions WHERE id = ?
+        """, (session_id,))
+        
+        session = cursor.fetchone()
+        if not session:
+            return jsonify({'error': 'Session not found'}), 404
+            
+        # 거래 내역 조회
+        cursor.execute("""
+            SELECT * FROM backtest_trades 
+            WHERE session_id = ? 
+            ORDER BY timestamp DESC 
+            LIMIT 100
+        """, (session_id,))
+        
+        trades = cursor.fetchall()
+        
+        conn.close()
+        
+        return jsonify({
+            'session': {
+                'id': session[0],
+                'timestamp': session[1],
+                'strategy': session[2],
+                'symbol': session[3],
+                'period_start': session[4],
+                'period_end': session[5],
+                'initial_capital': session[6],
+                'final_capital': session[7],
+                'total_trades': session[8],
+                'win_rate': session[9],
+                'total_pnl': session[10],
+                'max_drawdown': session[11],
+                'sharpe_ratio': session[12]
+            },
+            'trades_count': len(trades),
+            'recent_trades': trades[:10]
+        })
+        
+    except Exception as e:
+        logger.error(f"백테스트 상세 조회 오류: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/backtest/history')
+def get_backtest_history():
+    """백테스트 히스토리 조회"""
+    try:
+        import sqlite3
+        conn = sqlite3.connect('data/backtest_results.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT id, timestamp, strategy, symbol, 
+                   period_start, period_end, total_trades,
+                   win_rate, total_pnl, sharpe_ratio
+            FROM backtest_sessions
+            ORDER BY timestamp DESC
+            LIMIT 20
+        """)
+        
+        sessions = cursor.fetchall()
+        conn.close()
+        
+        history = []
+        for session in sessions:
+            history.append({
+                'id': session[0],
+                'timestamp': session[1],
+                'strategy': session[2],
+                'symbol': session[3],
+                'period': f"{session[4][:10]} ~ {session[5][:10]}",
+                'trades': session[6],
+                'win_rate': round(session[7], 1),
+                'pnl': round(session[8], 0),
+                'sharpe': round(session[9], 2)
+            })
+            
+        return jsonify({'history': history})
+        
+    except Exception as e:
+        logger.error(f"히스토리 조회 오류: {e}")
+        return jsonify({'history': []})
 
 @app.route('/api/processes')
 def get_processes():
