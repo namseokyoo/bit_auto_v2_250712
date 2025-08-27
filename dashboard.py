@@ -393,6 +393,20 @@ DASHBOARD_HTML = """
         <!-- Control Tab -->
         <div class="tab-content" id="control-content">
             <div class="card">
+                <h3>💱 거래 모드 설정</h3>
+                <div class="control-panel">
+                    <div style="margin-bottom: 20px;">
+                        <span>현재 모드: </span>
+                        <span id="current-mode" style="font-weight: bold; color: #4CAF50;">로딩중...</span>
+                    </div>
+                    <button class="btn btn-success" onclick="setTradingMode('live')">💰 실거래 모드</button>
+                    <button class="btn btn-warning" onclick="setTradingMode('dry_run')">🧪 드라이런 모드</button>
+                    <button class="btn btn-info" onclick="setTradingMode('paper')">📝 페이퍼 모드</button>
+                </div>
+                <div id="mode-status" class="status-message"></div>
+            </div>
+            
+            <div class="card">
                 <h3>🎮 시스템 제어</h3>
                 <div class="control-panel">
                     <button class="btn btn-primary" onclick="controlSystem('start')">▶️ 거래 시작</button>
@@ -746,10 +760,78 @@ DASHBOARD_HTML = """
             }
         }
         
+        // Trading Mode Functions
+        async function getCurrentMode() {
+            try {
+                const response = await fetch('/api/trading-mode');
+                const data = await response.json();
+                const modeSpan = document.getElementById('current-mode');
+                if (modeSpan) {
+                    modeSpan.textContent = data.mode.toUpperCase();
+                    if (data.mode === 'live') {
+                        modeSpan.style.color = '#f44336';  // Red for live
+                    } else if (data.mode === 'dry_run') {
+                        modeSpan.style.color = '#ff9800';  // Orange for dry_run
+                    } else {
+                        modeSpan.style.color = '#2196F3';  // Blue for paper
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching trading mode:', error);
+            }
+        }
+        
+        async function setTradingMode(mode) {
+            const statusDiv = document.getElementById('mode-status');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status-message';
+            statusDiv.innerHTML = `모드 변경 중...`;
+            
+            try {
+                const response = await fetch('/api/trading-mode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mode: mode})
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    statusDiv.className = 'status-message status-success';
+                    statusDiv.innerHTML = `✅ ${data.message}`;
+                    getCurrentMode();  // Update display
+                    
+                    // Show restart reminder
+                    setTimeout(() => {
+                        if (confirm('모드가 변경되었습니다. 시스템을 재시작하시겠습니까?')) {
+                            controlSystem('restart');
+                        }
+                    }, 1000);
+                } else {
+                    statusDiv.className = 'status-message status-error';
+                    statusDiv.innerHTML = `❌ Error: ${data.error}`;
+                }
+            } catch (error) {
+                statusDiv.className = 'status-message status-error';
+                statusDiv.innerHTML = `❌ Error: ${error.message}`;
+            }
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+        
         // Emergency Stop
         async function emergencyStop() {
-            if (confirm('Are you sure you want to execute emergency stop? This will close all positions immediately.')) {
-                await controlSystem('emergency-stop');
+            if (confirm('긴급 정지를 실행하시겠습니까? 모든 거래가 즉시 중단됩니다.')) {
+                try {
+                    const response = await fetch('/api/emergency-stop', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    alert(data.message || '긴급 정지 실행됨');
+                } catch (error) {
+                    alert('긴급 정지 실행 실패: ' + error.message);
+                }
             }
         }
         
@@ -1007,6 +1089,9 @@ DASHBOARD_HTML = """
         
         // Initialize Dashboard
         async function initDashboard() {
+            // Get current trading mode
+            getCurrentMode();
+            
             // Add click event listeners to tabs
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.addEventListener('click', function() {
