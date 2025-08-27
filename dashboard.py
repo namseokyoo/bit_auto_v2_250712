@@ -976,8 +976,90 @@ DASHBOARD_HTML = """
             refreshLogs();
         }
         
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            const selectedContent = document.getElementById(tabName + '-content');
+            if (selectedContent) {
+                selectedContent.classList.add('active');
+            }
+            
+            // Add active class to selected tab
+            const selectedTab = document.querySelector(`[onclick="switchTab('${tabName}')"]`);
+            if (selectedTab) {
+                selectedTab.classList.add('active');
+            }
+            
+            // Load data for selected tab
+            loadTabData(tabName);
+        }
+        
+        // Load data for specific tab
+        function loadTabData(tabName) {
+            switch(tabName) {
+                case 'overview':
+                    loadSystemStatus();
+                    loadPortfolioSummary();
+                    loadTodayPerformance();
+                    loadActiveStrategies();
+                    break;
+                case 'ai':
+                    loadAIAnalysis();
+                    break;
+                case 'multi-coin':
+                    loadMultiCoinStatus();
+                    break;
+                case 'control':
+                    loadProcessMonitor();
+                    break;
+                case 'trades':
+                    loadTrades();
+                    break;
+                case 'settings':
+                    loadSettings();
+                    checkUpbitAPI();
+                    break;
+                case 'logs':
+                    refreshLogs();
+                    break;
+            }
+        }
+        
         // Initialize Dashboard
         async function initDashboard() {
+            // Add click event listeners to tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabName = this.textContent.trim().toLowerCase().replace(/\s+/g, '-');
+                    if (tabName === 'overview') {
+                        switchTab('overview');
+                    } else if (tabName === 'ai-analysis') {
+                        switchTab('ai');
+                    } else if (tabName === 'multi-coin') {
+                        switchTab('multi-coin');
+                    } else if (tabName === 'control') {
+                        switchTab('control');
+                    } else if (tabName === 'trades') {
+                        switchTab('trades');
+                    } else if (tabName === 'settings') {
+                        switchTab('settings');
+                    } else if (tabName === 'logs') {
+                        switchTab('logs');
+                    }
+                });
+            });
+            
+            // Load initial data
             await loadSystemStatus();
             await loadPortfolioSummary();
             await loadTodayPerformance();
@@ -986,16 +1068,20 @@ DASHBOARD_HTML = """
         
         // Auto-refresh
         setInterval(() => {
-            const activeTab = document.querySelector('.tab-content.active').id;
-            
-            if (activeTab === 'overview-content') {
-                loadSystemStatus();
-                loadPortfolioSummary();
-                loadTodayPerformance();
-            } else if (activeTab === 'multi-coin-content') {
-                loadMultiCoinStatus();
-            } else if (activeTab === 'trades-content') {
-                loadTrades();
+            const activeTab = document.querySelector('.tab-content.active');
+            if (activeTab) {
+                const activeTabId = activeTab.id;
+                
+                if (activeTabId === 'overview-content') {
+                    loadSystemStatus();
+                    loadPortfolioSummary();
+                    loadTodayPerformance();
+                    loadActiveStrategies();
+                } else if (activeTabId === 'multi-coin-content') {
+                    loadMultiCoinStatus();
+                } else if (activeTabId === 'trades-content') {
+                    loadTrades();
+                }
             }
         }, 5000); // Refresh every 5 seconds
         
