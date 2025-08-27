@@ -10,6 +10,16 @@ echo -e "${GREEN}================================${NC}"
 echo -e "${GREEN}🚀 Quantum Trading System Setup${NC}"
 echo -e "${GREEN}================================${NC}"
 
+# 가상환경 활성화
+if [ -d "venv" ]; then
+    echo -e "${YELLOW}Activating virtual environment...${NC}"
+    source venv/bin/activate
+else
+    echo -e "${YELLOW}Creating virtual environment...${NC}"
+    python3 -m venv venv
+    source venv/bin/activate
+fi
+
 # 1. Python 패키지 설치
 echo -e "\n${YELLOW}Installing Python packages...${NC}"
 pip install apscheduler httpx pandas numpy pyupbit redis psutil
