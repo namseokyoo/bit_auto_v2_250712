@@ -49,7 +49,7 @@ DASHBOARD_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quantum Trading Dashboard v3.0</title>
+    <title>퀀텀 트레이딩 대시보드 v3.0</title>
     <style>
         * {
             margin: 0;
@@ -300,48 +300,48 @@ DASHBOARD_HTML = """
 <body>
     <div class="container">
         <div class="header">
-            <h1>Quantum Trading Dashboard v3.0</h1>
+            <h1>퀀텀 트레이딩 대시보드 v3.0</h1>
             <div class="subtitle">AI-Powered Multi-Coin Trading System with DeepSeek Analysis</div>
         </div>
         
         <div class="tabs">
-            <button class="tab active" data-tab="overview">📊 Overview</button>
-            <button class="tab" data-tab="ai">🤖 AI Analysis</button>
-            <button class="tab" data-tab="multi-coin">💰 Multi-Coin</button>
-            <button class="tab" data-tab="control">🎮 Control</button>
-            <button class="tab" data-tab="trades">📈 Trades</button>
-            <button class="tab" data-tab="settings">⚙️ Settings</button>
-            <button class="tab" data-tab="logs">📝 Logs</button>
+            <button class="tab active" data-tab="overview">📊 개요</button>
+            <button class="tab" data-tab="ai">🤖 AI 분석</button>
+            <button class="tab" data-tab="multi-coin">💰 멀티코인</button>
+            <button class="tab" data-tab="control">🎮 제어판</button>
+            <button class="tab" data-tab="trades">📈 거래내역</button>
+            <button class="tab" data-tab="settings">⚙️ 설정</button>
+            <button class="tab" data-tab="logs">📝 로그</button>
         </div>
         
         <!-- Overview Tab -->
         <div class="tab-content active" id="overview-content">
             <div class="grid">
                 <div class="card">
-                    <h3>📊 System Status</h3>
+                    <h3>📊 시스템 상태</h3>
                     <div id="system-status">
-                        <div class="loading">Loading system status...</div>
+                        <div class="loading">시스템 상태 로딩중...</div>
                     </div>
                 </div>
                 
                 <div class="card">
-                    <h3>💵 Portfolio Summary</h3>
+                    <h3>💵 포트폴리오 요약</h3>
                     <div id="portfolio-summary">
-                        <div class="loading">Loading portfolio...</div>
+                        <div class="loading">포트폴리오 로딩중...</div>
                     </div>
                 </div>
                 
                 <div class="card">
-                    <h3>📈 Today's Performance</h3>
+                    <h3>📈 오늘의 성과</h3>
                     <div id="today-performance">
-                        <div class="loading">Loading performance...</div>
+                        <div class="loading">성과 로딩중...</div>
                     </div>
                 </div>
                 
                 <div class="card">
-                    <h3>🎯 Active Strategies</h3>
+                    <h3>🎯 활성 전략</h3>
                     <div id="active-strategies">
-                        <div class="loading">Loading strategies...</div>
+                        <div class="loading">전략 로딩중...</div>
                     </div>
                 </div>
             </div>
@@ -350,13 +350,13 @@ DASHBOARD_HTML = """
         <!-- AI Analysis Tab -->
         <div class="tab-content" id="ai-analysis-content">
             <div class="card">
-                <h3>🤖 DeepSeek AI Analysis</h3>
+                <h3>🤖 DeepSeek AI 분석</h3>
                 <div class="control-panel">
-                    <button class="btn btn-primary" onclick="refreshAIAnalysis()">Refresh</button>
-                    <button class="btn btn-warning" onclick="triggerAnalysis()">Trigger Analysis Now</button>
+                    <button class="btn btn-primary" onclick="refreshAIAnalysis()">새로고침</button>
+                    <button class="btn btn-warning" onclick="triggerAnalysis()">지금 분석 실행</button>
                 </div>
                 <div id="ai-analysis-list">
-                    <div class="loading">Loading AI analysis...</div>
+                    <div class="loading">AI 분석 로딩중...</div>
                 </div>
             </div>
         </div>
@@ -364,27 +364,27 @@ DASHBOARD_HTML = """
         <!-- Multi-Coin Tab -->
         <div class="tab-content" id="multi-coin-content">
             <div class="card">
-                <h3>💰 Multi-Coin Trading Status</h3>
+                <h3>💰 멀티코인 거래 상태</h3>
                 <div class="coin-grid" id="coin-status-grid">
-                    <div class="loading">Loading coin status...</div>
+                    <div class="loading">코인 상태 로딩중...</div>
                 </div>
             </div>
             
             <div class="card">
-                <h3>📊 Coin Performance</h3>
+                <h3>📊 코인 성과</h3>
                 <table id="coin-performance-table">
                     <thead>
                         <tr>
-                            <th>Coin</th>
-                            <th>Holdings</th>
-                            <th>Avg Price</th>
-                            <th>Current Price</th>
-                            <th>PnL</th>
-                            <th>PnL %</th>
+                            <th>코인</th>
+                            <th>보유량</th>
+                            <th>평균가</th>
+                            <th>현재가</th>
+                            <th>손익</th>
+                            <th>손익률</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td colspan="6" class="loading">Loading...</td></tr>
+                        <tr><td colspan="6" class="loading">로딩중...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -393,28 +393,28 @@ DASHBOARD_HTML = """
         <!-- Control Tab -->
         <div class="tab-content" id="control-content">
             <div class="card">
-                <h3>🎮 System Control</h3>
+                <h3>🎮 시스템 제어</h3>
                 <div class="control-panel">
-                    <button class="btn btn-primary" onclick="controlSystem('start')">▶️ Start Trading</button>
-                    <button class="btn btn-danger" onclick="controlSystem('stop')">⏹️ Stop Trading</button>
-                    <button class="btn btn-warning" onclick="controlSystem('restart')">🔄 Restart System</button>
+                    <button class="btn btn-primary" onclick="controlSystem('start')">▶️ 거래 시작</button>
+                    <button class="btn btn-danger" onclick="controlSystem('stop')">⏹️ 거래 중지</button>
+                    <button class="btn btn-warning" onclick="controlSystem('restart')">🔄 시스템 재시작</button>
                 </div>
                 <div id="control-status" class="status-message"></div>
             </div>
             
             <div class="card">
-                <h3>🛠️ Quick Actions</h3>
+                <h3>🛠️ 빠른 작업</h3>
                 <div class="control-panel">
-                    <button class="btn btn-primary" onclick="emergencyStop()">🚨 Emergency Stop</button>
-                    <button class="btn btn-warning" onclick="closeAllPositions()">💸 Close All Positions</button>
-                    <button class="btn btn-primary" onclick="runBacktest()">📊 Run Backtest</button>
+                    <button class="btn btn-primary" onclick="emergencyStop()">🚨 긴급 중지</button>
+                    <button class="btn btn-warning" onclick="closeAllPositions()">💸 모든 포지션 청산</button>
+                    <button class="btn btn-primary" onclick="runBacktest()">📊 백테스트 실행</button>
                 </div>
             </div>
             
             <div class="card">
-                <h3>📊 Process Monitor</h3>
+                <h3>📊 프로세스 모니터</h3>
                 <div id="process-monitor">
-                    <div class="loading">Loading process status...</div>
+                    <div class="loading">프로세스 상태 로딩중...</div>
                 </div>
             </div>
         </div>
@@ -422,17 +422,17 @@ DASHBOARD_HTML = """
         <!-- Trades Tab -->
         <div class="tab-content" id="trades-content">
             <div class="card">
-                <h3>📈 Recent Trades</h3>
+                <h3>📈 최근 거래</h3>
                 <table id="trades-table">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>Coin</th>
-                            <th>Strategy</th>
-                            <th>Side</th>
-                            <th>Price</th>
-                            <th>Amount</th>
-                            <th>PnL</th>
+                            <th>시간</th>
+                            <th>코인</th>
+                            <th>전략</th>
+                            <th>방향</th>
+                            <th>가격</th>
+                            <th>수량</th>
+                            <th>손익</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -445,9 +445,9 @@ DASHBOARD_HTML = """
         <!-- Settings Tab -->
         <div class="tab-content" id="settings-content">
             <div class="card">
-                <h3>⚙️ Trading Configuration</h3>
+                <h3>⚙️ 거래 설정</h3>
                 <div id="trading-config">
-                    <div class="loading">Loading configuration...</div>
+                    <div class="loading">설정 로딩중...</div>
                 </div>
             </div>
             
@@ -469,12 +469,12 @@ DASHBOARD_HTML = """
         <!-- Logs Tab -->
         <div class="tab-content" id="logs-content">
             <div class="card">
-                <h3>📝 System Logs</h3>
+                <h3>📝 시스템 로그</h3>
                 <div class="control-panel">
-                    <button class="btn btn-primary" onclick="refreshLogs()">Refresh</button>
+                    <button class="btn btn-primary" onclick="refreshLogs()">새로고침</button>
                     <select id="log-filter" onchange="filterLogs()">
-                        <option value="all">All Logs</option>
-                        <option value="error">Errors Only</option>
+                        <option value="all">전체 로그</option>
+                        <option value="error">에러만</option>
                         <option value="trade">Trades Only</option>
                         <option value="ai">AI Analysis</option>
                     </select>
@@ -498,7 +498,7 @@ DASHBOARD_HTML = """
                     <span class="metric-label">Status:</span>
                     <span class="metric-value ${data.is_running ? 'positive' : 'negative'}">
                         <span class="status-indicator ${data.is_running ? 'status-running' : 'status-stopped'}"></span>
-                        ${data.is_running ? 'Running' : 'Stopped'}
+                        ${data.is_running ? '실행중' : '중지됨'}
                     </span>
                 </div>`;
                 html += `<div class="metric">
@@ -755,7 +755,7 @@ DASHBOARD_HTML = """
         
         // Close All Positions
         async function closeAllPositions() {
-            if (confirm('Are you sure you want to close all positions?')) {
+            if (confirm('모든 포지션을 청산하시겠습니까?')) {
                 try {
                     const response = await fetch('/api/control/close-all', {
                         method: 'POST',
@@ -781,7 +781,7 @@ DASHBOARD_HTML = """
                 const data = await response.json();
                 
                 let html = '<table style="width: 100%;">';
-                html += '<tr><th>Process</th><th>Status</th><th>PID</th></tr>';
+                html += '<tr><th>Process</th><th>상태</th><th>PID</th></tr>';
                 
                 const processes = data.processes || [];
                 processes.forEach(proc => {
@@ -789,7 +789,7 @@ DASHBOARD_HTML = """
                     html += `
                         <tr>
                             <td>${proc.name}</td>
-                            <td>${statusIcon} ${proc.running ? 'Running' : 'Stopped'}</td>
+                            <td>${statusIcon} ${proc.running ? '실행중' : '중지됨'}</td>
                             <td>${proc.pid || 'N/A'}</td>
                         </tr>
                     `;
@@ -831,7 +831,7 @@ DASHBOARD_HTML = """
                         `;
                     });
                 } else {
-                    html = '<tr><td colspan="7" style="text-align: center; color: #94a3b8;">No trades yet</td></tr>';
+                    html = '<tr><td colspan="7" style="text-align: center; color: #94a3b8;">거래 없음</td></tr>';
                 }
                 
                 document.querySelector('#trades-table tbody').innerHTML = html;
@@ -929,7 +929,7 @@ DASHBOARD_HTML = """
                 let logHtml = logs.join('\\n');
                 
                 if (!logHtml) {
-                    logHtml = 'No logs available';
+                    logHtml = '로그 없음';
                 }
                 
                 document.getElementById('log-viewer').textContent = logHtml;
@@ -1177,10 +1177,10 @@ def get_today_performance():
 def get_strategies():
     """전략 목록 조회"""
     strategies = [
-        {'name': 'Market Making', 'active': True},
-        {'name': 'Statistical Arbitrage', 'active': True},
-        {'name': 'Momentum Scalping', 'active': True},
-        {'name': 'Mean Reversion', 'active': True},
+        {'name': '마켓 메이킹', 'active': True},
+        {'name': '통계적 차익거래', 'active': True},
+        {'name': '모멘텀 스캘핑', 'active': True},
+        {'name': '평균 회귀', 'active': True},
         {'name': 'AI Prediction', 'active': False}
     ]
     return jsonify({'strategies': strategies})
@@ -1426,7 +1426,7 @@ def get_logs():
         log_file = 'logs/integrated_system.log'
         
         if not os.path.exists(log_file):
-            return jsonify({'logs': ['No logs available']})
+            return jsonify({'logs': ['로그 없음']})
         
         with open(log_file, 'r') as f:
             lines = f.readlines()[-100:]  # Last 100 lines
