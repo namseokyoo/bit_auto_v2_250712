@@ -849,22 +849,22 @@ DASHBOARD_HTML = """
                 
                 let html = '';
                 html += `<div class="metric">
-                    <span class="metric-label">Trading Mode:</span>
+                    <span class="metric-label">거래 모드:</span>
                     <span class="metric-value ${data.trading_mode === 'live' ? 'positive' : 'neutral'}">
-                        ${data.trading_mode || 'dry-run'}
+                        ${data.trading_mode === 'live' ? '🔴 실거래' : data.trading_mode === 'dry_run' || data.trading_mode === 'dry-run' ? '🟡 테스트' : data.trading_mode}
                     </span>
                 </div>`;
                 html += `<div class="metric">
-                    <span class="metric-label">Max Position Size:</span>
+                    <span class="metric-label">최대 포지션:</span>
                     <span class="metric-value">₩${(data.max_position || 0).toLocaleString()}</span>
                 </div>`;
                 html += `<div class="metric">
-                    <span class="metric-label">Daily Loss Limit:</span>
-                    <span class="metric-value negative">${(data.daily_loss_limit || -3)}%</span>
+                    <span class="metric-label">일일 손실 한도:</span>
+                    <span class="metric-value negative">${(data.daily_loss_limit || -5)}%</span>
                 </div>`;
                 html += `<div class="metric">
-                    <span class="metric-label">Signal Threshold:</span>
-                    <span class="metric-value">${data.signal_threshold || 0.65}</span>
+                    <span class="metric-label">신호 임계값:</span>
+                    <span class="metric-value">${data.signal_threshold || 0.03}</span>
                 </div>`;
                 
                 document.getElementById('trading-config').innerHTML = html;
@@ -1368,14 +1368,32 @@ def get_recent_trades():
 def get_config():
     """설정 정보 조회"""
     try:
-        # Load from environment
-        config = {
-            'trading_mode': os.getenv('TRADING_MODE', 'dry-run'),
-            'max_position': int(os.getenv('MAX_POSITION_SIZE', 10000000)),
-            'daily_loss_limit': float(os.getenv('DAILY_LOSS_LIMIT', -0.03)) * 100,
-            'signal_threshold': float(os.getenv('SIGNAL_THRESHOLD', 0.65))
-        }
-        return jsonify(config)
+        # Load from config.yaml first, fallback to environment
+        config_data = {}
+        try:
+            with open('config/config.yaml', 'r') as f:
+                config_yaml = yaml.safe_load(f)
+                trading_mode = config_yaml.get('trading', {}).get('mode', 'dry-run')
+                max_position = config_yaml.get('trading', {}).get('limits', {}).get('max_position', 10000000)
+                daily_loss = config_yaml.get('risk_management', {}).get('limits', {}).get('max_daily_loss_percent', 5.0)
+                signal_threshold = config_yaml.get('trading', {}).get('signal_threshold', 0.65)
+                
+                config_data = {
+                    'trading_mode': trading_mode,
+                    'max_position': max_position,
+                    'daily_loss_limit': -abs(daily_loss),  # Ensure negative
+                    'signal_threshold': signal_threshold
+                }
+        except:
+            # Fallback to environment variables
+            config_data = {
+                'trading_mode': os.getenv('TRADING_MODE', 'dry-run'),
+                'max_position': int(os.getenv('MAX_POSITION_SIZE', 10000000)),
+                'daily_loss_limit': float(os.getenv('DAILY_LOSS_LIMIT', -0.03)) * 100,
+                'signal_threshold': float(os.getenv('SIGNAL_THRESHOLD', 0.65))
+            }
+        
+        return jsonify(config_data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
