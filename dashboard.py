@@ -926,7 +926,7 @@ DASHBOARD_HTML = """
                 const data = await response.json();
                 
                 const logs = data.logs || [];
-                let logHtml = logs.join('\n');
+                let logHtml = logs.join('\\n');
                 
                 if (!logHtml) {
                     logHtml = 'No logs available';
