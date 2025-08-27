@@ -487,36 +487,6 @@ DASHBOARD_HTML = """
     </div>
     
     <script>
-        // Tab switching
-        function showTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Show selected tab
-            document.getElementById(tabName + '-content').classList.add('active');
-            event.target.classList.add('active');
-            
-            // Load tab-specific data
-            if (tabName === 'ai-analysis') {
-                loadAIAnalysis();
-            } else if (tabName === 'multi-coin') {
-                loadMultiCoinStatus();
-            } else if (tabName === 'control') {
-                loadProcessMonitor();
-            } else if (tabName === 'trades') {
-                loadTrades();
-            } else if (tabName === 'settings') {
-                loadSettings();
-            } else if (tabName === 'logs') {
-                refreshLogs();
-            }
-        }
-        
         // Load System Status
         async function loadSystemStatus() {
             try {
