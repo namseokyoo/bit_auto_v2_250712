@@ -182,14 +182,39 @@ if [ ! -f "config/.env" ]; then
     fi
 fi
 
-# 10. 대시보드 시작
+# 10. AI 분석 데이터 초기화
+echo -e "${YELLOW}Initializing AI analysis data...${NC}"
+if [ -f "init_ai_analysis.py" ]; then
+    python3 init_ai_analysis.py > logs/ai_init.log 2>&1
+    echo -e "${GREEN}✓ AI analysis data initialized${NC}"
+else
+    echo -e "${YELLOW}⚠️ AI analysis script not found${NC}"
+fi
+
+# 11. 대시보드 시작
 echo -e "${YELLOW}Starting dashboard...${NC}"
 nohup python3 dashboard.py > logs/dashboard.log 2>&1 &
 DASHBOARD_PID=$!
 echo $DASHBOARD_PID > dashboard.pid
 echo -e "${GREEN}✓ Dashboard started with PID: $DASHBOARD_PID${NC}"
 
-# 11. 거래 시스템 시작 (config 파일 확인 후)
+# 11-1. AI 분석 스케줄러 시작
+echo -e "${YELLOW}Starting AI analysis scheduler...${NC}"
+if [ -f "ai_analysis_scheduler.py" ]; then
+    # 기존 스케줄러 중지
+    pkill -f "ai_analysis_scheduler.py" || true
+    sleep 1
+    
+    # 새로 시작
+    nohup python3 ai_analysis_scheduler.py > logs/ai_scheduler.log 2>&1 &
+    SCHEDULER_PID=$!
+    echo $SCHEDULER_PID > ai_scheduler.pid
+    echo -e "${GREEN}✓ AI scheduler started with PID: $SCHEDULER_PID${NC}"
+else
+    echo -e "${YELLOW}⚠️ AI scheduler not found${NC}"
+fi
+
+# 12. 거래 시스템 시작 (config 파일 확인 후)
 if [ -f "config/config.yaml" ]; then
     TRADING_MODE=$(python3 -c "import yaml; config=yaml.safe_load(open('config/config.yaml')); print(config.get('trading', {}).get('mode', 'dry_run'))")
     echo -e "${YELLOW}Trading mode: $TRADING_MODE${NC}"
@@ -214,7 +239,7 @@ else
     echo -e "${YELLOW}Warning: config.yaml not found${NC}"
 fi
 
-# 12. 헬스 체크
+# 13. 헬스 체크
 echo -e "${YELLOW}Performing health check...${NC}"
 sleep 5
 
@@ -241,7 +266,7 @@ fi
 echo -e "\n${YELLOW}Active processes:${NC}"
 ps aux | grep -E "dashboard|trading|quantum|multi_coin" | grep -v grep || echo "No trading processes found"
 
-# 13. 최종 상태
+# 14. 최종 상태
 echo ""
 echo "========================================="
 if [ -f "dashboard.pid" ] && ps -p $(cat dashboard.pid) > /dev/null; then

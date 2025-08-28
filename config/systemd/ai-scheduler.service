@@ -1,0 +1,17 @@
+[Unit]
+Description=AI Analysis Scheduler for Quantum Trading
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/bit_auto_v2
+Environment="PATH=/home/ubuntu/bit_auto_v2/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/ubuntu/bit_auto_v2/venv/bin/python3 /home/ubuntu/bit_auto_v2/ai_analysis_scheduler.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/ubuntu/bit_auto_v2/logs/ai_scheduler.log
+StandardError=append:/home/ubuntu/bit_auto_v2/logs/ai_scheduler_error.log
+
+[Install]
+WantedBy=multi-user.target
