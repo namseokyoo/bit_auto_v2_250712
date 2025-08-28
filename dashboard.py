@@ -2624,49 +2624,49 @@ def get_recent_trades():
                             # 최근 30일간의 완료된 주문 내역 조회 (매수/매도 모두 포함)
                             # get_order는 기본적으로 모든 side(bid/ask)를 반환함
                             orders = upbit.get_order(symbol, state='done', limit=50)
-                        
-                        if orders and isinstance(orders, list):
-                            for order in orders:
-                                # Upbit API 응답에서 정확한 필드명 사용
-                                # trades 필드가 있으면 실제 체결 내역 사용
-                                if order.get('trades'):
-                                    for trade in order['trades']:
-                                        price = float(trade.get('price', 0))
-                                        volume = float(trade.get('volume', 0))
+                            
+                            if orders and isinstance(orders, list):
+                                for order in orders:
+                                    # Upbit API 응답에서 정확한 필드명 사용
+                                    # trades 필드가 있으면 실제 체결 내역 사용
+                                    if order.get('trades'):
+                                        for trade in order['trades']:
+                                            price = float(trade.get('price', 0))
+                                            volume = float(trade.get('volume', 0))
+                                            
+                                            trades.append({
+                                                'timestamp': trade.get('created_at', order.get('created_at', '')),
+                                                'strategy': 'Quantum Trading',
+                                                'symbol': trade.get('market', order.get('market', '')),
+                                                'side': order.get('side', ''),  # bid(매수) or ask(매도)
+                                                'price': price,
+                                                'quantity': volume,
+                                                'total': price * volume,
+                                                'pnl': 0,
+                                                'signal_strength': 0.75,
+                                                'reason': '시스템 거래'
+                                            })
+                                    else:
+                                        # trades가 없으면 주문 정보 사용
+                                        avg_price = float(order.get('price', 0) or order.get('avg_price', 0))
+                                        executed_volume = float(order.get('executed_volume', 0) or order.get('volume', 0))
                                         
-                                        trades.append({
-                                            'timestamp': trade.get('created_at', order.get('created_at', '')),
-                                            'strategy': 'Quantum Trading',
-                                            'symbol': trade.get('market', order.get('market', '')),
-                                            'side': order.get('side', ''),  # bid(매수) or ask(매도)
-                                            'price': price,
-                                            'quantity': volume,
-                                            'total': price * volume,
-                                            'pnl': 0,
-                                            'signal_strength': 0.75,
-                                            'reason': '시스템 거래'
-                                        })
-                                else:
-                                    # trades가 없으면 주문 정보 사용
-                                    avg_price = float(order.get('price', 0) or order.get('avg_price', 0))
-                                    executed_volume = float(order.get('executed_volume', 0) or order.get('volume', 0))
-                                    
-                                    if avg_price > 0 and executed_volume > 0:
-                                        trades.append({
-                                            'timestamp': order.get('created_at', ''),
-                                            'strategy': 'Quantum Trading',
-                                            'symbol': order.get('market', ''),
-                                            'side': order.get('side', ''),
-                                            'price': avg_price,
-                                            'quantity': executed_volume,
-                                            'total': avg_price * executed_volume,
-                                            'pnl': 0,
-                                            'signal_strength': 0.75,
-                                            'reason': '시스템 거래'
-                                        })
-                    except Exception as symbol_error:
-                        logger.debug(f"Error fetching orders for {symbol}: {symbol_error}")
-                        continue
+                                        if avg_price > 0 and executed_volume > 0:
+                                            trades.append({
+                                                'timestamp': order.get('created_at', ''),
+                                                'strategy': 'Quantum Trading',
+                                                'symbol': order.get('market', ''),
+                                                'side': order.get('side', ''),
+                                                'price': avg_price,
+                                                'quantity': executed_volume,
+                                                'total': avg_price * executed_volume,
+                                                'pnl': 0,
+                                                'signal_strength': 0.75,
+                                                'reason': '시스템 거래'
+                                            })
+                        except Exception as symbol_error:
+                            logger.debug(f"Error fetching orders for {symbol}: {symbol_error}")
+                            continue
                 
                 # 시간순 정렬 (최신 먼저)
                 trades.sort(key=lambda x: x['timestamp'], reverse=True)
