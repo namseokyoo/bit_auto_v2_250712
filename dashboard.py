@@ -2556,121 +2556,60 @@ def get_recent_trades():
             try:
                 upbit = pyupbit.Upbit(access_key, secret_key)
                 
-                # 최근 거래 내역 조회 (모든 마켓)
-                # Upbit API는 마켓별로 조회해야 하므로 주요 코인만 확인
-                symbols = ['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-SOL']
+                # 거래 내역 조회를 위한 심볼 리스트
+                # 실제 거래가 있을 수 있는 모든 KRW 마켓 확인
+                symbols = ['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-SOL', 
+                          'KRW-DOGE', 'KRW-AVAX', 'KRW-DOT', 'KRW-MATIC', 'KRW-LINK',
+                          'KRW-SC', 'KRW-SNT']  # SC, SNT 추가
                 
-                # 먼저 전체 주문 내역을 조회 (마켓 구분 없이)
-                try:
-                    # 모든 마켓의 완료된 주문 조회
-                    all_orders = upbit.get_order(state='done', limit=200)
-                    
-                    logger.info(f"Fetched {len(all_orders) if all_orders else 0} orders from Upbit")
-                    
-                    if all_orders and isinstance(all_orders, list):
-                        # 매수/매도 카운트
-                        bid_count = sum(1 for o in all_orders if o.get('side') == 'bid')
-                        ask_count = sum(1 for o in all_orders if o.get('side') == 'ask')
-                        logger.info(f"Orders breakdown - Bid: {bid_count}, Ask: {ask_count}")
-                        for order in all_orders:
-                            # 주문 정보에서 거래 데이터 추출
-                            market = order.get('market', '')
-                            side = order.get('side', '')
-                            
-                            # KRW 마켓만 필터링
-                            if market.startswith('KRW-'):
-                                # trades 필드가 있으면 실제 체결 내역 사용
-                                if order.get('trades'):
-                                    for trade in order['trades']:
-                                        price = float(trade.get('price', 0))
-                                        volume = float(trade.get('volume', 0))
-                                        
-                                        trades.append({
-                                            'timestamp': trade.get('created_at', order.get('created_at', '')),
-                                            'strategy': 'Quantum Trading',
-                                            'symbol': market,
-                                            'side': side,  # bid(매수) or ask(매도)
-                                            'price': price,
-                                            'quantity': volume,
-                                            'total': price * volume,
-                                            'pnl': 0,
-                                            'signal_strength': 0.75,
-                                            'reason': '시스템 거래'
-                                        })
-                                else:
-                                    # trades가 없으면 주문 정보 사용
-                                    price = float(order.get('price', 0) or order.get('avg_price', 0))
-                                    volume = float(order.get('executed_volume', 0) or order.get('volume', 0))
+                # 각 마켓별로 주문 내역 조회
+                for symbol in symbols:
+                    try:
+                        # 완료된 주문 내역 조회 (매수/매도 모두 포함)
+                        # pyupbit는 ticker를 지정해야 함, limit은 최대 100
+                        orders = upbit.get_order(symbol, state='done', limit=100)
+                        
+                        if orders and isinstance(orders, list):
+                            for order in orders:
+                                # Upbit API 응답에서 정확한 필드명 사용
+                                market = order.get('market', '')
+                                side = order.get('side', '')  # bid or ask
+                                state = order.get('state', '')
+                                
+                                # 완료된 주문만 처리
+                                if state == 'done':
+                                    # price는 지정가, avg_price는 체결 평균가
+                                    price = float(order.get('price', 0))
+                                    volume = float(order.get('volume', 0))
+                                    executed_volume = float(order.get('executed_volume', 0))
                                     
-                                    if price > 0 and volume > 0:
+                                    # 체결된 거래만 추가
+                                    if executed_volume > 0:
                                         trades.append({
                                             'timestamp': order.get('created_at', ''),
                                             'strategy': 'Quantum Trading',
                                             'symbol': market,
-                                            'side': side,
+                                            'side': side,  # bid(매수) or ask(매도)
                                             'price': price,
-                                            'quantity': volume,
-                                            'total': price * volume,
+                                            'quantity': executed_volume,
+                                            'total': price * executed_volume,
                                             'pnl': 0,
                                             'signal_strength': 0.75,
                                             'reason': '시스템 거래'
                                         })
-                except Exception as e:
-                    logger.error(f"Error fetching all orders: {e}")
-                    
-                    # 전체 조회 실패시 개별 마켓 조회 시도
-                    for symbol in symbols:
-                        try:
-                            # 최근 30일간의 완료된 주문 내역 조회 (매수/매도 모두 포함)
-                            # get_order는 기본적으로 모든 side(bid/ask)를 반환함
-                            orders = upbit.get_order(symbol, state='done', limit=50)
-                            
-                            if orders and isinstance(orders, list):
-                                for order in orders:
-                                    # Upbit API 응답에서 정확한 필드명 사용
-                                    # trades 필드가 있으면 실제 체결 내역 사용
-                                    if order.get('trades'):
-                                        for trade in order['trades']:
-                                            price = float(trade.get('price', 0))
-                                            volume = float(trade.get('volume', 0))
-                                            
-                                            trades.append({
-                                                'timestamp': trade.get('created_at', order.get('created_at', '')),
-                                                'strategy': 'Quantum Trading',
-                                                'symbol': trade.get('market', order.get('market', '')),
-                                                'side': order.get('side', ''),  # bid(매수) or ask(매도)
-                                                'price': price,
-                                                'quantity': volume,
-                                                'total': price * volume,
-                                                'pnl': 0,
-                                                'signal_strength': 0.75,
-                                                'reason': '시스템 거래'
-                                            })
-                                    else:
-                                        # trades가 없으면 주문 정보 사용
-                                        avg_price = float(order.get('price', 0) or order.get('avg_price', 0))
-                                        executed_volume = float(order.get('executed_volume', 0) or order.get('volume', 0))
-                                        
-                                        if avg_price > 0 and executed_volume > 0:
-                                            trades.append({
-                                                'timestamp': order.get('created_at', ''),
-                                                'strategy': 'Quantum Trading',
-                                                'symbol': order.get('market', ''),
-                                                'side': order.get('side', ''),
-                                                'price': avg_price,
-                                                'quantity': executed_volume,
-                                                'total': avg_price * executed_volume,
-                                                'pnl': 0,
-                                                'signal_strength': 0.75,
-                                                'reason': '시스템 거래'
-                                            })
-                        except Exception as symbol_error:
-                            logger.debug(f"Error fetching orders for {symbol}: {symbol_error}")
-                            continue
+                    except Exception as symbol_error:
+                        logger.debug(f"Error fetching orders for {symbol}: {symbol_error}")
+                        continue
                 
                 # 시간순 정렬 (최신 먼저)
                 trades.sort(key=lambda x: x['timestamp'], reverse=True)
-                trades = trades[:20]  # 최근 20건만
+                trades = trades[:200]  # 최근 200건까지 표시
+                
+                # 매수/매도 통계 로깅
+                if trades:
+                    bid_count = sum(1 for t in trades if t.get('side') == 'bid')
+                    ask_count = sum(1 for t in trades if t.get('side') == 'ask')
+                    logger.info(f"Total trades fetched: {len(trades)} (Bid: {bid_count}, Ask: {ask_count})")
                 
             except Exception as e:
                 logger.error(f"Upbit API error in trades: {e}")
