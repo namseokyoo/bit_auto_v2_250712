@@ -651,24 +651,29 @@ DASHBOARD_HTML = """
         <div class="tab-content" id="trades-content">
             <div class="card">
                 <h3>📈 최근 거래</h3>
+                <p style="color: #94a3b8; margin-bottom: 10px;">거래를 클릭하면 상세 정보를 볼 수 있습니다</p>
                 <table id="trades-table">
                     <thead>
                         <tr>
                             <th>시간</th>
                             <th>코인</th>
                             <th>전략</th>
-                            <th>방향</th>
-                            <th>가격</th>
+                            <th>매수/매도</th>
+                            <th>단가</th>
                             <th>수량</th>
+                            <th>거래금액</th>
                             <th>손익</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td colspan="7" class="loading">Loading trades...</td></tr>
+                        <tr><td colspan="8" class="loading">Loading trades...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
+        
+        <!-- Trade Detail Popup -->
+        <div id="trade-detail-popup"></div>
         
         <!-- Settings Tab -->
         <div class="tab-content" id="settings-content">
@@ -1295,32 +1300,115 @@ DASHBOARD_HTML = """
                 const trades = data.trades || [];
                 
                 if (trades.length > 0) {
-                    trades.forEach(trade => {
+                    trades.forEach((trade, index) => {
                         const time = new Date(trade.timestamp).toLocaleString();
                         const pnlColor = trade.pnl >= 0 ? 'positive' : 'negative';
-                        const sideColor = trade.side === 'buy' ? 'positive' : 'negative';
+                        
+                        // 매수/매도를 한글로 표시
+                        let sideText = '';
+                        let sideColor = '';
+                        if (trade.side === 'bid' || trade.side === 'buy') {
+                            sideText = '매수';
+                            sideColor = 'positive';
+                        } else if (trade.side === 'ask' || trade.side === 'sell') {
+                            sideText = '매도';
+                            sideColor = 'negative';
+                        } else {
+                            sideText = trade.side;
+                            sideColor = 'neutral';
+                        }
+                        
+                        // 거래금액 계산
+                        const totalAmount = trade.price * trade.quantity;
                         
                         html += `
-                            <tr>
+                            <tr style="cursor: pointer;" onclick="showTradeDetail(${index})" data-trade='${JSON.stringify(trade)}'>
                                 <td>${time}</td>
                                 <td>${trade.coin || trade.symbol}</td>
-                                <td>${trade.strategy}</td>
-                                <td class="${sideColor}">${trade.side}</td>
+                                <td>${trade.strategy || 'Quantum'}</td>
+                                <td class="${sideColor}" style="font-weight: bold;">${sideText}</td>
                                 <td>₩${Number(trade.price).toLocaleString()}</td>
                                 <td>${Number(trade.quantity).toFixed(8)}</td>
+                                <td>₩${Number(totalAmount).toLocaleString()}</td>
                                 <td class="${pnlColor}">₩${Number(trade.pnl || 0).toLocaleString()}</td>
                             </tr>
                         `;
                     });
                 } else {
-                    html = '<tr><td colspan="7" style="text-align: center; color: #94a3b8;">거래 없음</td></tr>';
+                    html = '<tr><td colspan="8" style="text-align: center; color: #94a3b8;">거래 없음</td></tr>';
                 }
                 
                 document.querySelector('#trades-table tbody').innerHTML = html;
             } catch (error) {
                 document.querySelector('#trades-table tbody').innerHTML = 
-                    '<tr><td colspan="7" style="color: #ef4444;">Failed to load trades</td></tr>';
+                    '<tr><td colspan="8" style="color: #ef4444;">Failed to load trades</td></tr>';
             }
+        }
+        
+        // 거래 상세 정보 표시
+        function showTradeDetail(index) {
+            const tradeRow = document.querySelectorAll('#trades-table tbody tr')[index];
+            const trade = JSON.parse(tradeRow.getAttribute('data-trade'));
+            
+            const detailHtml = `
+                <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                     background: #1e293b; border: 1px solid #4ade80; border-radius: 10px; 
+                     padding: 20px; max-width: 500px; z-index: 1000;">
+                    <h3 style="margin-bottom: 15px; color: #4ade80;">거래 상세 정보</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div><strong>시간:</strong></div>
+                        <div>${new Date(trade.timestamp).toLocaleString()}</div>
+                        
+                        <div><strong>심볼:</strong></div>
+                        <div>${trade.symbol || trade.coin}</div>
+                        
+                        <div><strong>거래 유형:</strong></div>
+                        <div class="${trade.side === 'bid' || trade.side === 'buy' ? 'positive' : 'negative'}">
+                            ${trade.side === 'bid' || trade.side === 'buy' ? '매수' : '매도'}
+                        </div>
+                        
+                        <div><strong>단가:</strong></div>
+                        <div>₩${Number(trade.price).toLocaleString()}</div>
+                        
+                        <div><strong>수량:</strong></div>
+                        <div>${Number(trade.quantity).toFixed(8)}</div>
+                        
+                        <div><strong>거래금액:</strong></div>
+                        <div>₩${Number(trade.price * trade.quantity).toLocaleString()}</div>
+                        
+                        <div><strong>전략:</strong></div>
+                        <div>${trade.strategy || 'Quantum Trading'}</div>
+                        
+                        <div><strong>손익:</strong></div>
+                        <div class="${trade.pnl >= 0 ? 'positive' : 'negative'}">
+                            ₩${Number(trade.pnl || 0).toLocaleString()}
+                        </div>
+                        
+                        ${trade.signal_strength ? `
+                        <div><strong>신호 강도:</strong></div>
+                        <div>${(trade.signal_strength * 100).toFixed(1)}%</div>
+                        ` : ''}
+                        
+                        ${trade.reason ? `
+                        <div><strong>거래 사유:</strong></div>
+                        <div style="grid-column: span 2;">${trade.reason}</div>
+                        ` : ''}
+                    </div>
+                    <button onclick="closeTradeDetail()" style="margin-top: 20px; width: 100%; 
+                            padding: 10px; background: #4ade80; color: #1e293b; 
+                            border: none; border-radius: 5px; cursor: pointer;">
+                        닫기
+                    </button>
+                </div>
+                <div onclick="closeTradeDetail()" style="position: fixed; top: 0; left: 0; 
+                     width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999;"></div>
+            `;
+            
+            document.getElementById('trade-detail-popup').innerHTML = detailHtml;
+        }
+        
+        function closeTradeDetail() {
+            document.getElementById('trade-detail-popup').innerHTML = '';
         }
         
         // Load Settings
@@ -1511,6 +1599,13 @@ DASHBOARD_HTML = """
             await loadTodayPerformance();
             await loadActiveStrategies();
         }
+        
+        // Initial load
+        loadSystemStatus();
+        loadPortfolio();
+        loadTodayPerformance();
+        loadStrategies();
+        loadAIAnalysis();  // AI 분석 초기 로드 추가
         
         // Auto-refresh
         setInterval(() => {
