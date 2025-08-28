@@ -67,7 +67,8 @@ pip install -r requirements.txt --quiet || {
         flask-cors \
         python-dotenv \
         scikit-learn \
-        ta
+        ta \
+        pytz
 }
 echo -e "${GREEN}✓ Dependencies installed${NC}"
 
