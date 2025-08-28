@@ -1567,32 +1567,75 @@ DASHBOARD_HTML = """
         
         // Initialize Dashboard
         async function initDashboard() {
-            // Get current trading mode
-            getCurrentMode();
-            
-            // Add click event listeners to tabs
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const tabName = this.getAttribute('data-tab');
-                    if (tabName) {
-                        switchTab(tabName);
-                    }
+            try {
+                console.log('Initializing dashboard...');
+                
+                // Get current trading mode
+                getCurrentMode();
+                
+                // Add click event listeners to tabs
+                const tabs = document.querySelectorAll('.tab');
+                console.log('Found tabs:', tabs.length);
+                
+                tabs.forEach(tab => {
+                    // Remove any existing listeners first
+                    tab.replaceWith(tab.cloneNode(true));
                 });
-            });
-            
-            // Load initial data
-            await loadSystemStatus();
-            await loadPortfolioSummary();
-            await loadTodayPerformance();
-            await loadActiveStrategies();
+                
+                // Re-select tabs after cloning
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const tabName = this.getAttribute('data-tab');
+                        console.log('Tab clicked:', tabName);
+                        if (tabName) {
+                            switchTab(tabName);
+                        }
+                    });
+                });
+                
+                // Load initial data with error handling
+                try {
+                    await loadSystemStatus();
+                } catch(e) {
+                    console.error('Error loading system status:', e);
+                }
+                
+                try {
+                    await loadPortfolioSummary();
+                } catch(e) {
+                    console.error('Error loading portfolio:', e);
+                }
+                
+                try {
+                    await loadTodayPerformance();
+                } catch(e) {
+                    console.error('Error loading performance:', e);
+                }
+                
+                try {
+                    await loadActiveStrategies();
+                } catch(e) {
+                    console.error('Error loading strategies:', e);
+                }
+                
+                console.log('Dashboard initialization complete');
+            } catch(error) {
+                console.error('Dashboard initialization error:', error);
+            }
         }
         
-        // Initial load
-        loadSystemStatus();
-        loadPortfolio();
-        loadTodayPerformance();
-        loadStrategies();
-        loadAIAnalysis();  // AI 분석 초기 로드 추가
+        // Wait for DOM to be ready and initialize only once
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('DOM loaded, initializing dashboard...');
+                initDashboard();
+            });
+        } else {
+            // DOM is already ready
+            console.log('DOM ready, initializing dashboard...');
+            setTimeout(initDashboard, 100);  // Small delay to ensure everything is ready
+        }
         
         // Auto-refresh
         setInterval(() => {
