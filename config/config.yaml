@@ -88,7 +88,7 @@ trading:
     max_order_size: 500000
     max_position: 10000000
     min_order_size: 5000
-  mode: dry_run
+  mode: live
   quote_currency: BTC
   signal_threshold: 0.01
   symbol: KRW-BTC

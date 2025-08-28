@@ -2332,24 +2332,59 @@ def get_detailed_system_status():
     """상세 시스템 상태"""
     return get_system_status()
 
-@app.route('/api/trading_mode')
-def get_trading_mode():
-    """거래 모드 조회"""
+@app.route('/api/trading_mode', methods=['GET', 'POST'])
+def trading_mode_handler():
+    """거래 모드 조회 및 변경"""
     try:
-        mode = 'dry_run'  # 기본값
+        import yaml
         
-        # config.yaml 읽기
-        if os.path.exists('config/config.yaml'):
-            with open('config/config.yaml', 'r') as f:
-                import yaml
-                config = yaml.safe_load(f)
-                mode = config.get('trading', {}).get('mode', 'dry_run')
-        
-        return jsonify({'mode': mode})
+        if request.method == 'GET':
+            # 현재 모드 조회
+            mode = 'dry_run'  # 기본값
+            if os.path.exists('config/config.yaml'):
+                with open('config/config.yaml', 'r') as f:
+                    config = yaml.safe_load(f)
+                    mode = config.get('trading', {}).get('mode', 'dry_run')
+            return jsonify({'mode': mode})
+            
+        elif request.method == 'POST':
+            # 모드 변경
+            data = request.get_json()
+            new_mode = data.get('mode', 'dry_run')
+            
+            if new_mode not in ['live', 'dry_run']:
+                return jsonify({'error': 'Invalid mode. Must be "live" or "dry_run"'}), 400
+            
+            # config.yaml 읽기
+            config_path = 'config/config.yaml'
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                
+                # 모드 변경
+                if 'trading' not in config:
+                    config['trading'] = {}
+                config['trading']['mode'] = new_mode
+                
+                # 파일 저장
+                with open(config_path, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+                
+                logger.info(f"Trading mode changed to: {new_mode}")
+                
+                # Quantum Trading 재시작 필요 플래그
+                return jsonify({
+                    'mode': new_mode, 
+                    'message': f'Trading mode changed to {new_mode}. Please restart Quantum Trading.',
+                    'restart_required': True
+                })
+            else:
+                return jsonify({'error': 'Config file not found'}), 500
         
     except Exception as e:
         logger.error(f"Trading mode API error: {e}")
-        return jsonify({'mode': 'dry_run'})
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/processes')
 def get_processes():
