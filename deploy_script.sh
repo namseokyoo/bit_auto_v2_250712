@@ -243,28 +243,49 @@ if [ -f "config/config.yaml" ]; then
             echo -e "${YELLOW}Checking Quantum Trading dependencies...${NC}"
             python3 -c "import redis" 2>/dev/null || pip3 install redis
             python3 -c "import sklearn" 2>/dev/null || pip3 install scikit-learn
+            python3 -c "import pytz" 2>/dev/null || pip3 install pytz
+            python3 -c "import ta" 2>/dev/null || pip3 install ta
             
-            # Quantum Trading 시작
-            if [ "$TRADING_MODE" = "live" ]; then
-                nohup python3 quantum_trading.py > logs/quantum_trading.log 2>&1 &
+            # strategies.py 파일이 있는지 확인
+            if [ ! -f "strategies.py" ]; then
+                echo -e "${RED}❌ strategies.py not found! Quantum trading cannot start.${NC}"
             else
-                nohup python3 quantum_trading.py --dry-run > logs/quantum_trading.log 2>&1 &
-            fi
-            QT_PID=$!
-            echo $QT_PID > quantum_trading.pid
-            
-            # 프로세스가 실제로 실행 중인지 확인
-            sleep 2
-            if ps -p $QT_PID > /dev/null; then
-                echo -e "${GREEN}✓ Quantum trading started with PID: $QT_PID${NC}"
-            else
-                echo -e "${RED}❌ Quantum trading failed to start. Check logs/quantum_trading.log${NC}"
-                # 로그 마지막 10줄 출력
-                if [ -f "logs/quantum_trading.log" ]; then
-                    echo -e "${YELLOW}Last 10 lines of log:${NC}"
-                    tail -10 logs/quantum_trading.log
+                # Quantum Trading 시작 시도
+                echo -e "${YELLOW}Starting Quantum Trading in $TRADING_MODE mode...${NC}"
+                
+                # 먼저 Python 문법 체크
+                python3 -m py_compile quantum_trading.py 2>&1 || {
+                    echo -e "${RED}❌ Quantum trading has syntax errors!${NC}"
+                }
+                
+                # Quantum Trading 시작
+                if [ "$TRADING_MODE" = "live" ]; then
+                    nohup python3 quantum_trading.py > logs/quantum_trading.log 2>&1 &
+                else
+                    nohup python3 quantum_trading.py --dry-run > logs/quantum_trading.log 2>&1 &
+                fi
+                QT_PID=$!
+                echo $QT_PID > quantum_trading.pid
+                
+                # 프로세스가 실제로 실행 중인지 확인 (5초 대기)
+                sleep 5
+                if ps -p $QT_PID > /dev/null; then
+                    echo -e "${GREEN}✓ Quantum trading started with PID: $QT_PID${NC}"
+                else
+                    echo -e "${RED}❌ Quantum trading failed to start. Check logs/quantum_trading.log${NC}"
+                    # 로그 마지막 20줄 출력
+                    if [ -f "logs/quantum_trading.log" ]; then
+                        echo -e "${YELLOW}Last 20 lines of log:${NC}"
+                        tail -20 logs/quantum_trading.log
+                    fi
+                    
+                    # Python import 테스트
+                    echo -e "${YELLOW}Testing imports...${NC}"
+                    python3 -c "import quantum_trading" 2>&1 | head -10
                 fi
             fi
+        else
+            echo -e "${YELLOW}⚠️ quantum_trading.py not found${NC}"
         fi
         
         # Multi-Coin Trading
