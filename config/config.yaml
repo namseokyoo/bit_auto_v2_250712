@@ -1,101 +1,94 @@
-system:
-  name: "Quantum Trading System"
-  version: "3.0.0"
-  environment: "production"
-  timezone: "Asia/Seoul"
-  
-trading:
-  enabled: true
-  mode: "live"  # dry_run, paper, live
-  interval: 60  # seconds between trading cycles
-  symbol: "KRW-BTC"
-  base_currency: "KRW"
-  quote_currency: "BTC"
-  signal_threshold: 0.03  # 신호 임계값 (0.03으로 낮춰 거래 활성화)
-  
-  limits:
-    max_position: 10000000  # 1000만원
-    max_order_size: 500000  # 50만원 per order
-    min_order_size: 5000    # 5천원
-    max_open_orders: 10
-    
-strategies:
-  market_making:
-    enabled: true
-    weight: 0.30
-    params:
-      spread_threshold: 0.0005  # 0.05% (더 민감하게)
-      order_layers: 5
-      inventory_limit: 1000000  # KRW
-      
-  statistical_arbitrage:
-    enabled: true
-    weight: 0.20
-    params:
-      lookback_period: 100
-      entry_zscore: 1.5  # 더 낮은 임계값
-      exit_zscore: 0.5
-      
-  microstructure:
-    enabled: true
-    weight: 0.20
-    params:
-      flow_window: 100
-      vwap_deviation_threshold: 0.001  # 0.1% (더 민감하게)
-      
-  momentum_scalping:
-    enabled: true
-    weight: 0.15
-    params:
-      momentum_period: 20
-      entry_threshold: 0.0015  # 0.15% - 현실적 목표
-      stop_loss: 0.002  # 0.2% - 더 보수적인 손절
-      take_profit: 0.0015  # 0.15% - 일일 목표와 일치
-      
-  mean_reversion:
-    enabled: true
-    weight: 0.15
-    params:
-      bb_period: 20
-      bb_std: 1.5  # 더 낮은 표준편차
-      rsi_period: 14
-      rsi_oversold: 35  # 더 높은 과매도 기준
-      rsi_overbought: 65  # 더 낮은 과매수 기준
-      
-risk_management:
-  enabled: true
-  
-  position_sizing:
-    method: "kelly"  # fixed, kelly, optimal_f
-    kelly_fraction: 0.25  # Use 25% of Kelly criterion
-    max_position_percent: 30  # Max 30% of capital per position
-    
-  limits:
-    max_daily_loss_percent: 2.0  # 일일 최대 손실 -2%
-    max_weekly_loss_percent: 5.0  # 주간 최대 손실 -5%
-    max_monthly_loss_percent: 10.0  # 월간 최대 손실 -10%
-    emergency_stop_percent: 1.5  # 긴급 중단 -1.5%
-    max_drawdown_percent: 5.0  # 최대 낙폭 -5%
-    
 execution:
-  algorithm: "smart"  # smart, twap, vwap, iceberg
-  
+  algorithm: smart
   order_types:
+    post_only: false
     use_limit_orders: false
     use_market_orders: true
-    post_only: false
-    
   retry:
-    max_attempts: 3
     backoff_seconds: 1
-    
-redis:
-  host: "localhost"
-  port: 6379
-  db: 0
-  
+    max_attempts: 3
 logging:
-  level: "INFO"
-  file: "logs/quantum_trading.log"
-  max_size: 10485760  # 10MB
   backup_count: 5
+  file: logs/quantum_trading.log
+  level: INFO
+  max_size: 10485760
+redis:
+  db: 0
+  host: localhost
+  port: 6379
+risk_management:
+  enabled: true
+  limits:
+    emergency_stop_percent: 1.5
+    max_daily_loss_percent: 2.0
+    max_drawdown_percent: 5.0
+    max_monthly_loss_percent: 10.0
+    max_weekly_loss_percent: 5.0
+  position_sizing:
+    kelly_fraction: 0.25
+    max_position_percent: 30
+    method: kelly
+strategies:
+  ai_prediction:
+    enabled: true
+    params:
+      max_position_percent: 10
+      min_confidence: 0.6
+      model_path: models/rf_model.pkl
+      retrain_interval: 24
+    weight: 0.05
+  market_making:
+    enabled: true
+    params:
+      inventory_limit: 1000000
+      order_layers: 5
+      spread_threshold: 0.0005
+    weight: 0.3
+  mean_reversion:
+    enabled: true
+    params:
+      bb_period: 20
+      bb_std: 1.5
+      rsi_overbought: 65
+      rsi_oversold: 35
+      rsi_period: 14
+    weight: 0.1
+  microstructure:
+    enabled: true
+    params:
+      flow_window: 100
+      vwap_deviation_threshold: 0.001
+    weight: 0.2
+  momentum_scalping:
+    enabled: true
+    params:
+      entry_threshold: 0.0015
+      momentum_period: 20
+      stop_loss: 0.002
+      take_profit: 0.0015
+    weight: 0.15
+  statistical_arbitrage:
+    enabled: true
+    params:
+      entry_zscore: 1.5
+      exit_zscore: 0.5
+      lookback_period: 100
+    weight: 0.2
+system:
+  environment: production
+  name: Quantum Trading System
+  timezone: Asia/Seoul
+  version: 3.0.0
+trading:
+  base_currency: KRW
+  enabled: true
+  interval: 60
+  limits:
+    max_open_orders: 10
+    max_order_size: 500000
+    max_position: 10000000
+    min_order_size: 5000
+  mode: live
+  quote_currency: BTC
+  signal_threshold: 0.03
+  symbol: KRW-BTC

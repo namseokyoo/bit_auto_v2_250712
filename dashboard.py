@@ -1838,7 +1838,7 @@ def get_strategies():
         {'name': '통계적 차익거래', 'active': True},
         {'name': '모멘텀 스캘핑', 'active': True},
         {'name': '평균 회귀', 'active': True},
-        {'name': 'AI Prediction', 'active': False}
+        {'name': 'AI Prediction', 'active': True}
     ]
     return jsonify({'strategies': strategies})
 
