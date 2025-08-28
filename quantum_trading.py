@@ -69,7 +69,7 @@ logging.getLogger('urllib3').setLevel(logging.WARNING)
 logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
 
 # 환경 변수 로드
-load_dotenv('.env')
+load_dotenv('config/.env')
 
 @dataclass
 class MarketData:
