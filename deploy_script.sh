@@ -49,23 +49,18 @@ fi
 # 가상환경 활성화
 source venv/bin/activate
 
-# 5.5 Redis 설치 및 실행 (없으면)
+# 5.5 Redis 확인 (설치는 건너뜀 - sudo 권한 문제 방지)
 echo -e "${YELLOW}Checking Redis...${NC}"
-if ! command -v redis-server &> /dev/null; then
-    echo "Installing Redis..."
-    sudo apt-get update -qq
-    sudo apt-get install -y redis-server -qq
-    sudo systemctl enable redis-server
-    sudo systemctl start redis-server
-    echo -e "${GREEN}✓ Redis installed and started${NC}"
-else
-    # Redis가 실행중인지 확인
-    if ! systemctl is-active --quiet redis-server; then
-        sudo systemctl start redis-server
-        echo -e "${GREEN}✓ Redis started${NC}"
+if command -v redis-server &> /dev/null; then
+    echo -e "${GREEN}✓ Redis is installed${NC}"
+    # Redis 실행 상태만 확인
+    if pgrep -x "redis-server" > /dev/null; then
+        echo -e "${GREEN}✓ Redis is running${NC}"
     else
-        echo -e "${GREEN}✓ Redis already running${NC}"
+        echo -e "${YELLOW}⚠️ Redis not running (will work without it)${NC}"
     fi
+else
+    echo -e "${YELLOW}⚠️ Redis not installed (will work without it)${NC}"
 fi
 
 # 6. 의존성 설치
@@ -213,10 +208,17 @@ fi
 
 # 11. 대시보드 시작
 echo -e "${YELLOW}Starting dashboard...${NC}"
+export DASHBOARD_PORT=8080
 nohup python3 dashboard.py > logs/dashboard.log 2>&1 &
 DASHBOARD_PID=$!
 echo $DASHBOARD_PID > dashboard.pid
-echo -e "${GREEN}✓ Dashboard started with PID: $DASHBOARD_PID${NC}"
+sleep 3
+if ps -p $DASHBOARD_PID > /dev/null; then
+    echo -e "${GREEN}✓ Dashboard started with PID: $DASHBOARD_PID on port 8080${NC}"
+else
+    echo -e "${RED}❌ Dashboard failed to start. Check logs/dashboard.log${NC}"
+    tail -10 logs/dashboard.log
+fi
 
 # 11-1. AI 분석 스케줄러 시작
 echo -e "${YELLOW}Starting AI analysis scheduler...${NC}"
