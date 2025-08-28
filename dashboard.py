@@ -1760,38 +1760,84 @@ def get_system_status():
 def get_portfolio():
     """포트폴리오 정보 조회"""
     try:
-        # Get from Redis if available
-        if redis_client:
-            portfolio = redis_client.hgetall('portfolio:summary')
-            if portfolio:
-                return jsonify({
-                    'total_value': float(portfolio.get('total_value', 0)),
-                    'krw_balance': float(portfolio.get('krw_balance', 0)),
-                    'invested': float(portfolio.get('invested', 0)),
-                    'total_pnl': float(portfolio.get('total_pnl', 0))
-                })
+        import pyupbit
+        from dotenv import load_dotenv
+        import os
         
-        # Fallback to database
-        conn = sqlite3.connect('data/multi_coin.db')
-        cursor = conn.cursor()
+        # 환경변수 로드
+        load_dotenv('config/.env')
         
-        cursor.execute("""
-            SELECT SUM(current_value), SUM(unrealized_pnl)
-            FROM positions
-        """)
-        result = cursor.fetchone()
-        total_value = result[0] or 0
-        total_pnl = result[1] or 0
+        total_value = 0
+        krw_balance = 0
+        invested = 0
+        total_pnl = 0
         
-        conn.close()
+        # Upbit API로 실제 잔고 조회
+        access_key = os.getenv('UPBIT_ACCESS_KEY')
+        secret_key = os.getenv('UPBIT_SECRET_KEY')
+        
+        if access_key and secret_key:
+            try:
+                upbit = pyupbit.Upbit(access_key, secret_key)
+                balances = upbit.get_balances()
+                
+                for balance in balances:
+                    currency = balance['currency']
+                    if currency == 'KRW':
+                        krw_balance = float(balance['balance'])
+                        total_value += krw_balance
+                    else:
+                        # 코인 평가액 계산
+                        symbol = f"KRW-{currency}"
+                        try:
+                            current_price = pyupbit.get_current_price(symbol)
+                            if current_price:
+                                coin_balance = float(balance['balance'])
+                                coin_value = coin_balance * current_price
+                                total_value += coin_value
+                                
+                                # 투자금액 계산 (평균매수가 * 수량)
+                                avg_buy_price = float(balance.get('avg_buy_price', 0))
+                                if avg_buy_price > 0:
+                                    invested += avg_buy_price * coin_balance
+                        except:
+                            pass  # 일부 코인은 KRW 마켓이 없을 수 있음
+                            
+                # PnL 계산
+                if invested > 0:
+                    total_pnl = (total_value - krw_balance) - invested
+                    
+                # Redis에 저장
+                if redis_client:
+                    redis_client.hset('portfolio:summary', mapping={
+                        'total_value': total_value,
+                        'krw_balance': krw_balance,
+                        'invested': invested,
+                        'total_pnl': total_pnl,
+                        'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Upbit API error in portfolio: {e}")
+                # API 실패시 Redis/DB에서 가져오기
+                if redis_client:
+                    portfolio = redis_client.hgetall('portfolio:summary')
+                    if portfolio:
+                        return jsonify({
+                            'total_value': float(portfolio.get('total_value', 0)),
+                            'krw_balance': float(portfolio.get('krw_balance', 0)),
+                            'invested': float(portfolio.get('invested', 0)),
+                            'total_pnl': float(portfolio.get('total_pnl', 0))
+                        })
         
         return jsonify({
             'total_value': total_value,
-            'krw_balance': 0,  # Would need Upbit API
-            'invested': total_value - total_pnl,
+            'krw_balance': krw_balance,
+            'invested': invested,
             'total_pnl': total_pnl
         })
     except Exception as e:
+        logger.error(f"Portfolio API error: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/performance/today')
@@ -2296,31 +2342,81 @@ def get_statistics():
 def get_recent_trades():
     """최근 거래 내역 조회"""
     try:
+        import pyupbit
+        from dotenv import load_dotenv
+        import os
+        from datetime import datetime, timedelta
+        
         trades = []
         
-        # DB에서 최근 거래 조회
-        conn = sqlite3.connect('data/quantum.db')
-        cursor = conn.cursor()
+        # 환경변수 로드
+        load_dotenv('config/.env')
         
-        cursor.execute("""
-            SELECT timestamp, strategy, symbol, side, price, quantity, pnl
-            FROM trades
-            ORDER BY timestamp DESC
-            LIMIT 10
-        """)
+        # Upbit API로 실제 거래 내역 조회
+        access_key = os.getenv('UPBIT_ACCESS_KEY')
+        secret_key = os.getenv('UPBIT_SECRET_KEY')
         
-        for row in cursor.fetchall():
-            trades.append({
-                'timestamp': row[0],
-                'strategy': row[1],
-                'symbol': row[2],
-                'side': row[3],
-                'price': row[4],
-                'quantity': row[5],
-                'pnl': row[6]
-            })
+        if access_key and secret_key:
+            try:
+                upbit = pyupbit.Upbit(access_key, secret_key)
+                
+                # 최근 거래 내역 조회 (모든 마켓)
+                # Upbit API는 마켓별로 조회해야 하므로 주요 코인만 확인
+                symbols = ['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-SOL']
+                
+                for symbol in symbols:
+                    try:
+                        # 최근 7일간의 거래 내역 조회
+                        orders = upbit.get_order(symbol, state='done', limit=10)
+                        if orders:
+                            for order in orders:
+                                trades.append({
+                                    'timestamp': order.get('created_at', ''),
+                                    'strategy': 'Quantum Trading',  # 실제 전략 구분 어려움
+                                    'symbol': order.get('market', ''),
+                                    'side': order.get('side', ''),
+                                    'price': float(order.get('price', 0)),
+                                    'quantity': float(order.get('executed_volume', 0)),
+                                    'pnl': 0  # PnL은 별도 계산 필요
+                                })
+                    except:
+                        continue
+                
+                # 시간순 정렬 (최신 먼저)
+                trades.sort(key=lambda x: x['timestamp'], reverse=True)
+                trades = trades[:20]  # 최근 20건만
+                
+            except Exception as e:
+                logger.error(f"Upbit API error in trades: {e}")
         
-        conn.close()
+        # DB에서도 거래 내역 조회 (백업)
+        if len(trades) == 0:
+            try:
+                conn = sqlite3.connect('data/quantum.db')
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT timestamp, strategy, symbol, side, price, quantity, pnl
+                    FROM trades
+                    ORDER BY timestamp DESC
+                    LIMIT 20
+                """)
+                
+                for row in cursor.fetchall():
+                    trades.append({
+                        'timestamp': row[0],
+                        'strategy': row[1],
+                        'symbol': row[2],
+                        'side': row[3],
+                        'price': row[4],
+                        'quantity': row[5],
+                        'pnl': row[6]
+                    })
+                
+                conn.close()
+            except:
+                pass
+        
         return jsonify({'trades': trades})
         
     except Exception as e:
