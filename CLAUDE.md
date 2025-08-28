@@ -10,8 +10,10 @@
 cd /Users/namseokyoo/project/bit_auto_v2_250712
 code .  # VSCode 또는 선호하는 에디터
 
-# 2. 코드 수정 및 테스트
-python test_system.py  # 로컬 테스트
+# 2. 코드 수정 및 테스트 (필요시만 로컬 실행)
+python3 start_all_processes.py --dry-run  # 테스트 목적 실행
+# ... 테스트 진행 ...
+python3 stop_all_processes.py  # 테스트 후 반드시 종료
 
 # 3. 변경사항 커밋
 git add .
@@ -22,15 +24,59 @@ git push origin main
 
 # 5. 배포 확인
 # GitHub Actions 탭에서 배포 상태 확인
-# 또는 대시보드 접속: http://158.180.82.112:8080/
+# 또는 대시보드 접속: http://158.180.82.112:5000/
 ```
 
 ### 개발 원칙
 - ✅ **로컬 개발**: 모든 코드 수정은 로컬에서 수행
+- ✅ **로컬 테스트 최소화**: 로컬은 테스트 목적으로만 실행, 완료 후 즉시 종료
 - ✅ **자동 테스트**: GitHub Actions에서 자동 테스트 실행
 - ✅ **자동 배포**: main 브랜치 푸시 시 자동 배포
 - ✅ **무중단 배포**: 기존 서비스 중단 없이 새 버전 배포
 - ❌ **서버 직접 수정 금지**: 서버에서 직접 코드 수정 방지
+- ❌ **로컬 상시 실행 금지**: 로컬에서 프로세스 상시 실행 금지
+
+## 📋 로컬 테스트 가이드라인
+
+### 로컬 테스트 시나리오
+```bash
+# 시나리오 1: 단순 코드 문법 검증
+python3 -c "import quantum_trading"  # 임포트 테스트만
+
+# 시나리오 2: 단위 기능 테스트 (프로세스 실행 필요시)
+python3 start_all_processes.py --dry-run  # DRY-RUN 모드로 시작
+# ... 5-10분 테스트 진행 ...
+python3 stop_all_processes.py  # 반드시 종료
+
+# 시나리오 3: 전체 시스템 테스트 (최대 30분)
+python3 start_all_processes.py --test  # 테스트 모드
+# ... 테스트 완료 대기 ...
+python3 stop_all_processes.py  # 자동 종료 안되면 수동 종료
+```
+
+### 로컬 프로세스 관리 체크리스트
+- [ ] 테스트 전: 기존 프로세스 없는지 확인 (`ps aux | grep trading`)
+- [ ] 테스트 중: 최소 필요 시간만 실행
+- [ ] 테스트 후: 모든 프로세스 종료 확인 (`python3 stop_all_processes.py`)
+- [ ] 푸시 전: 로컬 프로세스 완전 종료 재확인
+
+### 서버 실행 상태 확인 방법
+```bash
+# 방법 1: 대시보드 직접 접속
+open http://158.180.82.112:5000/
+
+# 방법 2: API 상태 체크
+curl http://158.180.82.112:5000/api/processes
+
+# 방법 3: GitHub Actions 확인
+open https://github.com/namseokyoo/bit_auto_v2_250712/actions
+```
+
+### ⚠️ 주의사항
+1. **로컬 Redis 충돌 방지**: 로컬 Redis와 프로덕션 Redis 분리
+2. **API 키 관리**: 로컬은 항상 DRY-RUN 모드 사용
+3. **로그 파일**: 로컬 로그는 테스트 후 정리
+4. **포트 충돌**: 5000번 포트 사용 전 확인
 
 ## 🚀 프로젝트 개요
 
