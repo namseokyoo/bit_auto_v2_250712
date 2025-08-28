@@ -2386,37 +2386,6 @@ def get_processes():
     
     return jsonify({'processes': processes})
 
-@app.route('/api/trades/recent')
-def get_recent_trades():
-    """최근 거래 내역"""
-    try:
-        conn = sqlite3.connect('data/quantum.db')
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT timestamp, symbol, strategy, side, price, quantity, pnl
-            FROM trades
-            ORDER BY timestamp DESC
-            LIMIT 50
-        """)
-        
-        trades = []
-        for row in cursor.fetchall():
-            trades.append({
-                'timestamp': row[0],
-                'symbol': row[1],
-                'strategy': row[2],
-                'side': row[3],
-                'price': row[4],
-                'quantity': row[5],
-                'pnl': row[6]
-            })
-        
-        conn.close()
-        return jsonify({'trades': trades})
-    except Exception as e:
-        return jsonify({'trades': []})
-
 @app.route('/api/config')
 def get_config():
     """설정 정보 조회"""
