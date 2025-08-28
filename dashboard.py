@@ -2599,8 +2599,8 @@ def get_recent_trades():
                                     
                                     executed_volume = float(order.get('executed_volume', 0))
                                     
-                                    # 체결된 거래만 추가
-                                    if executed_volume > 0 and avg_price > 0:
+                                    # 체결된 거래만 추가 (가격이 없어도 포함)
+                                    if executed_volume > 0:
                                         trades.append({
                                             'timestamp': order.get('created_at', ''),
                                             'strategy': 'Quantum Trading',
