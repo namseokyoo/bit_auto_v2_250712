@@ -107,9 +107,10 @@ class Position:
 class QuantumTradingSystem:
     """메인 트레이딩 시스템"""
     
-    def __init__(self, config_path='config/config.yaml'):
+    def __init__(self, config_path='config/config.yaml', dry_run=False):
         """시스템 초기화"""
         self.running = False
+        self.dry_run = dry_run
         self.config = self.load_config(config_path)
         self.setup_connections()
         self.init_data_structures()
@@ -896,7 +897,7 @@ def main():
         os.environ['TRADING_MODE'] = 'dry_run'
     
     # 시스템 시작
-    system = QuantumTradingSystem()
+    system = QuantumTradingSystem(dry_run=dry_run)
     
     try:
         asyncio.run(system.run())
