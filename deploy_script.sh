@@ -49,6 +49,25 @@ fi
 # 가상환경 활성화
 source venv/bin/activate
 
+# 5.5 Redis 설치 및 실행 (없으면)
+echo -e "${YELLOW}Checking Redis...${NC}"
+if ! command -v redis-server &> /dev/null; then
+    echo "Installing Redis..."
+    sudo apt-get update -qq
+    sudo apt-get install -y redis-server -qq
+    sudo systemctl enable redis-server
+    sudo systemctl start redis-server
+    echo -e "${GREEN}✓ Redis installed and started${NC}"
+else
+    # Redis가 실행중인지 확인
+    if ! systemctl is-active --quiet redis-server; then
+        sudo systemctl start redis-server
+        echo -e "${GREEN}✓ Redis started${NC}"
+    else
+        echo -e "${GREEN}✓ Redis already running${NC}"
+    fi
+fi
+
 # 6. 의존성 설치
 echo -e "${YELLOW}Installing dependencies...${NC}"
 pip install --upgrade pip --quiet

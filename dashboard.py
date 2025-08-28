@@ -2248,6 +2248,109 @@ def get_backtest_history():
         logger.error(f"히스토리 조회 오류: {e}")
         return jsonify({'history': []})
 
+@app.route('/api/statistics')
+def get_statistics():
+    """통계 정보 조회"""
+    try:
+        stats = {
+            'total_trades': 0,
+            'win_rate': 0.0,
+            'average_profit': 0.0,
+            'total_volume': 0.0
+        }
+        
+        # Redis에서 통계 조회
+        if redis_client:
+            cached_stats = redis_client.get('statistics:summary')
+            if cached_stats:
+                return jsonify(json.loads(cached_stats))
+        
+        # DB에서 통계 계산
+        conn = sqlite3.connect('data/quantum.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT COUNT(*), 
+                   SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END),
+                   AVG(pnl),
+                   SUM(quantity * price)
+            FROM trades
+            WHERE DATE(timestamp) = DATE('now')
+        """)
+        
+        result = cursor.fetchone()
+        if result and result[0] and result[0] > 0:
+            stats['total_trades'] = result[0]
+            stats['win_rate'] = (result[1] / result[0]) * 100 if result[0] > 0 else 0
+            stats['average_profit'] = result[2] or 0
+            stats['total_volume'] = result[3] or 0
+        
+        conn.close()
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Statistics API error: {e}")
+        return jsonify({'total_trades': 0, 'win_rate': 0, 'average_profit': 0, 'total_volume': 0})
+
+@app.route('/api/recent_trades')
+def get_recent_trades():
+    """최근 거래 내역 조회"""
+    try:
+        trades = []
+        
+        # DB에서 최근 거래 조회
+        conn = sqlite3.connect('data/quantum.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT timestamp, strategy, symbol, side, price, quantity, pnl
+            FROM trades
+            ORDER BY timestamp DESC
+            LIMIT 10
+        """)
+        
+        for row in cursor.fetchall():
+            trades.append({
+                'timestamp': row[0],
+                'strategy': row[1],
+                'symbol': row[2],
+                'side': row[3],
+                'price': row[4],
+                'quantity': row[5],
+                'pnl': row[6]
+            })
+        
+        conn.close()
+        return jsonify({'trades': trades})
+        
+    except Exception as e:
+        logger.error(f"Recent trades API error: {e}")
+        return jsonify({'trades': []})
+
+@app.route('/api/system/status')
+def get_detailed_system_status():
+    """상세 시스템 상태"""
+    return get_system_status()
+
+@app.route('/api/trading_mode')
+def get_trading_mode():
+    """거래 모드 조회"""
+    try:
+        mode = 'dry_run'  # 기본값
+        
+        # config.yaml 읽기
+        if os.path.exists('config/config.yaml'):
+            with open('config/config.yaml', 'r') as f:
+                import yaml
+                config = yaml.safe_load(f)
+                mode = config.get('trading', {}).get('mode', 'dry_run')
+        
+        return jsonify({'mode': mode})
+        
+    except Exception as e:
+        logger.error(f"Trading mode API error: {e}")
+        return jsonify({'mode': 'dry_run'})
+
 @app.route('/api/processes')
 def get_processes():
     """프로세스 모니터 정보"""

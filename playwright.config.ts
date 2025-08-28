@@ -11,9 +11,11 @@ export default defineConfig({
   use: {
     baseURL: 'http://158.180.82.112:8080/',
     trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    screenshot: 'on',
     video: 'retain-on-failure',
-    headless: false, // 브라우저 GUI 표시
+    headless: true, // 헤드리스 모드로 변경
+    actionTimeout: 30000,
+    navigationTimeout: 30000,
   },
 
   projects: [
@@ -23,9 +25,5 @@ export default defineConfig({
     }
   ],
 
-  webServer: {
-    command: 'echo "External server at 158.180.82.112:8080"',
-    port: 8080,
-    reuseExistingServer: true,
-  },
+  // External server - no need for webServer config
 });

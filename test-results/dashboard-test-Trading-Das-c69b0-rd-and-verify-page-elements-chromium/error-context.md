@@ -1,0 +1,82 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "퀀텀 트레이딩 대시보드 v3.0" [level=1] [ref=e4]
+    - generic [ref=e5]: AI-Powered Multi-Coin Trading System with DeepSeek Analysis
+  - generic [ref=e6]:
+    - button "📊 개요" [ref=e7] [cursor=pointer]
+    - button "🤖 AI 분석" [ref=e8] [cursor=pointer]
+    - button "💰 멀티코인" [ref=e9] [cursor=pointer]
+    - button "🧪 백테스트" [ref=e10] [cursor=pointer]
+    - button "🎯 최적화" [ref=e11] [cursor=pointer]
+    - button "🎮 제어판" [ref=e12] [cursor=pointer]
+    - button "📈 거래내역" [ref=e13] [cursor=pointer]
+    - button "⚙️ 설정" [ref=e14] [cursor=pointer]
+    - button "📝 로그" [ref=e15] [cursor=pointer]
+  - generic [ref=e17]:
+    - generic [ref=e18]:
+      - heading "📊 시스템 상태" [level=3] [ref=e19]
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: "Status:"
+          - generic [ref=e23]: 실행중
+        - generic [ref=e25]:
+          - generic [ref=e26]: "Uptime:"
+          - generic [ref=e27]: 0h 13m
+        - generic [ref=e28]:
+          - generic [ref=e29]: "CPU Usage:"
+          - generic [ref=e30]: 1%
+        - generic [ref=e31]:
+          - generic [ref=e32]: "Memory:"
+          - generic [ref=e33]: 69.3%
+    - generic [ref=e34]:
+      - heading "💵 포트폴리오 요약" [level=3] [ref=e35]
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]: "Total Value:"
+          - generic [ref=e39]: ₩0
+        - generic [ref=e40]:
+          - generic [ref=e41]: "Available KRW:"
+          - generic [ref=e42]: ₩0
+        - generic [ref=e43]:
+          - generic [ref=e44]: "Invested:"
+          - generic [ref=e45]: ₩0
+        - generic [ref=e46]:
+          - generic [ref=e47]: "Total PnL:"
+          - generic [ref=e48]: ₩0
+    - generic [ref=e49]:
+      - heading "📈 오늘의 성과" [level=3] [ref=e50]
+      - generic [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]: "Trades:"
+          - generic [ref=e54]: "0"
+        - generic [ref=e55]:
+          - generic [ref=e56]: "Win Rate:"
+          - generic [ref=e57]: 0.0%
+        - generic [ref=e58]:
+          - generic [ref=e59]: "Today's PnL:"
+          - generic [ref=e60]: ₩0
+        - generic [ref=e61]:
+          - generic [ref=e62]: "Return:"
+          - generic [ref=e63]: 0.00%
+    - generic [ref=e64]:
+      - heading "🎯 활성 전략" [level=3] [ref=e65]
+      - generic [ref=e67]:
+        - generic [ref=e68]:
+          - generic [ref=e69]: 마켓 메이킹
+          - generic [ref=e70]: ● Active
+        - generic [ref=e71]:
+          - generic [ref=e72]: 통계적 차익거래
+          - generic [ref=e73]: ● Active
+        - generic [ref=e74]:
+          - generic [ref=e75]: 모멘텀 스캘핑
+          - generic [ref=e76]: ● Active
+        - generic [ref=e77]:
+          - generic [ref=e78]: 평균 회귀
+          - generic [ref=e79]: ● Active
+        - generic [ref=e80]:
+          - generic [ref=e81]: AI Prediction
+          - generic [ref=e82]: ● Active
+```
