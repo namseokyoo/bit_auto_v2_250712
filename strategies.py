@@ -104,14 +104,34 @@ class MarketMakingStrategy(BaseStrategy):
             ask = data.get('ask', price * 1.001)
             spread = (ask - bid) / bid if bid > 0 else 0
             
-            signal = 0.0
+            # 스프레드가 임계값보다 크면 거래 신호 생성
             if spread > self.spread_threshold:
-                signal = 0.5  # 마켓메이킹 기회
+                mid_price = (bid + ask) / 2
+                
+                # 현재가가 중간가격보다 낮으면 매수
+                if price < mid_price * 0.999:
+                    signal = spread / self.spread_threshold  # 스프레드에 비례한 신호 강도
+                    return {
+                        'signal': signal,
+                        'strength': min(1.0, abs(signal)),
+                        'action': 'BUY',
+                        'reason': f'MM Buy: Spread {spread:.4%}'
+                    }
+                # 현재가가 중간가격보다 높으면 매도
+                elif price > mid_price * 1.001:
+                    signal = -spread / self.spread_threshold
+                    return {
+                        'signal': signal,
+                        'strength': min(1.0, abs(signal)),
+                        'action': 'SELL',
+                        'reason': f'MM Sell: Spread {spread:.4%}'
+                    }
             
+            # 조건 미충족시 HOLD
             return {
-                'signal': signal,
-                'strength': abs(signal),
-                'action': 'BUY' if signal > 0 else 'HOLD',
+                'signal': 0,
+                'strength': min(0.5, spread / self.spread_threshold) if spread > 0 else 0,
+                'action': 'HOLD',
                 'reason': f'Spread: {spread:.4%}'
             }
         except Exception as e:
@@ -212,18 +232,45 @@ class StatisticalArbitrageStrategy(BaseStrategy):
         """간단한 분석 메서드"""
         try:
             price = data.get('price', 0)
-            # 간단한 Z-score 계산 시뮬레이션
-            z_score = np.random.randn() * 0.5
+            history = data.get('history', [])
             
-            signal = 0.0
-            if abs(z_score) > self.entry_zscore:
-                signal = -np.sign(z_score) * 0.5
+            # 과거 데이터가 충분하지 않으면 HOLD
+            if len(history) < 20:
+                return {'signal': 0, 'strength': 0, 'action': 'HOLD', 'reason': 'Insufficient data'}
+            
+            # 최근 20개 가격으로 Z-score 계산
+            prices = [h.get('price', price) for h in history[-20:]] + [price]
+            mean = np.mean(prices)
+            std = np.std(prices)
+            
+            if std > 0:
+                z_score = (price - mean) / std
+                
+                # Z-score 기반 신호 생성
+                if z_score < -self.entry_zscore:
+                    # 과매도 - 매수
+                    signal = abs(z_score) / self.entry_zscore
+                    return {
+                        'signal': signal,
+                        'strength': min(1.0, abs(signal)),
+                        'action': 'BUY',
+                        'reason': f'Z-score: {z_score:.2f} (oversold)'
+                    }
+                elif z_score > self.entry_zscore:
+                    # 과매수 - 매도
+                    signal = -abs(z_score) / self.entry_zscore
+                    return {
+                        'signal': signal,
+                        'strength': min(1.0, abs(signal)),
+                        'action': 'SELL',
+                        'reason': f'Z-score: {z_score:.2f} (overbought)'
+                    }
             
             return {
-                'signal': signal,
-                'strength': min(abs(signal), 1.0),
-                'action': 'BUY' if signal > 0 else 'SELL' if signal < 0 else 'HOLD',
-                'reason': f'Z-score: {z_score:.2f}'
+                'signal': 0,
+                'strength': 0,
+                'action': 'HOLD',
+                'reason': f'Z-score within range'
             }
         except Exception as e:
             logger.error(f"StatArb analyze error: {e}")
@@ -498,20 +545,67 @@ class MeanReversionStrategy(BaseStrategy):
         """간단한 분석 메서드"""
         try:
             price = data.get('price', 0)
-            rsi = data.get('rsi', 50)
-            bb_upper = data.get('bb_upper', price * 1.02)
-            bb_lower = data.get('bb_lower', price * 0.98)
+            history = data.get('history', [])
             
-            signal = 0.0
+            # 과거 데이터가 충분하지 않으면 HOLD
+            if len(history) < self.bb_period:
+                return {'signal': 0, 'strength': 0, 'action': 'HOLD', 'reason': 'Insufficient data'}
+            
+            # RSI 계산 (간단한 버전)
+            prices = [h.get('price', price) for h in history[-14:]] + [price]
+            gains = []
+            losses = []
+            for i in range(1, len(prices)):
+                change = prices[i] - prices[i-1]
+                if change > 0:
+                    gains.append(change)
+                    losses.append(0)
+                else:
+                    gains.append(0)
+                    losses.append(abs(change))
+            
+            avg_gain = np.mean(gains) if gains else 0
+            avg_loss = np.mean(losses) if losses else 0
+            
+            if avg_loss > 0:
+                rs = avg_gain / avg_loss
+                rsi = 100 - (100 / (1 + rs))
+            else:
+                rsi = 100 if avg_gain > 0 else 50
+            
+            # 볼린저 밴드 계산
+            recent_prices = [h.get('price', price) for h in history[-self.bb_period:]] + [price]
+            mean = np.mean(recent_prices)
+            std = np.std(recent_prices)
+            bb_upper = mean + self.bb_std * std
+            bb_lower = mean - self.bb_std * std
+            
+            # 신호 생성
             if rsi < self.rsi_oversold and price < bb_lower:
-                signal = 0.5  # 과매도 - 매수
+                # 과매도 - 매수 신호
+                signal = ((self.rsi_oversold - rsi) / self.rsi_oversold + 
+                         (bb_lower - price) / (mean - bb_lower)) / 2
+                return {
+                    'signal': signal,
+                    'strength': min(1.0, abs(signal)),
+                    'action': 'BUY',
+                    'reason': f'Oversold: RSI={rsi:.1f}, Price<BB_Lower'
+                }
             elif rsi > self.rsi_overbought and price > bb_upper:
-                signal = -0.5  # 과매수 - 매도
+                # 과매수 - 매도 신호
+                signal = -((rsi - self.rsi_overbought) / (100 - self.rsi_overbought) + 
+                          (price - bb_upper) / (bb_upper - mean)) / 2
+                return {
+                    'signal': signal,
+                    'strength': min(1.0, abs(signal)),
+                    'action': 'SELL',
+                    'reason': f'Overbought: RSI={rsi:.1f}, Price>BB_Upper'
+                }
             
             return {
-                'signal': signal,
-                'strength': min(abs(signal), 1.0),
-                'action': 'BUY' if signal > 0 else 'SELL' if signal < 0 else 'HOLD',
+                'signal': 0,
+                'strength': 0,
+                'action': 'HOLD',
                 'reason': f'RSI: {rsi:.1f}'
             }
         except Exception as e:
