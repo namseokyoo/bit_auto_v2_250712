@@ -130,14 +130,18 @@ class QuantumTradingSystem:
     def setup_connections(self):
         """외부 서비스 연결 설정"""
         # Upbit API 연결
-        access_key = os.getenv('UPBIT_ACCESS_KEY')
-        secret_key = os.getenv('UPBIT_SECRET_KEY')
-        
-        if not access_key or not secret_key:
-            logger.error("Upbit API keys not found in environment variables")
-            sys.exit(1)
+        if self.dry_run:
+            logger.info("Dry run mode - skipping API authentication")
+            self.upbit = None
+        else:
+            access_key = os.getenv('UPBIT_ACCESS_KEY')
+            secret_key = os.getenv('UPBIT_SECRET_KEY')
             
-        self.upbit = pyupbit.Upbit(access_key, secret_key)
+            if not access_key or not secret_key:
+                logger.error("Upbit API keys not found in environment variables")
+                sys.exit(1)
+                
+            self.upbit = pyupbit.Upbit(access_key, secret_key)
         
         # Redis 연결
         try:
