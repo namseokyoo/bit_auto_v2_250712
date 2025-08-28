@@ -1844,36 +1844,106 @@ def get_portfolio():
 def get_today_performance():
     """오늘의 성과 조회"""
     try:
-        conn = sqlite3.connect('data/quantum.db')
-        cursor = conn.cursor()
+        import pyupbit
+        from dotenv import load_dotenv
+        import os
+        from datetime import datetime, time
         
-        today = datetime.now().strftime('%Y-%m-%d')
+        # 환경변수 로드
+        load_dotenv('config/.env')
         
-        cursor.execute("""
-            SELECT COUNT(*), 
-                   SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END),
-                   SUM(pnl)
-            FROM trades
-            WHERE DATE(timestamp) = ?
-        """, (today,))
+        trade_count = 0
+        win_count = 0
+        daily_pnl = 0
+        total_volume = 0
         
-        result = cursor.fetchone()
-        trade_count = result[0] or 0
-        win_count = result[1] or 0
-        daily_pnl = result[2] or 0
+        # Upbit API로 오늘 거래 내역 조회
+        access_key = os.getenv('UPBIT_ACCESS_KEY')
+        secret_key = os.getenv('UPBIT_SECRET_KEY')
         
-        win_rate = (win_count / trade_count * 100) if trade_count > 0 else 0
-        return_rate = (daily_pnl / 10000000 * 100) if daily_pnl else 0
+        if access_key and secret_key:
+            try:
+                upbit = pyupbit.Upbit(access_key, secret_key)
+                
+                # 오늘 날짜 범위
+                today = datetime.now()
+                today_start = datetime.combine(today.date(), time.min)
+                
+                # 주요 코인들의 오늘 거래 내역 조회
+                symbols = ['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-SOL']
+                
+                for symbol in symbols:
+                    try:
+                        orders = upbit.get_order(symbol, state='done')
+                        if orders:
+                            for order in orders:
+                                # 오늘 거래만 필터링
+                                created_at = order.get('created_at', '')
+                                if created_at and created_at[:10] == today.strftime('%Y-%m-%d'):
+                                    trade_count += 1
+                                    
+                                    # 거래량 계산
+                                    executed_volume = float(order.get('executed_volume', 0))
+                                    price = float(order.get('price', 0))
+                                    total_volume += executed_volume * price
+                                    
+                                    # PnL 계산 (단순화: 매수/매도 차이로 추정)
+                                    side = order.get('side', '')
+                                    if side == 'bid':  # 매수
+                                        daily_pnl -= executed_volume * price
+                                    else:  # 매도
+                                        daily_pnl += executed_volume * price
+                                        win_count += 1  # 매도는 일단 수익으로 가정
+                    except:
+                        continue
+                
+                # 승률 계산
+                win_rate = (win_count / trade_count * 100) if trade_count > 0 else 0
+                
+                # 수익률 계산 (현재 포트폴리오 대비)
+                return_rate = 0
+                if total_volume > 0:
+                    return_rate = (daily_pnl / total_volume * 100)
+                    
+            except Exception as e:
+                logger.error(f"Upbit API error in performance: {e}")
         
-        conn.close()
+        # DB에서 백업 데이터 조회
+        if trade_count == 0:
+            try:
+                conn = sqlite3.connect('data/quantum.db')
+                cursor = conn.cursor()
+                
+                today = datetime.now().strftime('%Y-%m-%d')
+                
+                cursor.execute("""
+                    SELECT COUNT(*), 
+                           SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END),
+                           SUM(pnl)
+                    FROM trades
+                    WHERE DATE(timestamp) = ?
+                """, (today,))
+                
+                result = cursor.fetchone()
+                trade_count = result[0] or 0
+                win_count = result[1] or 0
+                daily_pnl = result[2] or 0
+                
+                win_rate = (win_count / trade_count * 100) if trade_count > 0 else 0
+                return_rate = (daily_pnl / 10000000 * 100) if daily_pnl else 0
+                
+                conn.close()
+            except:
+                pass
         
         return jsonify({
             'trade_count': trade_count,
-            'win_rate': win_rate,
-            'daily_pnl': daily_pnl,
-            'return_rate': return_rate
+            'win_rate': round(win_rate, 2),
+            'daily_pnl': round(daily_pnl, 2),
+            'return_rate': round(return_rate, 2)
         })
     except Exception as e:
+        logger.error(f"Performance API error: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/strategies')
@@ -2339,6 +2409,7 @@ def get_statistics():
         return jsonify({'total_trades': 0, 'win_rate': 0, 'average_profit': 0, 'total_volume': 0})
 
 @app.route('/api/recent_trades')
+@app.route('/api/trades/recent')  # 프론트엔드 호환성을 위한 추가 라우트
 def get_recent_trades():
     """최근 거래 내역 조회"""
     try:
