@@ -2578,21 +2578,37 @@ def get_recent_trades():
                                 
                                 # 완료된 주문만 처리
                                 if state == 'done':
-                                    # price는 지정가, avg_price는 체결 평균가
-                                    price = float(order.get('price', 0))
-                                    volume = float(order.get('volume', 0))
+                                    # trades 배열이 있으면 실제 체결 내역에서 가격 가져오기
+                                    if order.get('trades') and len(order['trades']) > 0:
+                                        # 체결 내역의 평균 가격 계산
+                                        total_value = 0
+                                        total_volume = 0
+                                        for trade in order['trades']:
+                                            trade_price = float(trade.get('price', 0))
+                                            trade_volume = float(trade.get('volume', 0))
+                                            total_value += trade_price * trade_volume
+                                            total_volume += trade_volume
+                                        
+                                        if total_volume > 0:
+                                            avg_price = total_value / total_volume
+                                        else:
+                                            avg_price = float(order.get('price', 0))
+                                    else:
+                                        # trades가 없으면 price 필드 사용
+                                        avg_price = float(order.get('price', 0))
+                                    
                                     executed_volume = float(order.get('executed_volume', 0))
                                     
                                     # 체결된 거래만 추가
-                                    if executed_volume > 0:
+                                    if executed_volume > 0 and avg_price > 0:
                                         trades.append({
                                             'timestamp': order.get('created_at', ''),
                                             'strategy': 'Quantum Trading',
                                             'symbol': market,
                                             'side': side,  # bid(매수) or ask(매도)
-                                            'price': price,
+                                            'price': avg_price,
                                             'quantity': executed_volume,
-                                            'total': price * executed_volume,
+                                            'total': avg_price * executed_volume,
                                             'pnl': 0,
                                             'signal_strength': 0.75,
                                             'reason': '시스템 거래'
