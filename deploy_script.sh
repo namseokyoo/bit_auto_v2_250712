@@ -238,6 +238,13 @@ if [ -f "config/config.yaml" ]; then
         if [ -f "quantum_trading.py" ]; then
             pkill -f "quantum_trading.py" || true
             sleep 1
+            
+            # 먼저 필요한 모듈들이 설치되어 있는지 확인
+            echo -e "${YELLOW}Checking Quantum Trading dependencies...${NC}"
+            python3 -c "import redis" 2>/dev/null || pip3 install redis
+            python3 -c "import sklearn" 2>/dev/null || pip3 install scikit-learn
+            
+            # Quantum Trading 시작
             if [ "$TRADING_MODE" = "live" ]; then
                 nohup python3 quantum_trading.py > logs/quantum_trading.log 2>&1 &
             else
@@ -245,7 +252,19 @@ if [ -f "config/config.yaml" ]; then
             fi
             QT_PID=$!
             echo $QT_PID > quantum_trading.pid
-            echo -e "${GREEN}✓ Quantum trading started with PID: $QT_PID${NC}"
+            
+            # 프로세스가 실제로 실행 중인지 확인
+            sleep 2
+            if ps -p $QT_PID > /dev/null; then
+                echo -e "${GREEN}✓ Quantum trading started with PID: $QT_PID${NC}"
+            else
+                echo -e "${RED}❌ Quantum trading failed to start. Check logs/quantum_trading.log${NC}"
+                # 로그 마지막 10줄 출력
+                if [ -f "logs/quantum_trading.log" ]; then
+                    echo -e "${YELLOW}Last 10 lines of log:${NC}"
+                    tail -10 logs/quantum_trading.log
+                fi
+            fi
         fi
         
         # Multi-Coin Trading
