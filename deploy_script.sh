@@ -220,17 +220,52 @@ if [ -f "config/config.yaml" ]; then
     echo -e "${YELLOW}Trading mode: $TRADING_MODE${NC}"
     
     if [ "$TRADING_MODE" != "off" ]; then
-        echo -e "${YELLOW}Starting trading system in $TRADING_MODE mode...${NC}"
+        echo -e "${YELLOW}Starting trading systems in $TRADING_MODE mode...${NC}"
+        
+        # Integrated Trading System (이미 실행중일 수 있음)
         if [ -f "integrated_trading_system.py" ]; then
-            nohup python3 integrated_trading_system.py > logs/integrated_system.log 2>&1 &
-            TRADING_PID=$!
-            echo $TRADING_PID > trading_system.pid
-            echo -e "${GREEN}✓ Trading system started with PID: $TRADING_PID${NC}"
-        elif [ -f "quantum_trading.py" ]; then
-            nohup python3 quantum_trading.py > logs/quantum_trading.log 2>&1 &
-            TRADING_PID=$!
-            echo $TRADING_PID > trading_system.pid
-            echo -e "${GREEN}✓ Quantum trading started with PID: $TRADING_PID${NC}"
+            if ! pgrep -f "integrated_trading_system.py" > /dev/null; then
+                nohup python3 integrated_trading_system.py > logs/integrated_system.log 2>&1 &
+                TRADING_PID=$!
+                echo $TRADING_PID > trading_system.pid
+                echo -e "${GREEN}✓ Integrated trading system started with PID: $TRADING_PID${NC}"
+            else
+                echo -e "${GREEN}✓ Integrated trading system already running${NC}"
+            fi
+        fi
+        
+        # Quantum Trading
+        if [ -f "quantum_trading.py" ]; then
+            pkill -f "quantum_trading.py" || true
+            sleep 1
+            if [ "$TRADING_MODE" = "live" ]; then
+                nohup python3 quantum_trading.py > logs/quantum_trading.log 2>&1 &
+            else
+                nohup python3 quantum_trading.py --dry-run > logs/quantum_trading.log 2>&1 &
+            fi
+            QT_PID=$!
+            echo $QT_PID > quantum_trading.pid
+            echo -e "${GREEN}✓ Quantum trading started with PID: $QT_PID${NC}"
+        fi
+        
+        # Multi-Coin Trading
+        if [ -f "multi_coin_trading.py" ]; then
+            pkill -f "multi_coin_trading.py" || true
+            sleep 1
+            nohup python3 multi_coin_trading.py > logs/multi_coin.log 2>&1 &
+            MC_PID=$!
+            echo $MC_PID > multi_coin.pid
+            echo -e "${GREEN}✓ Multi-coin trading started with PID: $MC_PID${NC}"
+        fi
+        
+        # AI Feedback Scheduler
+        if [ -f "feedback_scheduler.py" ]; then
+            pkill -f "feedback_scheduler.py" || true
+            sleep 1
+            nohup python3 feedback_scheduler.py > logs/feedback.log 2>&1 &
+            FB_PID=$!
+            echo $FB_PID > feedback.pid
+            echo -e "${GREEN}✓ AI Feedback started with PID: $FB_PID${NC}"
         fi
     else
         echo -e "${YELLOW}Trading system is set to 'off' mode${NC}"
