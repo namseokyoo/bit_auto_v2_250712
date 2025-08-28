@@ -350,7 +350,7 @@ DASHBOARD_HTML = """
         </div>
         
         <!-- AI Analysis Tab -->
-        <div class="tab-content" id="ai-analysis-content">
+        <div class="tab-content" id="ai-content">
             <div class="card">
                 <h3>🤖 DeepSeek AI 분석</h3>
                 <div class="control-panel">
@@ -367,28 +367,15 @@ DASHBOARD_HTML = """
         <div class="tab-content" id="multi-coin-content">
             <div class="card">
                 <h3>💰 멀티코인 거래 상태</h3>
-                <div class="coin-grid" id="coin-status-grid">
-                    <div class="loading">코인 상태 로딩중...</div>
+                <div style="text-align: center; padding: 50px; color: #94a3b8;">
+                    <h2 style="margin-bottom: 20px;">🚧 준비중입니다 🚧</h2>
+                    <p style="font-size: 1.1em; line-height: 1.6;">
+                        멀티코인 거래 기능은 현재 개발 중입니다.<br/>
+                        곧 BTC, ETH, XRP 등 여러 코인을 동시에 거래할 수 있습니다.<br/>
+                        <br/>
+                        <span style="color: #4ade80;">현재는 BTC 단일 거래만 지원됩니다.</span>
+                    </p>
                 </div>
-            </div>
-            
-            <div class="card">
-                <h3>📊 코인 성과</h3>
-                <table id="coin-performance-table">
-                    <thead>
-                        <tr>
-                            <th>코인</th>
-                            <th>보유량</th>
-                            <th>평균가</th>
-                            <th>현재가</th>
-                            <th>손익</th>
-                            <th>손익률</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td colspan="6" class="loading">로딩중...</td></tr>
-                    </tbody>
-                </table>
             </div>
         </div>
         
@@ -2536,14 +2523,22 @@ def get_recent_trades():
                         orders = upbit.get_order(symbol, state='done', limit=10)
                         if orders:
                             for order in orders:
+                                # Upbit API 응답에서 정확한 필드명 사용
+                                avg_price = float(order.get('avg_price', 0) or order.get('price', 0))
+                                executed_volume = float(order.get('executed_volume', 0) or order.get('volume', 0))
+                                total_price = avg_price * executed_volume if avg_price > 0 and executed_volume > 0 else float(order.get('paid_fee', 0))
+                                
                                 trades.append({
                                     'timestamp': order.get('created_at', ''),
                                     'strategy': 'Quantum Trading',  # 실제 전략 구분 어려움
                                     'symbol': order.get('market', ''),
                                     'side': order.get('side', ''),
-                                    'price': float(order.get('price', 0)),
-                                    'quantity': float(order.get('executed_volume', 0)),
-                                    'pnl': 0  # PnL은 별도 계산 필요
+                                    'price': avg_price,
+                                    'quantity': executed_volume,
+                                    'total': total_price,
+                                    'pnl': 0,  # PnL은 별도 계산 필요
+                                    'signal_strength': 0.75,  # 기본값
+                                    'reason': '시스템 거래'  # 기본 사유
                                 })
                     except:
                         continue
