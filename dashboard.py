@@ -2560,11 +2560,70 @@ def get_recent_trades():
                 # Upbit API는 마켓별로 조회해야 하므로 주요 코인만 확인
                 symbols = ['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-SOL']
                 
-                for symbol in symbols:
-                    try:
-                        # 최근 30일간의 완료된 주문 내역 조회 (매수/매도 모두 포함)
-                        # get_order는 기본적으로 모든 side(bid/ask)를 반환함
-                        orders = upbit.get_order(symbol, state='done', limit=50)
+                # 먼저 전체 주문 내역을 조회 (마켓 구분 없이)
+                try:
+                    # 모든 마켓의 완료된 주문 조회
+                    all_orders = upbit.get_order(state='done', limit=200)
+                    
+                    logger.info(f"Fetched {len(all_orders) if all_orders else 0} orders from Upbit")
+                    
+                    if all_orders and isinstance(all_orders, list):
+                        # 매수/매도 카운트
+                        bid_count = sum(1 for o in all_orders if o.get('side') == 'bid')
+                        ask_count = sum(1 for o in all_orders if o.get('side') == 'ask')
+                        logger.info(f"Orders breakdown - Bid: {bid_count}, Ask: {ask_count}")
+                        for order in all_orders:
+                            # 주문 정보에서 거래 데이터 추출
+                            market = order.get('market', '')
+                            side = order.get('side', '')
+                            
+                            # KRW 마켓만 필터링
+                            if market.startswith('KRW-'):
+                                # trades 필드가 있으면 실제 체결 내역 사용
+                                if order.get('trades'):
+                                    for trade in order['trades']:
+                                        price = float(trade.get('price', 0))
+                                        volume = float(trade.get('volume', 0))
+                                        
+                                        trades.append({
+                                            'timestamp': trade.get('created_at', order.get('created_at', '')),
+                                            'strategy': 'Quantum Trading',
+                                            'symbol': market,
+                                            'side': side,  # bid(매수) or ask(매도)
+                                            'price': price,
+                                            'quantity': volume,
+                                            'total': price * volume,
+                                            'pnl': 0,
+                                            'signal_strength': 0.75,
+                                            'reason': '시스템 거래'
+                                        })
+                                else:
+                                    # trades가 없으면 주문 정보 사용
+                                    price = float(order.get('price', 0) or order.get('avg_price', 0))
+                                    volume = float(order.get('executed_volume', 0) or order.get('volume', 0))
+                                    
+                                    if price > 0 and volume > 0:
+                                        trades.append({
+                                            'timestamp': order.get('created_at', ''),
+                                            'strategy': 'Quantum Trading',
+                                            'symbol': market,
+                                            'side': side,
+                                            'price': price,
+                                            'quantity': volume,
+                                            'total': price * volume,
+                                            'pnl': 0,
+                                            'signal_strength': 0.75,
+                                            'reason': '시스템 거래'
+                                        })
+                except Exception as e:
+                    logger.error(f"Error fetching all orders: {e}")
+                    
+                    # 전체 조회 실패시 개별 마켓 조회 시도
+                    for symbol in symbols:
+                        try:
+                            # 최근 30일간의 완료된 주문 내역 조회 (매수/매도 모두 포함)
+                            # get_order는 기본적으로 모든 side(bid/ask)를 반환함
+                            orders = upbit.get_order(symbol, state='done', limit=50)
                         
                         if orders and isinstance(orders, list):
                             for order in orders:
