@@ -1837,6 +1837,45 @@ def index():
     """메인 대시보드 페이지"""
     return render_template_string(DASHBOARD_HTML)
 
+@app.route('/api/pending-orders')
+def get_pending_orders():
+    """대기 중인 주문 조회"""
+    try:
+        import pyupbit
+        from dotenv import load_dotenv
+        import os
+        
+        load_dotenv('config/.env')
+        access_key = os.getenv('UPBIT_ACCESS_KEY')
+        secret_key = os.getenv('UPBIT_SECRET_KEY')
+        
+        pending_orders = []
+        
+        if access_key and secret_key:
+            upbit = pyupbit.Upbit(access_key, secret_key)
+            
+            # 대기 중인 주문 조회
+            symbols = ['KRW-BTC', 'KRW-ETH', 'KRW-XRP']
+            for symbol in symbols:
+                try:
+                    orders = upbit.get_order(symbol, state='wait')
+                    if orders:
+                        for order in orders:
+                            pending_orders.append({
+                                'symbol': order.get('market', ''),
+                                'side': order.get('side', ''),
+                                'price': float(order.get('price', 0)),
+                                'volume': float(order.get('volume', 0)),
+                                'created_at': order.get('created_at', '')
+                            })
+                except:
+                    continue
+        
+        return jsonify({'pending_orders': pending_orders})
+    except Exception as e:
+        logger.error(f"Error getting pending orders: {e}")
+        return jsonify({'pending_orders': []})
+
 @app.route('/api/system-status')
 def get_system_status():
     """시스템 상태 조회"""
@@ -2586,7 +2625,16 @@ def get_recent_trades():
                 for symbol in all_symbols:
                     try:
                         # 완료된 주문 내역 조회 (매수/매도 모두 포함)
-                        orders = upbit.get_order(symbol, state='done', limit=100)
+                        # 페이지를 여러 개 조회하여 최근 거래 확인
+                        all_orders = []
+                        for page in range(1, 3):  # 2페이지까지 조회
+                            orders = upbit.get_order(symbol, state='done', page=page, limit=100)
+                            if orders:
+                                all_orders.extend(orders)
+                            else:
+                                break
+                        
+                        orders = all_orders
                         
                         if orders and isinstance(orders, list):
                             logger.debug(f"Found {len(orders)} orders for {symbol}")
@@ -2669,22 +2717,29 @@ def get_recent_trades():
             
             # 최근 7일간 거래 내역 조회
             cursor.execute("""
-                SELECT timestamp, strategy, symbol, side, price, quantity, pnl
+                SELECT timestamp, strategy_name, symbol, side, price, quantity, pnl
                 FROM trades
                 WHERE datetime(timestamp) > datetime('now', '-7 days')
                 ORDER BY timestamp DESC
-                LIMIT 100
+                LIMIT 200
             """)
             
             db_trades = []
             for row in cursor.fetchall():
                 # price가 0이 아닌 경우만 추가
                 if row[4] and row[4] > 0:
+                    # side 값 변환: BUY -> bid, SELL -> ask
+                    side = row[3]
+                    if side == 'BUY':
+                        side = 'bid'
+                    elif side == 'SELL':
+                        side = 'ask'
+                    
                     db_trades.append({
                         'timestamp': row[0],
                         'strategy': row[1],
                         'symbol': row[2],
-                        'side': row[3],
+                        'side': side,
                         'price': row[4],
                         'quantity': row[5],
                         'pnl': row[6] or 0,
