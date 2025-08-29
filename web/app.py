@@ -206,11 +206,12 @@ def performance():
 @app.route('/api/system/status')
 def api_system_status():
     """시스템 상태 API"""
+    # 최신 상태 즉시 반영
     return jsonify({
         'system_enabled': config_manager.is_system_enabled(),
         'trading_enabled': config_manager.is_trading_enabled(),
         'mode': config_manager.get_config('system.mode'),
-        'last_updated': config_manager.get_config('system.last_updated')
+        'last_updated': datetime.now().isoformat()
     })
 
 @app.route('/api/system/toggle', methods=['POST'])
@@ -236,7 +237,12 @@ def api_toggle_system():
         db.insert_log('INFO', 'WebInterface', f'시스템 {action}됨', 
                      f'사용자에 의해 {action}됨')
         
-        return jsonify({'success': True, 'message': message})
+        # 현재 상태 포함 반환
+        return jsonify({'success': True, 'message': message, 'status': {
+            'system_enabled': config_manager.is_system_enabled(),
+            'trading_enabled': config_manager.is_trading_enabled(),
+            'mode': config_manager.get_config('system.mode')
+        }})
     except Exception as e:
         logger.error(f"시스템 토글 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -263,7 +269,11 @@ def api_toggle_trading():
         db.insert_log('INFO', 'WebInterface', f'자동거래 {action}됨', 
                      f'사용자에 의해 {action}됨')
         
-        return jsonify({'success': True, 'message': message})
+        return jsonify({'success': True, 'message': message, 'status': {
+            'system_enabled': config_manager.is_system_enabled(),
+            'trading_enabled': config_manager.is_trading_enabled(),
+            'mode': config_manager.get_config('system.mode')
+        }})
     except Exception as e:
         logger.error(f"자동거래 토글 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -815,6 +825,24 @@ def api_manual_execute():
             
             result = api.place_buy_order("KRW-BTC", current_price, amount=amount)
             message = f"수동 매수 {'성공' if result.success else '실패'}: {result.message}"
+            # 거래 기록 시도(성공/실패와 무관하게 결과를 남겨 추적)
+            try:
+                db.insert_trade({
+                    'strategy_id': 'manual',
+                    'order_id': getattr(result, 'order_id', None),
+                    'symbol': 'KRW-BTC',
+                    'side': 'buy',
+                    'entry_time': datetime.now(),
+                    'entry_price': current_price,
+                    'quantity': (amount / current_price) if amount and current_price else None,
+                    'amount': amount,
+                    'fees': 0,
+                    'pnl': None,
+                    'status': 'open' if result.success else 'failed',
+                    'reasoning': 'manual buy via web api'
+                })
+            except Exception as e:
+                logger.warning(f"수동 매수 기록 실패: {e}")
             
         elif action == 'sell':
             # 강제 매도 (전량)
@@ -826,6 +854,23 @@ def api_manual_execute():
             if btc_balance > 0.0001:
                 result = api.place_sell_order("KRW-BTC", current_price, btc_balance)
                 message = f"수동 매도 {'성공' if result.success else '실패'}: {result.message}"
+                try:
+                    db.insert_trade({
+                        'strategy_id': 'manual',
+                        'order_id': getattr(result, 'order_id', None),
+                        'symbol': 'KRW-BTC',
+                        'side': 'sell',
+                        'entry_time': datetime.now(),
+                        'entry_price': current_price,
+                        'quantity': btc_balance,
+                        'amount': current_price * btc_balance,
+                        'fees': 0,
+                        'pnl': None,
+                        'status': 'closed' if result.success else 'failed',
+                        'reasoning': 'manual sell via web api'
+                    })
+                except Exception as e:
+                    logger.warning(f"수동 매도 기록 실패: {e}")
             else:
                 message = "매도할 BTC 잔고가 부족합니다."
         else:
