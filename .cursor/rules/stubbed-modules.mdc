@@ -1,0 +1,15 @@
+---
+description: Notes about stubbed modules to avoid ImportError
+---
+# Stubbed Modules
+Following minimal stubs exist to keep runtime stable until full implementations are added:
+- [core/auto_trader.py](mdc:core/auto_trader.py)
+- [core/signal_recorder.py](mdc:core/signal_recorder.py)
+- [core/result_manager.py](mdc:core/result_manager.py)
+- [core/advanced_risk_manager.py](mdc:core/advanced_risk_manager.py)
+- [core/enhanced_strategy_implementation.py](mdc:core/enhanced_strategy_implementation.py)
+- [core/strategy_router.py](mdc:core/strategy_router.py)
+- [core/data_collector.py](mdc:core/data_collector.py)
+- [core/performance_monitor.py](mdc:core/performance_monitor.py)
+
+These stubs should be considered placeholders; avoid relying on side-effects or persistence. Replace with full implementations when ready.

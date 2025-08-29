@@ -2717,7 +2717,7 @@ def get_recent_trades():
             
             # 최근 7일간 거래 내역 조회
             cursor.execute("""
-                SELECT timestamp, strategy_name, symbol, side, price, quantity, pnl
+                SELECT timestamp, strategy, symbol, side, price, quantity, pnl
                 FROM trades
                 WHERE datetime(timestamp) > datetime('now', '-7 days')
                 ORDER BY timestamp DESC

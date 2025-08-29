@@ -150,6 +150,31 @@ class SignalManager:
         
         return min(final_weight, 2.0)  # 최대 2배까지만 가중치 적용
 
+    def _get_correlation(self, a: str, b: str) -> float:
+        """전략 상관관계 조회 (config 전략 상관 설정 기반, 기본 0.3)"""
+        if a == b:
+            return 1.0
+        # config: strategies.correlation.pairs: {"h1:h5": 0.8, ...}
+        pairs = self.config.get_config('strategies.correlation.pairs') or {}
+        key1 = f"{a}:{b}"
+        key2 = f"{b}:{a}"
+        return float(pairs.get(key1, pairs.get(key2, 0.3)))
+
+    def _apply_correlation_penalty(self, signal: TradingSignal, cohort: List[TradingSignal]) -> float:
+        """동일 방향(cohort) 내 상관 페널티 산출 후 가중치 조정 계수 반환"""
+        if not cohort:
+            return 1.0
+        # 동일 방향 신호들에 대한 평균 상관
+        corrs = [self._get_correlation(signal.strategy_id, s.strategy_id) for s in cohort if s.strategy_id != signal.strategy_id]
+        if not corrs:
+            return 1.0
+        avg_corr = float(np.mean(corrs))
+        # 페널티 강도 알파 (0~1). 높을수록 중복 신호 억제 강함
+        alpha = self.config.get_config('strategies.correlation.alpha') or 0.5
+        # 유효 가중 계수 = 1 - alpha * avg_corr (하한 0.5)
+        coeff = max(0.5, 1.0 - alpha * avg_corr)
+        return coeff
+
     def resolve_signal_conflicts(self, signals: List[TradingSignal], market_condition: MarketCondition) -> ConsolidatedSignal:
         """신호 충돌 해결 및 통합"""
         if not signals:
@@ -171,10 +196,19 @@ class SignalManager:
         sell_strategies = []
         total_weight = 0.0
         
+        # 방향별 코호트 분리 (상관 페널티용)
+        buy_cohort = [s for s in signals if s.action == 'buy']
+        sell_cohort = [s for s in signals if s.action == 'sell']
+
         for signal in signals:
             weight = self.calculate_strategy_weight(signal.strategy_id, market_condition)
-            weighted_confidence = signal.confidence * weight
-            total_weight += weight
+            # 상관 페널티 적용
+            cohort = buy_cohort if signal.action == 'buy' else sell_cohort
+            corr_coeff = self._apply_correlation_penalty(signal, cohort)
+            eff_weight = weight * corr_coeff
+
+            weighted_confidence = signal.confidence * eff_weight
+            total_weight += eff_weight
             
             if signal.action == 'buy':
                 buy_score += weighted_confidence

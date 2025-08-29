@@ -188,13 +188,13 @@ class TradingEngine:
                 else:
                     self.logger.warning("자동거래 비활성화됨")
                     
-            elif key_path == 'trading.mode':
+            elif key_path == 'system.mode':
                 if new_value == 'live_trading':
                     self.logger.critical("실거래 모드로 전환! 주의 필요")
                     self.api = UpbitAPI(paper_trading=False)
                 else:
                     self.logger.info("모의거래 모드")
-                    self.api = UpbitAPI(paper_trading=False)
+                    self.api = UpbitAPI(paper_trading=True)
 
         self.config.register_callback(on_config_change)
 

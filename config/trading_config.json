@@ -1,8 +1,8 @@
 {
   "system": {
     "enabled": true,
-    "mode": "live_trading",
-    "last_updated": "2025-07-14T19:30:52.733861",
+    "mode": "paper_trading",
+    "last_updated": "2025-08-29T21:17:31.885024",
     "version": "2.0"
   },
   "trading": {
@@ -24,7 +24,7 @@
     "cooldown_after_loss_minutes": 30,
     "atr_stop_loss": {
       "enabled": true,
-      "atr_multiplier": 1.5,
+      "atr_multiplier": 1.8,
       "atr_period": 14
     },
     "position_correlation": {
@@ -38,9 +38,9 @@
     },
     "kelly_criterion": {
       "enabled": true,
-      "kelly_fraction": 0.25,
-      "min_win_rate": 0.45,
-      "avg_win_loss_ratio": 1.5
+      "kelly_fraction": 0.2,
+      "min_win_rate": 0.5,
+      "avg_win_loss_ratio": 1.6
     },
     "volume_profile": {
       "poc_distance_threshold": 0.02,
@@ -59,9 +59,19 @@
       "d4"
     ],
     "strategy_weights": {
-      "h1": 0.4,
-      "h4": 0.3,
-      "d1": 0.3
+      "h1": 0.35,
+      "h4": 0.25,
+      "d1": 0.25,
+      "h2": 0.15
+    },
+    "correlation": {
+      "alpha": 0.6,
+      "pairs": {
+        "h1:h4": 0.7,
+        "h1:d1": 0.6,
+        "h4:d1": 0.65,
+        "h2:h4": 0.5
+      }
     },
     "min_signal_strength": 0.7,
     "signal_timeout_minutes": 15,

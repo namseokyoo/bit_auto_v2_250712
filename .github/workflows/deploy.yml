@@ -8,51 +8,33 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
-    
+
+    - name: Setup SSH
+      env:
+        HOST: ${{ secrets.ORACLE_HOST }}
+        USER: ${{ secrets.ORACLE_USER }}
+        KEY: ${{ secrets.ORACLE_SSH_KEY }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H $HOST >> ~/.ssh/known_hosts 2>/dev/null || true
+
     - name: Deploy to Oracle Server
       env:
         HOST: ${{ secrets.ORACLE_HOST }}
         USER: ${{ secrets.ORACLE_USER }}
-        KEY: ${{ secrets.ORACLE_SSH_KEY }}
-        PORT: ${{ secrets.ORACLE_PORT || 22 }}
       run: |
-        # SSH 키 설정
-        echo "Setting up SSH key..."
-        mkdir -p ~/.ssh
-        echo "$KEY" > ~/.ssh/deploy_key
-        chmod 600 ~/.ssh/deploy_key
-        
-        # SSH 설정
-        cat >> ~/.ssh/config <<EOF
-        Host oracle-server
-          HostName $HOST
-          User $USER
-          Port $PORT
-          IdentityFile ~/.ssh/deploy_key
-          StrictHostKeyChecking no
-          UserKnownHostsFile=/dev/null
-          ServerAliveInterval 60
-          ServerAliveCountMax 3
-        EOF
-        
-        # 연결 테스트
-        echo "Testing SSH connection..."
-        ssh oracle-server "echo 'SSH connection successful!'"
-        
-        # 배포 스크립트 실행
-        echo "Starting deployment..."
-        ssh oracle-server 'bash -s' < deploy_script.sh
-    
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no deploy.sh $USER@$HOST:/tmp/
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST "bash /tmp/deploy.sh"
+
     - name: Verify Deployment
       env:
         HOST: ${{ secrets.ORACLE_HOST }}
         USER: ${{ secrets.ORACLE_USER }}
-        KEY: ${{ secrets.ORACLE_SSH_KEY }}
       run: |
-        # 배포 확인
-        ssh oracle-server "ps aux | grep -E 'dashboard|trading' | grep -v grep" || echo "No processes found"
-        ssh oracle-server "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo 'Dashboard not accessible'"
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST "ps aux | grep -E 'gunicorn|bitcoin-trading' | grep -v grep || echo 'No processes found'"
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST "curl -s -o /dev/null -w '%{http_code}' http://localhost:9000/health" || echo "Dashboard not accessible"

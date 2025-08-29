@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+# Upbit API Wrapper Usage
+- Use [core/upbit_api.py](mdc:core/upbit_api.py) `UpbitAPI`.
+- `_make_request` supports GET/POST/DELETE.
+- `get_candles` is unified: prefer `get_candles(market, minutes=60, count=200)` or `(timeframe='minutes', interval=60)`.
+- In paper mode (`paper_trading=True`), balances/orders are simulated; ticker/candles still use real public API.

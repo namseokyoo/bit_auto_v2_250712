@@ -220,6 +220,28 @@ class ConfigManager:
     def get_active_strategies(self) -> list:
         return self.get_config('strategies.active_strategies') or []
 
+    # 추가 편의 메서드
+    def get_all_config(self) -> Dict[str, Any]:
+        return self.get_config() or {}
+
+    def get_trading_config(self) -> Dict[str, Any]:
+        return self.get_config('trading') or {}
+
+    def get_monitoring_config(self) -> Dict[str, Any]:
+        return self.get_config('monitoring') or {}
+
+    def get_risk_management_config(self) -> Dict[str, Any]:
+        return self.get_config('risk_management') or {}
+
+    def get_system_config(self) -> Dict[str, Any]:
+        return self.get_config('system') or {}
+
+    def get_mode(self) -> Optional[str]:
+        return self.get_config('system.mode')
+
+    def set_mode(self, mode: str) -> bool:
+        return self.set_config('system.mode', mode)
+
     def enable_trading(self):
         """거래 활성화"""
         self.set_config('trading.auto_trade_enabled', True)

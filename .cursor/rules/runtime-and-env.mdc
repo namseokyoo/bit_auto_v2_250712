@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+# Runtime & Env
+- Requires `.env` with `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY`. If absent, system auto-falls back to paper mode.
+- Flask secret key must be set via `FLASK_SECRET_KEY` in `.env` (see [web/app.py](mdc:web/app.py)).
+- Default host/port via env: `FLASK_HOST`, `FLASK_PORT`.
+- Initialize DB via `python main.py --init-db`.

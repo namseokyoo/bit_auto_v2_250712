@@ -27,11 +27,23 @@ from core.auto_trader import auto_trader, start_auto_trading, stop_auto_trading,
 
 app = Flask(__name__)
 CORS(app)
-app.secret_key = 'your-secret-key-change-this'
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'change-me-in-.env')
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+@app.route('/health')
+def health():
+    try:
+        return jsonify({
+            'ok': True,
+            'system_enabled': config_manager.is_system_enabled(),
+            'trading_enabled': config_manager.is_trading_enabled(),
+            'mode': config_manager.get_mode(),
+        }), 200
+    except Exception:
+        return jsonify({'ok': False}), 500
 
 @app.route('/')
 def dashboard():

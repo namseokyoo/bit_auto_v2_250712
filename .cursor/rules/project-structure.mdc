@@ -1,0 +1,13 @@
+---
+alwaysApply: true
+---
+# Project Structure
+- Entry: [main.py](mdc:main.py)
+- Web admin: [web/app.py](mdc:web/app.py)
+- Config manager: [config/config_manager.py](mdc:config/config_manager.py)
+- Trading engine: [core/trading_engine.py](mdc:core/trading_engine.py)
+- Upbit API wrapper: [core/upbit_api.py](mdc:core/upbit_api.py)
+- DB: [data/database.py](mdc:data/database.py)
+- Strategies: [strategy_manager.py](mdc:strategy_manager.py), [trading_strategies.json](mdc:trading_strategies.json)
+
+Run modes via [main.py](mdc:main.py): `--mode {trading|web|both}`, `--init-db`, `--config-check`, `--paper-trading`.

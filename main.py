@@ -128,7 +128,8 @@ def main():
     
     # 환경 변수 확인
     if not check_environment():
-        return 1
+        print("📝 필수 키가 없어 모의거래 모드로 전환합니다.")
+        config_manager.set_mode('paper_trading')
     
     print("✅ 환경 변수 확인 완료")
     

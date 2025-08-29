@@ -131,7 +131,7 @@ UPBIT_ACCESS_KEY=your_access_key_here
 UPBIT_SECRET_KEY=your_secret_key_here
 
 # Flask 설정
-FLASK_PORT=5000
+FLASK_PORT=9000
 FLASK_ENV=production
 
 # 데이터베이스 설정
@@ -147,12 +147,12 @@ log_info "필수 디렉토리 생성 중..."
 mkdir -p logs data backtesting/results
 
 # 방화벽 설정
-log_info "방화벽 포트 5000 개방 중..."
+log_info "방화벽 포트 9000 개방 중..."
 if [ "$OS" = "oracle" ]; then
-    sudo firewall-cmd --permanent --add-port=5000/tcp
+    sudo firewall-cmd --permanent --add-port=9000/tcp
     sudo firewall-cmd --reload
 else
-    sudo ufw allow 5000/tcp
+    sudo ufw allow 9000/tcp
     sudo ufw --force enable
 fi
 
