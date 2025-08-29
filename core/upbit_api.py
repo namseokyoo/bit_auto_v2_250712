@@ -9,7 +9,7 @@ import uuid
 import hashlib
 import requests
 import time
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from urllib.parse import urlencode
 import logging
 from datetime import datetime
@@ -48,7 +48,8 @@ class RateLimiter:
         with self.lock:
             now = time.time()
             # 시간 창 밖의 호출 기록 제거
-            self.calls = [call_time for call_time in self.calls if now - call_time < self.time_window]
+            self.calls = [
+                call_time for call_time in self.calls if now - call_time < self.time_window]
             return len(self.calls) < self.max_calls
 
     def add_call(self):
@@ -72,10 +73,13 @@ class UpbitAPI:
         self.secret_key = secret_key or os.getenv('UPBIT_SECRET_KEY')
 
         # 키 존재 여부 로깅 (보안상 키 값은 로깅하지 않음)
-        has_access_key = bool(self.access_key and self.access_key != 'your_access_key_here')
-        has_secret_key = bool(self.secret_key and self.secret_key != 'your_secret_key_here')
+        has_access_key = bool(
+            self.access_key and self.access_key != 'your_access_key_here')
+        has_secret_key = bool(
+            self.secret_key and self.secret_key != 'your_secret_key_here')
 
-        self.logger.info(f"API 키 상태 - Access: {has_access_key}, Secret: {has_secret_key}")
+        self.logger.info(
+            f"API 키 상태 - Access: {has_access_key}, Secret: {has_secret_key}")
 
         if not has_access_key or not has_secret_key:
             if paper_trading:
@@ -99,7 +103,8 @@ class UpbitAPI:
         }
         self.paper_orders = []
 
-        self.logger.info(f"Upbit API 초기화 완료 - {'모의투자' if self.paper_trading else '실거래'} 모드")
+        self.logger.info(
+            f"Upbit API 초기화 완료 - {'모의투자' if self.paper_trading else '실거래'} 모드")
 
     def _setup_logger(self) -> logging.Logger:
         logger = logging.getLogger('UpbitAPI')
@@ -143,16 +148,27 @@ class UpbitAPI:
 
         try:
             url = f"{self.base_url}{endpoint}"
-            query_string = urlencode(params) if params else ""
+            # Upbit는 query_hash 계산 시 파라미터를 키 알파벳순으로 정렬한 쿼리스트링을 사용
+            if params:
+                try:
+                    sorted_items = sorted(params.items(), key=lambda kv: kv[0])
+                    query_string = urlencode(sorted_items, doseq=True)
+                except Exception:
+                    query_string = urlencode(params)
+            else:
+                query_string = ""
             headers = self._get_headers(query_string)
             method_upper = method.upper()
 
             if method_upper == 'GET':
-                response = requests.get(url, params=params, headers=headers, timeout=10)
+                response = requests.get(
+                    url, params=params, headers=headers, timeout=10)
             elif method_upper == 'POST':
-                response = requests.post(url, json=params, headers=headers, timeout=10)
+                response = requests.post(
+                    url, json=params, headers=headers, timeout=10)
             elif method_upper == 'DELETE':
-                response = requests.delete(url, params=params, headers=headers, timeout=10)
+                response = requests.delete(
+                    url, params=params, headers=headers, timeout=10)
             else:
                 self.logger.error(f"지원하지 않는 HTTP 메서드: {method}")
                 return None
@@ -162,7 +178,8 @@ class UpbitAPI:
             if response.status_code == 200:
                 return response.json()
             else:
-                self.logger.error(f"API 요청 실패: {response.status_code} - {response.text}")
+                self.logger.error(
+                    f"API 요청 실패: {response.status_code} - {response.text}")
                 return None
 
         except Exception as e:
@@ -173,8 +190,10 @@ class UpbitAPI:
         """계좌 정보 조회"""
         if self.paper_trading:
             return [
-                {'currency': 'KRW', 'balance': str(self.paper_balance['KRW']), 'locked': '0', 'avg_buy_price': '0'},
-                {'currency': 'BTC', 'balance': str(self.paper_balance['BTC']), 'locked': '0', 'avg_buy_price': '0'}
+                {'currency': 'KRW', 'balance': str(
+                    self.paper_balance['KRW']), 'locked': '0', 'avg_buy_price': '0'},
+                {'currency': 'BTC', 'balance': str(
+                    self.paper_balance['BTC']), 'locked': '0', 'avg_buy_price': '0'}
             ]
 
         return self._make_request('GET', '/v1/accounts')
@@ -305,21 +324,27 @@ class UpbitAPI:
         if self.paper_trading:
             return self._paper_buy_order(market, price, volume, amount)
 
-        # 틱사이즈 보정
+        # 틱사이즈 보정 및 최소 주문 보정
         price = self._round_tick(price)
-        # 최소 주문 보정
         amount, volume = self._ensure_min_order(amount, volume, price)
 
-        params = {
-            'market': market,
-            'side': 'bid',
-            'ord_type': 'limit',
-            'price': str(price)
-        }
-        if volume:
-            params['volume'] = str(volume)
+        # 금액(amount) 지정 시: 업비트 규격 - 시장가 매수 (ord_type='price', price=금액)
+        # 수량(volume) 지정 시: 지정가 매수 (ord_type='limit', price=가격, volume=수량)
+        if amount and not volume:
+            params = {
+                'market': market,
+                'side': 'bid',
+                'ord_type': 'price',
+                'price': str(amount)
+            }
         else:
-            params['price'] = str(amount)
+            params = {
+                'market': market,
+                'side': 'bid',
+                'ord_type': 'limit',
+                'price': str(price),
+                'volume': str(volume)
+            }
 
         # 재시도 정책(최대 3회, 고정 백오프)
         for attempt in range(3):
@@ -436,7 +461,8 @@ class UpbitAPI:
 if __name__ == "__main__":
     api = UpbitAPI(paper_trading=True)
     current_price = api.get_current_price("KRW-BTC")
-    print(f"현재 BTC 가격: {current_price:,.0f} KRW" if current_price else "가격 조회 실패")
+    print(
+        f"현재 BTC 가격: {current_price:,.0f} KRW" if current_price else "가격 조회 실패")
     krw_balance = api.get_balance("KRW")
     btc_balance = api.get_balance("BTC")
     print(f"KRW 잔고: {krw_balance:,.0f}")

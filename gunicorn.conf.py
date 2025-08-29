@@ -5,7 +5,8 @@ import os
 
 # 서버 설정
 bind = "0.0.0.0:9000"
-workers = multiprocessing.cpu_count() * 2 + 1
+# 설정 변경의 일관된 반영을 위해 워커 수를 1로 제한하고 preload를 비활성화
+workers = 1
 worker_class = "sync"
 worker_connections = 1000
 timeout = 120
@@ -28,7 +29,7 @@ limit_request_field_size = 8190
 # 프로세스 관리
 max_requests = 1000
 max_requests_jitter = 100
-preload_app = True
+preload_app = False
 
 # 성능 최적화
 worker_tmp_dir = "/dev/shm"
