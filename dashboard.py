@@ -2562,57 +2562,89 @@ def get_recent_trades():
                           'KRW-DOGE', 'KRW-AVAX', 'KRW-DOT', 'KRW-MATIC', 'KRW-LINK',
                           'KRW-SC', 'KRW-SNT']  # SC, SNT 추가
                 
+                # 더 나은 방법: get_balances로 현재 보유 코인 확인 후 거래 내역 조회
+                try:
+                    # 현재 잔고 조회로 실제 거래가 있었던 코인 파악
+                    balances = upbit.get_balances()
+                    traded_symbols = set()
+                    
+                    for balance in balances:
+                        currency = balance.get('currency', '')
+                        if currency != 'KRW':
+                            traded_symbols.add(f'KRW-{currency}')
+                    
+                    # 기본 심볼 리스트와 합치기
+                    all_symbols = list(traded_symbols) + symbols
+                    all_symbols = list(set(all_symbols))  # 중복 제거
+                    
+                    logger.info(f"Checking orders for symbols: {all_symbols}")
+                except Exception as e:
+                    logger.error(f"Error getting balances: {e}")
+                    all_symbols = symbols
+                
                 # 각 마켓별로 주문 내역 조회
-                for symbol in symbols:
+                for symbol in all_symbols:
                     try:
                         # 완료된 주문 내역 조회 (매수/매도 모두 포함)
-                        # pyupbit는 ticker를 지정해야 함, limit은 최대 100
                         orders = upbit.get_order(symbol, state='done', limit=100)
                         
                         if orders and isinstance(orders, list):
+                            logger.debug(f"Found {len(orders)} orders for {symbol}")
+                            
                             for order in orders:
-                                # Upbit API 응답에서 정확한 필드명 사용
+                                # Upbit API 필드 확인을 위한 로깅
+                                if len(trades) == 0:  # 첫 번째 주문만 로깅
+                                    logger.debug(f"Order fields: {order.keys()}")
+                                
                                 market = order.get('market', '')
-                                side = order.get('side', '')  # bid or ask
+                                side = order.get('side', '')  # bid(매수) or ask(매도)
+                                ord_type = order.get('ord_type', '')  # limit, market
                                 state = order.get('state', '')
                                 
-                                # 완료된 주문만 처리
-                                if state == 'done':
-                                    # trades 배열이 있으면 실제 체결 내역에서 가격 가져오기
-                                    if order.get('trades') and len(order['trades']) > 0:
-                                        # 체결 내역의 평균 가격 계산
+                                # 체결 가격 찾기 - 여러 필드 확인
+                                price = 0
+                                if ord_type == 'market':
+                                    # 시장가 주문의 경우
+                                    price = float(order.get('avg_price', 0) or order.get('trades_count', 0))
+                                    if price == 0 and order.get('trades'):
+                                        # trades 배열에서 평균 가격 계산
                                         total_value = 0
                                         total_volume = 0
                                         for trade in order['trades']:
-                                            trade_price = float(trade.get('price', 0))
-                                            trade_volume = float(trade.get('volume', 0))
-                                            total_value += trade_price * trade_volume
-                                            total_volume += trade_volume
-                                        
+                                            t_price = float(trade.get('price', 0))
+                                            t_volume = float(trade.get('volume', 0))
+                                            total_value += t_price * t_volume
+                                            total_volume += t_volume
                                         if total_volume > 0:
-                                            avg_price = total_value / total_volume
-                                        else:
-                                            avg_price = float(order.get('price', 0))
-                                    else:
-                                        # trades가 없으면 price 필드 사용
-                                        avg_price = float(order.get('price', 0))
+                                            price = total_value / total_volume
+                                else:
+                                    # 지정가 주문의 경우
+                                    price = float(order.get('price', 0))
+                                
+                                # 체결 수량
+                                executed_volume = float(order.get('executed_volume', 0) or order.get('volume', 0))
+                                
+                                # 체결된 거래만 추가
+                                if executed_volume > 0:
+                                    # 거래 금액 계산
+                                    if price == 0:
+                                        # 가격이 없으면 paid_fee에서 추정
+                                        paid_fee = float(order.get('paid_fee', 0))
+                                        if paid_fee > 0:
+                                            price = paid_fee / executed_volume / 0.0005  # 수수료율 0.05% 가정
                                     
-                                    executed_volume = float(order.get('executed_volume', 0))
-                                    
-                                    # 체결된 거래만 추가 (가격이 없어도 포함)
-                                    if executed_volume > 0:
-                                        trades.append({
-                                            'timestamp': order.get('created_at', ''),
-                                            'strategy': 'Quantum Trading',
-                                            'symbol': market,
-                                            'side': side,  # bid(매수) or ask(매도)
-                                            'price': avg_price,
-                                            'quantity': executed_volume,
-                                            'total': avg_price * executed_volume,
-                                            'pnl': 0,
-                                            'signal_strength': 0.75,
-                                            'reason': '시스템 거래'
-                                        })
+                                    trades.append({
+                                        'timestamp': order.get('created_at', ''),
+                                        'strategy': 'Quantum Trading',
+                                        'symbol': market,
+                                        'side': side,
+                                        'price': price,
+                                        'quantity': executed_volume,
+                                        'total': price * executed_volume,
+                                        'pnl': 0,
+                                        'signal_strength': 0.75,
+                                        'reason': f'{ord_type} 주문'
+                                    })
                     except Exception as symbol_error:
                         logger.debug(f"Error fetching orders for {symbol}: {symbol_error}")
                         continue
@@ -2630,33 +2662,48 @@ def get_recent_trades():
             except Exception as e:
                 logger.error(f"Upbit API error in trades: {e}")
         
-        # DB에서도 거래 내역 조회 (백업)
-        if len(trades) == 0:
-            try:
-                conn = sqlite3.connect('data/quantum.db')
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT timestamp, strategy, symbol, side, price, quantity, pnl
-                    FROM trades
-                    ORDER BY timestamp DESC
-                    LIMIT 20
-                """)
-                
-                for row in cursor.fetchall():
-                    trades.append({
+        # DB에서도 거래 내역 조회 (API 데이터 보완)
+        try:
+            conn = sqlite3.connect('data/quantum.db')
+            cursor = conn.cursor()
+            
+            # 최근 7일간 거래 내역 조회
+            cursor.execute("""
+                SELECT timestamp, strategy, symbol, side, price, quantity, pnl
+                FROM trades
+                WHERE datetime(timestamp) > datetime('now', '-7 days')
+                ORDER BY timestamp DESC
+                LIMIT 100
+            """)
+            
+            db_trades = []
+            for row in cursor.fetchall():
+                # price가 0이 아닌 경우만 추가
+                if row[4] and row[4] > 0:
+                    db_trades.append({
                         'timestamp': row[0],
                         'strategy': row[1],
                         'symbol': row[2],
                         'side': row[3],
                         'price': row[4],
                         'quantity': row[5],
-                        'pnl': row[6]
+                        'pnl': row[6] or 0,
+                        'total': row[4] * row[5] if row[4] and row[5] else 0,
+                        'signal_strength': 0.5,
+                        'reason': 'DB 기록'
                     })
-                
-                conn.close()
-            except:
-                pass
+            
+            conn.close()
+            
+            # API 거래와 DB 거래 합치기 (중복 제거)
+            existing_timestamps = set(t['timestamp'] for t in trades)
+            for db_trade in db_trades:
+                if db_trade['timestamp'] not in existing_timestamps:
+                    trades.append(db_trade)
+            
+            logger.info(f"Added {len(db_trades)} trades from DB")
+        except Exception as db_error:
+            logger.debug(f"DB query error: {db_error}")
         
         return jsonify({'trades': trades})
         
