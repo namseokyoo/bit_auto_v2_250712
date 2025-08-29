@@ -191,6 +191,16 @@ def logs():
         logger.error(f"로그 페이지 로드 오류: {e}")
         return f"오류 발생: {e}", 500
 
+@app.route('/performance')
+def performance():
+    """성과 대시보드 페이지"""
+    try:
+        # 기본 30일 성과 요약과 시계열은 프런트에서 AJAX로 로드
+        return render_template('performance.html')
+    except Exception as e:
+        logger.error(f"성과 페이지 로드 오류: {e}")
+        return f"오류 발생: {e}", 500
+
 # API 엔드포인트들
 
 @app.route('/api/system/status')
@@ -377,6 +387,78 @@ def api_dashboard_data():
     except Exception as e:
         logger.error(f"대시보드 데이터 조회 오류: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/trades')
+def api_trades():
+    """거래 내역 API (최근 30일, 선택적 필터)"""
+    try:
+        strategy_id = request.args.get('strategy_id')
+        status = request.args.get('status')
+        days = request.args.get('days', 30, type=int)
+
+        start_date = datetime.now() - timedelta(days=days)
+        trades = db.get_trades(strategy_id=strategy_id, start_date=start_date, status=status)
+
+        return jsonify({
+            'success': True,
+            'total': len(trades),
+            'trades': trades
+        })
+    except Exception as e:
+        logger.error(f"거래 내역 API 오류: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/performance/summary')
+def api_performance_summary():
+    """성과 요약 API (30일 기본)"""
+    try:
+        days = request.args.get('days', 30, type=int)
+        strategy_id = request.args.get('strategy_id')
+
+        perf = db.get_strategy_performance(strategy_id=strategy_id, days=days)
+
+        # 집계
+        total_trades = sum(p.get('total_trades', 0) for p in perf)
+        winning_trades = sum(p.get('winning_trades', 0) for p in perf)
+        total_pnl = sum(p.get('total_pnl', 0) for p in perf)
+        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+        sharpe_avg = sum(p.get('sharpe_ratio', 0) for p in perf) / len(perf) if perf else 0
+        max_dd = min((p.get('max_drawdown', 0) for p in perf), default=0)
+
+        return jsonify({
+            'success': True,
+            'summary': {
+                'days': days,
+                'total_trades': total_trades,
+                'winning_trades': winning_trades,
+                'win_rate': win_rate,
+                'total_pnl': total_pnl,
+                'avg_sharpe_ratio': sharpe_avg,
+                'max_drawdown': max_dd
+            }
+        })
+    except Exception as e:
+        logger.error(f"성과 요약 API 오류: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/performance/timeseries')
+def api_performance_timeseries():
+    """성과 시계열 API (일별 성과 목록)"""
+    try:
+        days = request.args.get('days', 90, type=int)
+        strategy_id = request.args.get('strategy_id')
+        perf = db.get_strategy_performance(strategy_id=strategy_id, days=days)
+
+        # 날짜 내림차순이므로 프런트 가독성을 위해 오름차순 정렬
+        perf_sorted = sorted(perf, key=lambda x: x.get('date'))
+
+        return jsonify({
+            'success': True,
+            'timeseries': perf_sorted
+        })
+    except Exception as e:
+        logger.error(f"성과 시계열 API 오류: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/trading_config')
 def api_trading_config():
@@ -581,6 +663,9 @@ def api_manual_analyze():
                 contributing_strategies = list(strategy_signals.keys())
                 reasoning = f"신호 혼재 또는 약함 (매수:{final_buy_score:.2f}, 매도:{final_sell_score:.2f}, 홀드:{final_hold_score:.2f})"
             
+            # 거래 설정 사용을 위해 트레이딩 설정 로드
+            trading_config = config_manager.get_config('trading') or {}
+
             result['consolidated_signal'] = {
                 'action': consolidated_action,
                 'confidence': round(consolidated_confidence, 3),

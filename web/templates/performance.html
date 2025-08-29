@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}성과 - Bitcoin Auto Trading v2{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-chart-line"></i> 성과</h1>
+    <div class="text-muted">
+        최근 30일 기준
+    </div>
+  </div>
+
+<div class="card mb-4">
+  <div class="card-header">
+    <h5><i class="fas fa-trophy"></i> 성과 요약</h5>
+  </div>
+  <div class="card-body">
+    <div class="row text-center">
+      <div class="col-md-2">
+        <div class="p-2 border rounded mb-2">
+          <small class="text-muted">총 거래 수</small>
+          <div class="h4" id="perf-total-trades">-</div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="p-2 border rounded mb-2">
+          <small class="text-muted">승률</small>
+          <div class="h4 text-success" id="perf-win-rate">-</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="p-2 border rounded mb-2">
+          <small class="text-muted">총 손익(KRW)</small>
+          <div class="h4" id="perf-total-pnl">-</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="p-2 border rounded mb-2">
+          <small class="text-muted">평균 샤프</small>
+          <div class="h4 text-info" id="perf-sharpe">-</div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="p-2 border rounded mb-2">
+          <small class="text-muted">최대 낙폭</small>
+          <div class="h4 text-danger" id="perf-mdd">-</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5><i class="fas fa-chart-area"></i> 성과 시계열</h5>
+    <div>
+      <select id="perf-days" class="form-select form-select-sm" style="width:auto;display:inline-block">
+        <option value="30" selected>30일</option>
+        <option value="60">60일</option>
+        <option value="90">90일</option>
+      </select>
+      <button class="btn btn-sm btn-outline-primary ms-2" id="perf-refresh"><i class="fas fa-sync"></i> 새로고침</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped">
+        <thead>
+          <tr>
+            <th>날짜</th>
+            <th>총 거래</th>
+            <th>승리</th>
+            <th>손익</th>
+            <th>승률</th>
+            <th>샤프</th>
+            <th>최대 낙폭</th>
+          </tr>
+        </thead>
+        <tbody id="perf-tbody">
+          <tr><td colspan="7" class="text-center text-muted">로딩 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadPerformanceSummary(days=30){
+  const res = await fetch(`/api/performance/summary?days=${days}`);
+  const data = await res.json();
+  if(!data.success){ return; }
+  const s = data.summary;
+  document.getElementById('perf-total-trades').textContent = s.total_trades;
+  document.getElementById('perf-win-rate').textContent = s.win_rate.toFixed(1) + '%';
+  const pnlEl = document.getElementById('perf-total-pnl');
+  pnlEl.textContent = (s.total_pnl||0).toLocaleString() + ' KRW';
+  pnlEl.className = s.total_pnl >= 0 ? 'h4 text-success' : 'h4 text-danger';
+  document.getElementById('perf-sharpe').textContent = (s.avg_sharpe_ratio||0).toFixed(2);
+  document.getElementById('perf-mdd').textContent = (s.max_drawdown||0).toFixed(2);
+}
+
+async function loadPerformanceTimeseries(days=30){
+  const res = await fetch(`/api/performance/timeseries?days=${days}`);
+  const data = await res.json();
+  const tbody = document.getElementById('perf-tbody');
+  if(!data.success){
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">로딩 실패</td></tr>';
+    return;
+  }
+  const rows = data.timeseries.map(p => {
+    const pnlClass = p.total_pnl >= 0 ? 'text-success' : 'text-danger';
+    const winRate = p.win_rate ? (p.win_rate*100).toFixed(1)+'%' : '-';
+    const sharpe = (p.sharpe_ratio||0).toFixed(2);
+    const mdd = (p.max_drawdown||0).toFixed(2);
+    return `<tr>
+      <td>${p.date}</td>
+      <td>${p.total_trades||0}</td>
+      <td>${p.winning_trades||0}</td>
+      <td class="${pnlClass}">${(p.total_pnl||0).toLocaleString()}</td>
+      <td>${winRate}</td>
+      <td>${sharpe}</td>
+      <td class="text-danger">${mdd}</td>
+    </tr>`;
+  }).join('');
+  tbody.innerHTML = rows || '<tr><td colspan="7" class="text-center text-muted">데이터 없음</td></tr>';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const daysSel = document.getElementById('perf-days');
+  const refreshBtn = document.getElementById('perf-refresh');
+  const loadAll = () => {
+    const d = parseInt(daysSel.value, 10);
+    loadPerformanceSummary(d);
+    loadPerformanceTimeseries(d);
+  };
+  refreshBtn.addEventListener('click', loadAll);
+  daysSel.addEventListener('change', loadAll);
+  loadAll();
+});
+</script>
+{% endblock %}
+
+
