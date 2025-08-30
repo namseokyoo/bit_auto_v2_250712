@@ -260,9 +260,6 @@ class TradingEngine:
 
     def execute_hourly_strategies(self):
         """시간 단위 전략 실행 - 통합 신호 처리"""
-        if not self.config.is_trading_enabled():
-            return
-        
         self.logger.info("시간 단위 전략 통합 실행 시작")
         
         # 1. 모든 활성 전략에서 신호 수집
@@ -271,15 +268,18 @@ class TradingEngine:
         # 2. 신호 통합 및 최종 결정
         consolidated_signal = self._consolidate_signals(strategy_signals)
         
-        # 3. 통합 신호 처리
+        # 거래 비활성화 시: 신호 계산/기록만 수행하고 주문 실행은 생략
+        if not self.config.is_trading_enabled():
+            if consolidated_signal:
+                self.logger.info(f"거래 비활성화 상태 - 신호({consolidated_signal.action})만 기록, 주문 미실행")
+            return
+        
+        # 3. 통합 신호 처리 (거래 활성화 시에만)
         if consolidated_signal and consolidated_signal.action in ['buy', 'sell']:
             self._process_consolidated_signal(consolidated_signal)
 
     def execute_daily_strategies(self):
         """일일 전략 실행 - 통합 신호 처리"""
-        if not self.config.is_trading_enabled():
-            return
-        
         self.logger.info("일일 전략 통합 실행 시작")
         
         # 1. 모든 활성 일일 전략에서 신호 수집
@@ -288,7 +288,13 @@ class TradingEngine:
         # 2. 신호 통합 및 최종 결정
         consolidated_signal = self._consolidate_signals(strategy_signals)
         
-        # 3. 통합 신호 처리
+        # 거래 비활성화 시: 신호 계산/기록만 수행하고 주문 실행은 생략
+        if not self.config.is_trading_enabled():
+            if consolidated_signal:
+                self.logger.info(f"거래 비활성화 상태 - 신호({consolidated_signal.action})만 기록, 주문 미실행")
+            return
+        
+        # 3. 통합 신호 처리 (거래 활성화 시에만)
         if consolidated_signal and consolidated_signal.action in ['buy', 'sell']:
             self._process_consolidated_signal(consolidated_signal)
 

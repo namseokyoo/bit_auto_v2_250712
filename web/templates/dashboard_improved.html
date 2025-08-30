@@ -1,0 +1,839 @@
+{% extends "base.html" %}
+
+{% block title %}대시보드 - Bitcoin Auto Trading v2{% endblock %}
+
+{% block extra_head %}
+<style>
+    .metric-card {
+        border: none;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+    }
+
+    .status-active {
+        background-color: #28a745;
+    }
+
+    .status-inactive {
+        background-color: #6c757d;
+    }
+
+    .status-warning {
+        background-color: #ffc107;
+    }
+
+    .big-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        line-height: 1;
+    }
+
+    .control-btn {
+        padding: 12px 24px;
+        font-weight: 600;
+        border-radius: 8px;
+        transition: all 0.3s;
+    }
+
+    .pulse-animation {
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.5;
+        }
+
+        100% {
+            opacity: 1;
+        }
+    }
+
+    .chart-mini {
+        height: 80px;
+        background: linear-gradient(45deg, #e3f2fd, #bbdefb);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1976d2;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 상단 제어 패널 -->
+<div class="card mb-4" style="border-left: 5px solid #007bff;">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <div class="d-flex align-items-center">
+                    <div class="me-4">
+                        <small class="text-muted">시스템 상태:</small>
+                        <span id="system-enabled-badge" class="badge bg-secondary">비활성화</span>
+                    </div>
+                    <div class="me-4">
+                        <small class="text-muted">거래 상태:</small>
+                        <span id="trading-enabled-badge" class="badge bg-secondary">비활성화</span>
+                    </div>
+                    <div class="me-4">
+                        <small class="text-muted">다음 실행:</small>
+                        <span id="next-execution" class="fw-bold text-primary">계산중...</span>
+                    </div>
+                    <div>
+                        <small class="text-muted">성공률:</small>
+                        <span id="success-rate-display" class="fw-bold text-success">0.0%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                <button id="system-toggle-btn" class="btn btn-secondary control-btn me-2" onclick="toggleSystemButton()">
+                    <i id="system-btn-icon" class="fas fa-power-off me-2"></i>
+                    <span id="system-btn-text">시스템시작</span>
+                </button>
+                <button id="trading-toggle-btn" class="btn btn-primary control-btn" onclick="toggleTradingButton()">
+                    <i id="trading-btn-icon" class="fas fa-play me-2"></i>
+                    <span id="trading-btn-text">거래시작</span>
+                </button>
+                <button class="btn btn-danger control-btn ms-2" onclick="emergencyStop()">
+                    <i class="fas fa-stop me-2"></i>긴급정지
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 핵심 메트릭 -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card metric-card text-center">
+            <div class="card-body">
+                <i class="fas fa-wallet text-primary mb-2" style="font-size: 2rem;"></i>
+                <h6 class="text-muted">총 자산</h6>
+                <div id="total-balance" class="big-number text-primary">₩ 186,901</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card metric-card text-center">
+            <div class="card-body">
+                <i class="fas fa-chart-line text-success mb-2" style="font-size: 2rem;"></i>
+                <h6 class="text-muted">총 수익/손실</h6>
+                <div id="total-pnl" class="big-number text-success">+₩ 0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card metric-card text-center">
+            <div class="card-body">
+                <i class="fas fa-exchange-alt text-info mb-2" style="font-size: 2rem;"></i>
+                <h6 class="text-muted">총 거래</h6>
+                <div id="total-trades" class="big-number text-info">0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card metric-card text-center">
+            <div class="card-body">
+                <i class="fas fa-trophy text-warning mb-2" style="font-size: 2rem;"></i>
+                <h6 class="text-muted">승률</h6>
+                <div id="win-rate" class="big-number text-warning">0.0%</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 빠른 액션 및 정보 -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-hand-paper text-primary"></i> 빠른 거래</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <button class="btn btn-outline-primary w-100 mb-2" onclick="analyzeAndExecute()">
+                            <i class="fas fa-brain d-block mb-1" style="font-size: 1.5rem;"></i>
+                            <small>AI 분석</small>
+                        </button>
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-outline-success w-100 mb-2" onclick="manualExecute('buy')">
+                            <i class="fas fa-plus d-block mb-1" style="font-size: 1.5rem;"></i>
+                            <small>매수</small>
+                        </button>
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-outline-danger w-100 mb-2" onclick="manualExecute('sell')">
+                            <i class="fas fa-minus d-block mb-1" style="font-size: 1.5rem;"></i>
+                            <small>매도</small>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-bitcoin text-warning"></i> 현재 가격</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h3 id="btc-price" class="text-warning mb-0">₩ 151,343,000</h3>
+                        <small class="text-muted">비트코인 (BTC)</small>
+                    </div>
+                    <div class="chart-mini">
+                        <i class="fas fa-chart-area me-2"></i>
+                        실시간 차트
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 최근 활동 -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-history text-info"></i> 최근 거래</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/trades'">
+                    전체 보기
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="recent-trades">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                        <div>거래 내역이 없습니다</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-bell text-warning"></i> 시스템 로그</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/logs'">
+                    전체 보기
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="recent-logs">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-file-alt fa-2x mb-2"></i>
+                        <div>로그를 불러오는 중...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 실시간 업데이트를 위한 JavaScript -->
+<script>
+    // 페이지 로드 시 초기화
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log('=== 대시보드 초기화 시작 ===');
+
+        // 초기 업데이트 (딜레이 후 재시도)
+        updateDashboard();
+        setTimeout(() => {
+            console.log('강제 재업데이트 실행');
+            updateDashboard();
+        }, 2000);
+
+        // 10초마다 자동 업데이트
+        setInterval(updateDashboard, 10000);
+
+        console.log('자동 업데이트 타이머 설정 완료');
+    });
+
+    // 통합 대시보드 업데이트
+    async function updateDashboard() {
+        try {
+            // 병렬로 데이터 가져오기
+            const [autoTraderResponse, systemResponse, balanceResponse, tradesResponse] = await Promise.all([
+                fetch('/api/auto_trading_status'),
+                fetch('/api/system/status'),
+                fetch('/api/balance'),
+                fetch('/api/trades?limit=5')
+            ]);
+
+            const autoTraderData = await autoTraderResponse.json();
+            const systemData = await systemResponse.json();
+            const balanceData = await balanceResponse.json();
+            const tradesData = await tradesResponse.json();
+
+            // 상태 배지 업데이트
+            updateSystemTradingBadges(systemData);
+
+            // AutoTrader 상태 업데이트
+            updateAutoTraderStatus(autoTraderData);
+
+            // 잔고 정보 업데이트
+            updateBalanceInfo(balanceData);
+
+            // 최근 거래 업데이트
+            updateRecentTrades(tradesData);
+
+        } catch (error) {
+            console.error('대시보드 업데이트 오류:', error);
+        }
+    }
+
+    function updateSystemTradingBadges(systemData) {
+        const sysBadge = document.getElementById('system-enabled-badge');
+        const trgBadge = document.getElementById('trading-enabled-badge');
+        const sysBtn = document.getElementById('system-toggle-btn');
+        const sysIcon = document.getElementById('system-btn-icon');
+        const sysText = document.getElementById('system-btn-text');
+        const trgBtn = document.getElementById('trading-toggle-btn');
+        const trgIcon = document.getElementById('trading-btn-icon');
+        const trgText = document.getElementById('trading-btn-text');
+
+        if (systemData.system_enabled) {
+            sysBadge.className = 'badge bg-success';
+            sysBadge.textContent = '활성화';
+            sysBtn.className = 'btn btn-warning control-btn me-2';
+            sysIcon.className = 'fas fa-pause me-2';
+            sysText.textContent = '시스템정지';
+        } else {
+            sysBadge.className = 'badge bg-secondary';
+            sysBadge.textContent = '비활성화';
+            sysBtn.className = 'btn btn-secondary control-btn me-2';
+            sysIcon.className = 'fas fa-power-off me-2';
+            sysText.textContent = '시스템시작';
+        }
+
+        if (systemData.trading_enabled) {
+            trgBadge.className = 'badge bg-success';
+            trgBadge.textContent = '활성화';
+            trgBtn.className = 'btn btn-warning control-btn';
+            trgIcon.className = 'fas fa-pause me-2';
+            trgText.textContent = '거래정지';
+        } else {
+            trgBadge.className = 'badge bg-secondary';
+            trgBadge.textContent = '비활성화';
+            trgBtn.className = 'btn btn-primary control-btn';
+            trgIcon.className = 'fas fa-play me-2';
+            trgText.textContent = '거래시작';
+        }
+    }
+
+    // AutoTrader 상태 업데이트
+    function updateAutoTraderStatus(data) {
+        if (!data || !data.status) {
+            console.error('Invalid data received:', data);
+            return;
+        }
+
+        const status = data.status;
+        const isRunning = status.running;
+
+        console.log('AutoTrader 상태 업데이트:', {
+            running: isRunning,
+            next_execution: status.next_execution,
+            auto_trading_enabled: status.auto_trading_enabled,
+            system_enabled: status.system_enabled,
+            timestamp: new Date().toLocaleTimeString()
+        });
+
+        // 상태 표시기 업데이트
+        const statusIndicator = document.getElementById('system-status');
+        const statusBadge = document.getElementById('auto-trader-status');
+        const button = document.getElementById('auto-trader-btn');
+        const btnIcon = document.getElementById('btn-icon');
+        const btnText = document.getElementById('btn-text');
+
+        console.log('Elements found:', {
+            statusIndicator: !!statusIndicator,
+            statusBadge: !!statusBadge,
+            button: !!button,
+            btnIcon: !!btnIcon,
+            btnText: !!btnText
+        });
+
+        if (isRunning) {
+            statusIndicator.className = 'status-indicator status-active pulse-animation';
+            statusBadge.className = 'badge bg-success';
+            statusBadge.textContent = '실행중';
+            button.className = 'btn btn-warning control-btn';
+            btnIcon.className = 'fas fa-pause me-2';
+            btnText.textContent = '정지';
+            button.setAttribute('data-running', 'true');
+        } else {
+            statusIndicator.className = 'status-indicator status-inactive';
+            statusBadge.className = 'badge bg-secondary';
+            statusBadge.textContent = '정지됨';
+            button.className = 'btn btn-primary control-btn';
+            btnIcon.className = 'fas fa-play me-2';
+            btnText.textContent = '시작';
+            button.setAttribute('data-running', 'false');
+        }
+
+        // 다음 실행 시간 (개선된 로직)
+        const nextExecution = document.getElementById('next-execution');
+        if (status.next_execution) {
+            try {
+                const nextTime = new Date(status.next_execution);
+                if (!isNaN(nextTime.getTime())) {
+                    // 한국 시간으로 변환해서 표시
+                    const options = {
+                        timeZone: 'Asia/Seoul',
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    };
+                    nextExecution.textContent = nextTime.toLocaleTimeString('ko-KR', options);
+                } else {
+                    nextExecution.textContent = isRunning ? '계산중...' : '정지됨';
+                }
+            } catch (e) {
+                console.error('시간 파싱 오류:', e);
+                nextExecution.textContent = isRunning ? '계산중...' : '정지됨';
+            }
+        } else {
+            nextExecution.textContent = isRunning ? '계산중...' : '정지됨';
+        }
+
+        // 성공률
+        const successRateDisplay = document.getElementById('success-rate-display');
+        if (successRateDisplay && typeof status.success_rate === 'number') {
+            successRateDisplay.textContent = `${status.success_rate.toFixed(1)}%`;
+        }
+
+        // 총 실행 횟수
+        const totalExecutionsElement = document.getElementById('total-executions');
+        if (totalExecutionsElement) {
+            totalExecutionsElement.textContent = status.total_executions || 0;
+        }
+    }
+
+    // 잔고 정보 업데이트
+    function updateBalanceInfo(data) {
+        if (data.success) {
+            const balance = data.balance;
+            document.getElementById('total-balance').textContent =
+                `₩ ${Number(balance.total_krw).toLocaleString()}`;
+        }
+    }
+
+    // 최근 거래 업데이트
+    function updateRecentTrades(data) {
+        const container = document.getElementById('recent-trades');
+
+        if (data.success && data.trades.length > 0) {
+            container.innerHTML = data.trades.map(trade => `
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div>
+                    <div class="fw-bold ${trade.side === 'buy' ? 'text-success' : 'text-danger'}">
+                        ${trade.side === 'buy' ? '매수' : '매도'} 
+                        ${Number(trade.quantity).toFixed(8)} BTC
+                    </div>
+                    <small class="text-muted">${new Date(trade.entry_time).toLocaleString('ko-KR')}</small>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold">₩ ${Number(trade.amount).toLocaleString()}</div>
+                    <small class="text-muted">${trade.strategy_id}</small>
+                </div>
+            </div>
+        `).join('');
+        } else {
+            container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-inbox fa-2x mb-2"></i>
+                <div>거래 내역이 없습니다</div>
+            </div>
+        `;
+        }
+    }
+
+    // 시스템/거래 전용 버튼 핸들러
+    async function toggleSystemButton() {
+        const sysText = document.getElementById('system-btn-text').textContent;
+        const action = sysText.includes('시작') ? 'enable' : 'disable';
+        const resp = await fetch('/api/system/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action})});
+        const data = await resp.json();
+        if (data.success) {
+            showAlert('success', data.message);
+            // 응답에 상태가 포함되면 즉시 배지 반영
+            if (data.status) {
+                updateSystemTradingBadges(data.status);
+            }
+            setTimeout(updateDashboard, 500);
+        } else {
+            showAlert('danger', data.message || '시스템 전환 실패');
+        }
+    }
+
+    async function toggleTradingButton() {
+        const trgText = document.getElementById('trading-btn-text').textContent;
+        const action = trgText.includes('시작') ? 'enable' : 'disable';
+        const resp = await fetch('/api/trading/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action})});
+        const data = await resp.json();
+        if (data.success) {
+            showAlert('success', data.message);
+            if (data.status) {
+                updateSystemTradingBadges(data.status);
+            }
+            // 시스템은 켜져 있고 거래를 켰다면 오토트레이더 시작 시도
+            const sysResp = await fetch('/api/system/status');
+            const sys = await sysResp.json();
+            if (sys.system_enabled) {
+                await fetch('/api/auto_trader/start', {method:'POST'});
+            }
+            setTimeout(updateDashboard, 800);
+        } else {
+            showAlert('danger', data.message || '거래 전환 실패');
+        }
+    }
+
+    // AutoTrader 토글 (개선된 시스템 자동 활성화 포함)
+    async function toggleAutoTrader() {
+        const button = document.getElementById('auto-trader-btn');
+        const isRunning = button.getAttribute('data-running') === 'true';
+        const action = isRunning ? 'stop' : 'start';
+
+        console.log('AutoTrader 토글:', { isRunning, action });
+
+        // 버튼 비활성화 (중복 클릭 방지)
+        button.disabled = true;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>처리중...';
+
+        try {
+            // 시작하려는 경우, 먼저 시스템 상태 확인
+            if (action === 'start') {
+                showAlert('info', '시스템 상태를 확인하고 필요시 자동 활성화합니다...');
+
+                // 시스템 상태 확인
+                const systemResponse = await fetch('/api/system/status');
+                const systemData = await systemResponse.json();
+
+                console.log('시스템 상태 확인:', systemData);
+
+                // 시스템이 비활성화된 경우 자동 활성화
+                if (!systemData.system_enabled) {
+                    console.log('시스템 비활성화됨 - 자동 활성화 시도');
+                    showAlert('warning', '시스템이 비활성화되어 있어 먼저 활성화합니다...');
+
+                    const enableSystemResponse = await fetch('/api/system/toggle', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'enable' })
+                    });
+
+                    const enableSystemData = await enableSystemResponse.json();
+
+                    if (!enableSystemData.success) {
+                        showAlert('danger', '시스템 활성화 실패: ' + enableSystemData.message);
+                        return;
+                    }
+
+                    console.log('시스템 활성화 완료');
+                    showAlert('success', '시스템이 활성화되었습니다.');
+
+                    // 1초 대기 후 거래 활성화 시도
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
+                // 거래가 비활성화된 경우 자동 활성화
+                if (!systemData.trading_enabled) {
+                    console.log('거래 비활성화됨 - 자동 활성화 시도');
+                    showAlert('warning', '자동거래가 비활성화되어 있어 먼저 활성화합니다...');
+
+                    const enableTradingResponse = await fetch('/api/trading/toggle', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'enable' })
+                    });
+
+                    const enableTradingData = await enableTradingResponse.json();
+
+                    if (!enableTradingData.success) {
+                        showAlert('danger', '자동거래 활성화 실패: ' + enableTradingData.message);
+                        return;
+                    }
+
+                    console.log('자동거래 활성화 완료');
+                    showAlert('success', '자동거래가 활성화되었습니다.');
+
+                    // 1초 대기 후 AutoTrader 시작
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+
+            // AutoTrader 토글 실행
+            showAlert('info', `AutoTrader ${action === 'start' ? '시작' : '정지'} 중...`);
+
+            const response = await fetch(`/api/auto_trader/${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showAlert('success', data.message);
+                // 즉시 상태 업데이트
+                setTimeout(() => {
+                    updateDashboard();
+                }, 1000);
+            } else {
+                showAlert('danger', data.message || 'AutoTrader 제어에 실패했습니다.');
+            }
+        } catch (error) {
+            console.error('AutoTrader 토글 오류:', error);
+            showAlert('danger', 'AutoTrader 제어 중 오류가 발생했습니다: ' + error.message);
+        } finally {
+            // 버튼 다시 활성화
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    }
+
+    // 기존 함수들 (호환성 유지)
+    function analyzeAndExecute() {
+        if (confirm('현재 시장 상황을 분석하고 신호에 따라 거래를 실행하시겠습니까?')) {
+            fetch('/api/manual_trading/execute', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'analyze_and_execute'
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.analysis) {
+                        showAnalysisResults(data.message, data.analysis);
+                    } else {
+                        showAlert(data.success ? 'success' : 'danger', data.message);
+                    }
+                    if (data.success) updateDashboard();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('danger', '분석 실행 중 오류가 발생했습니다.');
+                });
+        }
+    }
+
+    function showAnalysisResults(message, analysis) {
+        let modalHtml = `
+            <div class="modal fade" id="analysisModal" tabindex="-1" role="dialog" aria-labelledby="analysisModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="analysisModalLabel">
+                                <i class="fas fa-brain me-2"></i>AI 전략 분석 결과
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-${analysis.executed ? 'success' : 'info'}" role="alert">
+                                <strong>${message}</strong>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6 class="card-title">통합 결론</h6>
+                                            <h4 class="text-${analysis.consolidated_action === 'buy' ? 'success' : analysis.consolidated_action === 'sell' ? 'danger' : 'secondary'}">
+                                                ${analysis.consolidated_action === 'buy' ? '매수' : analysis.consolidated_action === 'sell' ? '매도' : '홀드'}
+                                            </h4>
+                                            <small class="text-muted">신뢰도: ${(analysis.consolidated_confidence * 100).toFixed(1)}%</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6 class="card-title">분석 전략</h6>
+                                            <h4 class="text-primary">${analysis.strategy_count}개</h4>
+                                            <small class="text-muted">활성 전략 분석 완료</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <h6><i class="fas fa-lightbulb me-2"></i>통합 분석 근거</h6>
+                                <div class="bg-light p-3 rounded">
+                                    <small>${analysis.consolidated_reasoning}</small>
+                                </div>
+                            </div>
+
+                            <h6><i class="fas fa-list me-2"></i>전략별 세부 분석</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>전략</th>
+                                            <th>신호</th>
+                                            <th>신뢰도</th>
+                                            <th>분석 근거</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+
+        analysis.strategy_details.forEach(strategy => {
+            const actionBadge = strategy.action === 'buy' ? 'success' : strategy.action === 'sell' ? 'danger' : 'secondary';
+            const actionText = strategy.action === 'buy' ? '매수' : strategy.action === 'sell' ? '매도' : '홀드';
+            
+            modalHtml += `
+                <tr>
+                    <td><small>${strategy.strategy_id}</small></td>
+                    <td><span class="badge bg-${actionBadge}">${actionText}</span></td>
+                    <td><small>${(strategy.confidence * 100).toFixed(1)}%</small></td>
+                    <td><small>${strategy.reasoning}</small></td>
+                </tr>`;
+        });
+
+        modalHtml += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+
+        // 기존 모달 제거 후 새로 추가
+        document.getElementById('analysisModal')?.remove();
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Bootstrap 모달 표시
+        const modal = new bootstrap.Modal(document.getElementById('analysisModal'));
+        modal.show();
+        
+        // 간단한 성공 알림도 표시
+        showAlert('success', '분석 완료');
+    }
+
+    function manualExecute(action) {
+        const actionText = action === 'buy' ? '매수' : '매도';
+        if (confirm(`정말로 ${actionText}를 실행하시겠습니까?`)) {
+            fetch('/api/manual_trading/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    showAlert(data.success ? 'success' : 'danger', data.message);
+                    if (data.success) updateDashboard();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('danger', `${actionText} 실행 중 오류가 발생했습니다.`);
+                });
+        }
+    }
+
+    function emergencyStop() {
+        if (confirm('⚠️ 긴급 정지를 실행하시겠습니까?\n\n모든 자동거래가 즉시 중단되고 시스템이 안전 모드로 전환됩니다.')) {
+            fetch('/api/emergency_stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('긴급정지 응답:', data);
+
+                    if (data.success) {
+                        showAlert('warning', '긴급 정지가 실행되었습니다. 페이지를 새로고침합니다.');
+
+                        // 긴급정지 후 상태를 즉시 정지됨으로 변경
+                        const statusBadge = document.getElementById('auto-trader-status');
+                        const nextExecElement = document.getElementById('next-execution');
+                        const button = document.getElementById('auto-trader-btn');
+                        const btnIcon = document.getElementById('btn-icon');
+                        const btnText = document.getElementById('btn-text');
+
+                        if (statusBadge) {
+                            statusBadge.textContent = '정지됨';
+                            statusBadge.className = 'badge bg-secondary';
+                        }
+
+                        if (nextExecElement) {
+                            nextExecElement.textContent = '시스템 정지됨';
+                        }
+
+                        if (button) {
+                            button.className = 'btn btn-primary control-btn';
+                            button.setAttribute('data-running', 'false');
+                        }
+
+                        if (btnIcon) {
+                            btnIcon.className = 'fas fa-play me-2';
+                        }
+
+                        if (btnText) {
+                            btnText.textContent = '시작';
+                        }
+
+                        // 2초 후 페이지 새로고침으로 완전한 상태 동기화
+                        setTimeout(() => {
+                            location.reload();
+                        }, 2000);
+                    } else {
+                        showAlert('danger', '긴급 정지 실행 실패: ' + (data.message || '알 수 없는 오류'));
+                    }
+                })
+                .catch(error => {
+                    console.error('긴급정지 오류:', error);
+                    showAlert('danger', '긴급 정지 실행 중 오류가 발생했습니다.');
+                });
+        }
+    }
+
+    function showAlert(type, message) {
+        // 기존 알림 제거
+        const existingAlert = document.querySelector('.alert');
+        if (existingAlert) existingAlert.remove();
+
+        // 새 알림 생성
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+        alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+    `;
+
+        document.body.appendChild(alert);
+
+        // 5초 후 자동 제거
+        setTimeout(() => {
+            if (alert.parentElement) alert.remove();
+        }, 5000);
+    }
+</script>
+{% endblock %}

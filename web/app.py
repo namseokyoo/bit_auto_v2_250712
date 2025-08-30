@@ -104,7 +104,7 @@ def dashboard():
             }
             current_price = 0
 
-        return render_template('dashboard.html',
+        return render_template('dashboard_improved.html',
                                system_status=system_status,
                                dashboard_data=dashboard_data,
                                balances=balances,
@@ -263,8 +263,8 @@ def api_toggle_trading():
 
         if action == 'enable':
             config_manager.enable_trading()
-            # 자동 거래 스케줄러가 실행 중이 아니면 시작
-            if not auto_trader.running:
+            # 시스템이 켜져 있고 스케줄러가 꺼져 있으면 시작
+            if config_manager.is_system_enabled() and not auto_trader.running:
                 start_auto_trading()
             message = "자동거래가 활성화되었습니다."
         elif action == 'disable':
@@ -310,13 +310,28 @@ def api_update_settings():
 def api_emergency_stop():
     """긴급 정지"""
     try:
-        config_manager.emergency_stop()
+        # 즉시 모든 자동 실행 중단 및 상태 비활성화
+        try:
+            stop_auto_trading()
+        except Exception:
+            pass
+        config_manager.disable_trading()
+        config_manager.disable_system()
 
         # 긴급 정지 로그
         db.insert_log('CRITICAL', 'WebInterface', '긴급 정지 실행됨',
                       '사용자에 의한 긴급 정지')
 
-        return jsonify({'success': True, 'message': '긴급 정지가 실행되었습니다.'})
+        # 현재 상태를 함께 반환하여 프론트가 즉시 반영하도록 함
+        return jsonify({
+            'success': True,
+            'message': '긴급 정지가 실행되었습니다.',
+            'status': {
+                'system_enabled': config_manager.is_system_enabled(),
+                'trading_enabled': config_manager.is_trading_enabled(),
+                'mode': config_manager.get_config('system.mode')
+            }
+        })
     except Exception as e:
         logger.error(f"긴급 정지 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -352,10 +367,10 @@ def api_auto_trading_status():
     """자동 거래 상태 API (개선된 AutoTrader 기반)"""
     try:
         from core.auto_trader import auto_trader, get_auto_trading_status
-        
+
         # 실제 AutoTrader에서 상태 가져오기
         status = get_auto_trading_status()
-        
+
         # 추가적인 상태 정보 보강
         enhanced_status = {
             'running': status['running'],
@@ -391,6 +406,94 @@ def api_auto_trading_status():
         })
 
 
+@app.route('/api/auto_trader/start', methods=['POST'])
+def api_start_auto_trader():
+    """웹 프로세스에서 AutoTrader 강제 시작"""
+    try:
+        from core.auto_trader import auto_trader
+
+        # 시스템 활성화만 확인 (거래 비활성화여도 스케줄/전략 계산은 진행)
+        if not config_manager.is_system_enabled():
+            return jsonify({
+                'success': False,
+                'message': '시스템이 비활성화되어 있습니다. 먼저 시스템을 활성화하세요.'
+            }), 400
+
+        # AutoTrader 시작
+        if auto_trader.running:
+            return jsonify({
+                'success': True,
+                'message': 'AutoTrader가 이미 실행 중입니다.',
+                'status': auto_trader.get_status()
+            })
+
+        logger.info("웹 프로세스에서 AutoTrader 시작 시도")
+        success = auto_trader.start()
+
+        if success:
+            status = auto_trader.get_status()
+            logger.info(f"AutoTrader 시작 성공: {status}")
+
+            # 성공 로그 기록
+            db.insert_log('INFO', 'WebInterface', 'AutoTrader 시작',
+                          f'웹에서 시작됨 - 다음 실행: {status.get("next_execution_time")}')
+
+            return jsonify({
+                'success': True,
+                'message': 'AutoTrader가 성공적으로 시작되었습니다.',
+                'status': status
+            })
+        else:
+            logger.error("AutoTrader 시작 실패")
+            return jsonify({
+                'success': False,
+                'message': 'AutoTrader 시작에 실패했습니다. 로그를 확인하세요.'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"AutoTrader 시작 API 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'AutoTrader 시작 중 오류 발생: {str(e)}'
+        }), 500
+
+
+@app.route('/api/auto_trader/stop', methods=['POST'])
+def api_stop_auto_trader():
+    """웹 프로세스에서 AutoTrader 정지"""
+    try:
+        from core.auto_trader import auto_trader
+
+        if not auto_trader.running:
+            return jsonify({
+                'success': True,
+                'message': 'AutoTrader가 이미 정지되어 있습니다.',
+                'status': auto_trader.get_status()
+            })
+
+        logger.info("웹 프로세스에서 AutoTrader 정지 시도")
+        auto_trader.stop()
+
+        status = auto_trader.get_status()
+        logger.info(f"AutoTrader 정지 완료: {status}")
+
+        # 정지 로그 기록
+        db.insert_log('INFO', 'WebInterface', 'AutoTrader 정지', '웹에서 정지됨')
+
+        return jsonify({
+            'success': True,
+            'message': 'AutoTrader가 성공적으로 정지되었습니다.',
+            'status': status
+        })
+
+    except Exception as e:
+        logger.error(f"AutoTrader 정지 API 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'AutoTrader 정지 중 오류 발생: {str(e)}'
+        }), 500
+
+
 @app.route('/api/balance')
 def api_balance():
     """잔고 조회 API"""
@@ -421,7 +524,24 @@ def api_balance():
 def api_dashboard_data():
     """대시보드 데이터 API"""
     try:
-        return jsonify(db.get_dashboard_data())
+        dashboard_data = db.get_dashboard_data()
+
+        # 5분 캔들 데이터 상태 추가
+        try:
+            from core.data_collection_scheduler import data_scheduler
+            data_status = data_scheduler.get_status()
+            dashboard_data['data_collection'] = {
+                'active': data_status.get('running', False),
+                'last_collection': data_status.get('last_collection'),
+                'timeframes': data_status.get('timeframes', []),
+                'collection_stats': data_status.get('stats', {})
+            }
+        except Exception as e:
+            logger.warning(f"데이터 수집 상태 조회 실패: {e}")
+            dashboard_data['data_collection'] = {
+                'active': False, 'error': str(e)}
+
+        return jsonify(dashboard_data)
     except Exception as e:
         logger.error(f"대시보드 데이터 조회 오류: {e}")
         return jsonify({'error': str(e)}), 500
@@ -503,6 +623,105 @@ def api_performance_timeseries():
     except Exception as e:
         logger.error(f"성과 시계열 API 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/candle_data')
+def api_candle_data():
+    """5분 캔들 데이터 API"""
+    try:
+        timeframe = request.args.get('timeframe', '5m')
+        count = int(request.args.get('count', 100))
+
+        from core.candle_data_collector import candle_collector
+
+        # DataFrame으로 데이터 조회
+        df = candle_collector.get_dataframe(timeframe, count)
+
+        if df is None or df.empty:
+            return jsonify({
+                'success': False,
+                'message': '캔들 데이터가 없습니다.',
+                'data': []
+            })
+
+        # JSON 직렬화 가능한 형태로 변환
+        data = []
+        for index, row in df.iterrows():
+            data.append({
+                'timestamp': index.isoformat(),
+                'open': float(row['open']),
+                'high': float(row['high']),
+                'low': float(row['low']),
+                'close': float(row['close']),
+                'volume': float(row['volume'])
+            })
+
+        return jsonify({
+            'success': True,
+            'timeframe': timeframe,
+            'count': len(data),
+            'data': data
+        })
+
+    except Exception as e:
+        logger.error(f"캔들 데이터 API 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/data_collection/status')
+def api_data_collection_status():
+    """데이터 수집 상태 API"""
+    try:
+        from core.data_collection_scheduler import data_scheduler
+        from core.candle_data_collector import candle_collector
+
+        status = data_scheduler.get_status()
+
+        # 최신 가격 정보 추가
+        latest_price = candle_collector.get_latest_price()
+
+        # 수집 통계 요약
+        stats_summary = {}
+        if 'stats' in status:
+            for date, timeframes in status['stats'].items():
+                for tf, stat in timeframes.items():
+                    if tf not in stats_summary:
+                        stats_summary[tf] = {
+                            'total_collected': 0,
+                            'total_failed': 0,
+                            'avg_success_rate': 0
+                        }
+
+                    stats_summary[tf]['total_collected'] += stat['collected']
+                    stats_summary[tf]['total_failed'] += stat['failed']
+
+        # 평균 성공률 계산
+        for tf, summary in stats_summary.items():
+            total = summary['total_collected'] + summary['total_failed']
+            if total > 0:
+                summary['avg_success_rate'] = summary['total_collected'] / total
+
+        return jsonify({
+            'success': True,
+            'status': {
+                'scheduler_running': status.get('running', False),
+                'collector_running': status.get('collection_active', False),
+                'timeframes': status.get('timeframes', []),
+                'last_collection': status.get('last_collection'),
+                'latest_price': latest_price,
+                'collection_summary': stats_summary
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"데이터 수집 상태 API 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
 
 
 @app.route('/api/trading_config')
@@ -865,11 +1084,41 @@ def api_manual_execute():
             strategy_signals = engine._collect_all_signals('hourly')
             consolidated_signal = engine._consolidate_signals(strategy_signals)
 
+            # 전략별 신호 상세 정보 수집
+            strategy_details = []
+            for signal in strategy_signals:
+                strategy_details.append({
+                    'strategy_id': signal.strategy_id,
+                    'action': signal.action,
+                    'confidence': round(signal.confidence, 3),
+                    'reasoning': signal.reasoning[:100] + '...' if len(signal.reasoning) > 100 else signal.reasoning,
+                    'price': signal.price,
+                    'suggested_amount': signal.suggested_amount
+                })
+
+            # 실행 결과와 분석 정보
+            analysis_data = {
+                'strategy_count': len(strategy_signals),
+                'strategy_details': strategy_details,
+                'consolidated_action': consolidated_signal.action if consolidated_signal else 'hold',
+                'consolidated_confidence': round(consolidated_signal.confidence, 3) if consolidated_signal else 0,
+                'consolidated_reasoning': consolidated_signal.reasoning if consolidated_signal else '신호 없음'
+            }
+
             if consolidated_signal and consolidated_signal.action != 'hold':
                 engine._process_consolidated_signal(consolidated_signal)
                 message = f"분석 후 {consolidated_signal.action} 실행 완료 (신뢰도: {consolidated_signal.confidence:.2f})"
+                analysis_data['executed'] = True
             else:
                 message = "분석 결과 홀드 신호 - 거래 실행하지 않음"
+                analysis_data['executed'] = False
+
+            # 추가 데이터를 응답에 포함
+            return jsonify({
+                'success': True,
+                'message': message,
+                'analysis': analysis_data
+            })
 
         elif action == 'buy':
             # 강제 매수
