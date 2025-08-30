@@ -739,6 +739,95 @@ def api_trading_config():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/multi_tier_status')
+def api_multi_tier_status():
+    """다층 전략 상태 API"""
+    try:
+        from core.multi_tier_strategy_engine import multi_tier_engine
+        
+        # 다층 전략 분석 실행
+        decision = multi_tier_engine.analyze()
+        
+        # 각 계층별 세부 정보 수집
+        scalping_signals = multi_tier_engine.scalping_layer.analyze()
+        trend_analysis = multi_tier_engine.trend_filter.analyze()
+        macro_analysis = multi_tier_engine.macro_direction.analyze()
+        
+        # 결과 구성
+        status = {
+            'final_decision': {
+                'action': decision.final_action,
+                'confidence': round(decision.confidence, 3),
+                'market_regime': decision.market_regime.value,
+                'reasoning': decision.reasoning,
+                'risk_score': round(decision.risk_score, 3),
+                'suggested_amount': decision.suggested_amount
+            },
+            'layer_analysis': {
+                'scalping': {
+                    'signals_count': len(scalping_signals),
+                    'signals': [
+                        {
+                            'strategy': signal.strategy_id,
+                            'action': signal.action,
+                            'confidence': round(signal.confidence, 3),
+                            'strength': round(signal.strength, 3),
+                            'reasoning': signal.reasoning[:100] + '...' if len(signal.reasoning) > 100 else signal.reasoning
+                        }
+                        for signal in scalping_signals
+                    ]
+                },
+                'trend_filter': {
+                    'trend': trend_analysis.get('trend', 'neutral'),
+                    'strength': round(trend_analysis.get('strength', 0.5), 3),
+                    'regime': trend_analysis.get('regime', 'sideways').value if hasattr(trend_analysis.get('regime'), 'value') else str(trend_analysis.get('regime', 'sideways')),
+                    'volatility': round(trend_analysis.get('volatility', 0.02), 4),
+                    'ema_trend': trend_analysis.get('ema_trend', {}),
+                    'vwap_position': trend_analysis.get('vwap_position', {}),
+                    'momentum_strength': trend_analysis.get('momentum_strength', {})
+                },
+                'macro_direction': {
+                    'direction': macro_analysis.get('direction', 'neutral'),
+                    'strength': round(macro_analysis.get('strength', 0.5), 3),
+                    'regime': macro_analysis.get('regime', 'sideways').value if hasattr(macro_analysis.get('regime'), 'value') else str(macro_analysis.get('regime', 'sideways')),
+                    'trend_alignment': macro_analysis.get('trend_alignment', {}),
+                    'volatility_regime': macro_analysis.get('volatility_regime', {}),
+                    'market_structure': macro_analysis.get('market_structure', {})
+                }
+            },
+            'tier_contributions': {
+                tier.value: round(contribution, 3)
+                for tier, contribution in decision.tier_contributions.items()
+            },
+            'weights': {
+                tier.value: weight
+                for tier, weight in multi_tier_engine.tier_weights.items()
+            },
+            'timestamp': decision.timestamp.isoformat()
+        }
+        
+        return jsonify({
+            'success': True,
+            'status': status
+        })
+        
+    except Exception as e:
+        logger.error(f"다층 전략 상태 API 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'fallback_status': {
+                'final_decision': {
+                    'action': 'hold',
+                    'confidence': 0.5,
+                    'market_regime': 'sideways',
+                    'reasoning': f'분석 오류: {str(e)}',
+                    'risk_score': 0.8
+                }
+            }
+        }), 500
+
+
 @app.route('/api/manual_trading/analyze', methods=['POST'])
 def api_manual_analyze():
     """수동 전략 분석 실행"""

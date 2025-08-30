@@ -259,24 +259,31 @@ class TradingEngine:
                 time.sleep(60)  # 오류 시 1분 대기
 
     def execute_hourly_strategies(self):
-        """시간 단위 전략 실행 - 통합 신호 처리"""
-        self.logger.info("시간 단위 전략 통합 실행 시작")
+        """시간 단위 전략 실행 - 다층 전략 시스템 사용"""
+        self.logger.info("다층 전략 시스템 실행 시작")
         
-        # 1. 모든 활성 전략에서 신호 수집
-        strategy_signals = self._collect_all_signals('hourly')
-        
-        # 2. 신호 통합 및 최종 결정
-        consolidated_signal = self._consolidate_signals(strategy_signals)
-        
-        # 거래 비활성화 시: 신호 계산/기록만 수행하고 주문 실행은 생략
-        if not self.config.is_trading_enabled():
-            if consolidated_signal:
-                self.logger.info(f"거래 비활성화 상태 - 신호({consolidated_signal.action})만 기록, 주문 미실행")
-            return
-        
-        # 3. 통합 신호 처리 (거래 활성화 시에만)
-        if consolidated_signal and consolidated_signal.action in ['buy', 'sell']:
-            self._process_consolidated_signal(consolidated_signal)
+        try:
+            # 다층 전략 엔진 실행
+            from core.multi_tier_strategy_engine import multi_tier_engine
+            multi_tier_decision = multi_tier_engine.analyze()
+            
+            # 다층 결정을 ConsolidatedSignal로 변환
+            consolidated_signal = self._convert_multitier_to_consolidated(multi_tier_decision)
+            
+            # 거래 비활성화 시: 신호 계산/기록만 수행하고 주문 실행은 생략
+            if not self.config.is_trading_enabled():
+                if consolidated_signal:
+                    self.logger.info(f"거래 비활성화 상태 - 다층 신호({consolidated_signal.action})만 기록, 주문 미실행")
+                return
+            
+            # 3. 통합 신호 처리 (거래 활성화 시에만)
+            if consolidated_signal and consolidated_signal.action in ['buy', 'sell']:
+                self._process_consolidated_signal(consolidated_signal)
+                
+        except Exception as e:
+            self.logger.error(f"다층 전략 실행 오류: {e}")
+            # 기존 방식으로 폴백
+            self._execute_legacy_hourly_strategies()
 
     def execute_daily_strategies(self):
         """일일 전략 실행 - 통합 신호 처리"""
@@ -341,6 +348,66 @@ class TradingEngine:
         self.signal_manager.log_signal_decision(consolidated_signal)
         
         return consolidated_signal
+
+    def _convert_multitier_to_consolidated(self, multi_tier_decision) -> Optional['ConsolidatedSignal']:
+        """다층 결정을 ConsolidatedSignal로 변환"""
+        try:
+            from core.signal_manager import ConsolidatedSignal, MarketCondition
+            
+            # MarketCondition 매핑
+            regime_to_condition = {
+                'bullish': MarketCondition.TRENDING_UP,
+                'bearish': MarketCondition.TRENDING_DOWN,
+                'sideways': MarketCondition.SIDEWAYS,
+                'high_vol': MarketCondition.HIGH_VOLATILITY,
+                'low_vol': MarketCondition.LOW_VOLATILITY
+            }
+            
+            market_condition = regime_to_condition.get(
+                multi_tier_decision.market_regime.value, 
+                MarketCondition.SIDEWAYS
+            )
+            
+            # 기여 전략 목록 생성
+            contributing_strategies = []
+            for tier, contribution in multi_tier_decision.tier_contributions.items():
+                if abs(contribution) > 0.1:  # 유의미한 기여만 포함
+                    contributing_strategies.append(f"{tier.value}_layer")
+            
+            return ConsolidatedSignal(
+                action=multi_tier_decision.final_action,
+                confidence=multi_tier_decision.confidence,
+                suggested_amount=multi_tier_decision.suggested_amount,
+                reasoning=multi_tier_decision.reasoning,
+                contributing_strategies=contributing_strategies,
+                final_score=sum(multi_tier_decision.tier_contributions.values()),
+                market_condition=market_condition,
+                timestamp=multi_tier_decision.timestamp
+            )
+            
+        except Exception as e:
+            self.logger.error(f"다층 결정 변환 오류: {e}")
+            return None
+
+    def _execute_legacy_hourly_strategies(self):
+        """기존 시간별 전략 실행 (폴백)"""
+        self.logger.info("기존 시간 단위 전략 실행 (폴백)")
+        
+        # 1. 모든 활성 전략에서 신호 수집
+        strategy_signals = self._collect_all_signals('hourly')
+        
+        # 2. 신호 통합 및 최종 결정
+        consolidated_signal = self._consolidate_signals(strategy_signals)
+        
+        # 거래 비활성화 시: 신호 계산/기록만 수행하고 주문 실행은 생략
+        if not self.config.is_trading_enabled():
+            if consolidated_signal:
+                self.logger.info(f"거래 비활성화 상태 - 신호({consolidated_signal.action})만 기록, 주문 미실행")
+            return
+        
+        # 3. 통합 신호 처리 (거래 활성화 시에만)
+        if consolidated_signal and consolidated_signal.action in ['buy', 'sell']:
+            self._process_consolidated_signal(consolidated_signal)
 
     def _process_consolidated_signal(self, consolidated_signal: ConsolidatedSignal):
         """통합된 신호 처리"""
