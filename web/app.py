@@ -9,6 +9,7 @@ from utils.error_logger import log_error, log_trade, log_system
 from core.upbit_api import UpbitAPI
 from data.database import db
 from config.config_manager import config_manager
+from core.strategy_execution_tracker import execution_tracker
 import pytz
 import logging
 from datetime import datetime, timedelta
@@ -744,15 +745,15 @@ def api_multi_tier_status():
     """다층 전략 상태 API"""
     try:
         from core.multi_tier_strategy_engine import multi_tier_engine
-        
+
         # 다층 전략 분석 실행
         decision = multi_tier_engine.analyze()
-        
+
         # 각 계층별 세부 정보 수집
         scalping_signals = multi_tier_engine.scalping_layer.analyze()
         trend_analysis = multi_tier_engine.trend_filter.analyze()
         macro_analysis = multi_tier_engine.macro_direction.analyze()
-        
+
         # 결과 구성
         status = {
             'final_decision': {
@@ -805,12 +806,12 @@ def api_multi_tier_status():
             },
             'timestamp': decision.timestamp.isoformat()
         }
-        
+
         return jsonify({
             'success': True,
             'status': status
         })
-        
+
     except Exception as e:
         logger.error(f"다층 전략 상태 API 오류: {e}")
         return jsonify({
@@ -1745,7 +1746,104 @@ def api_strategy_details(strategy_id):
             'endpoint': '/api/strategy/<strategy_id>/details',
             'strategy_id': strategy_id
         }, 'WebApp')
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': str(e)        }), 500
+
+
+@app.route('/api/strategy/execution_history')
+def api_strategy_execution_history():
+    """전략 실행 이력 API"""
+    try:
+        # 파라미터 가져오기
+        strategy_tier = request.args.get('tier', None)
+        strategy_id = request.args.get('id', None)
+        hours = int(request.args.get('hours', 24))
+        limit = int(request.args.get('limit', 100))
+        
+        # 실행 이력 조회
+        history = execution_tracker.get_execution_history(
+            strategy_tier=strategy_tier,
+            strategy_id=strategy_id,
+            hours=hours,
+            limit=limit
+        )
+        
+        return jsonify({
+            'success': True,
+            'data': history,
+            'count': len(history),
+            'filters': {
+                'tier': strategy_tier,
+                'id': strategy_id,
+                'hours': hours,
+                'limit': limit
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"전략 실행 이력 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/strategy/performance')
+def api_strategy_performance():
+    """전략 성과 API"""
+    try:
+        # 파라미터 가져오기
+        strategy_tier = request.args.get('tier', None)
+        strategy_id = request.args.get('id', None)
+        days = int(request.args.get('days', 30))
+        
+        # 성과 데이터 조회
+        performance = execution_tracker.get_strategy_performance(
+            strategy_tier=strategy_tier,
+            strategy_id=strategy_id,
+            days=days
+        )
+        
+        return jsonify({
+            'success': True,
+            'data': performance,
+            'count': len(performance),
+            'filters': {
+                'tier': strategy_tier,
+                'id': strategy_id,
+                'days': days
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"전략 성과 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/strategy/summary')
+def api_strategy_summary():
+    """전략 요약 통계 API"""
+    try:
+        # 파라미터 가져오기
+        days = int(request.args.get('days', 7))
+        
+        # 요약 통계 조회
+        summary = execution_tracker.get_strategy_summary(days=days)
+        
+        return jsonify({
+            'success': True,
+            'data': summary,
+            'period_days': days
+        })
+        
+    except Exception as e:
+        logger.error(f"전략 요약 통계 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 if __name__ == '__main__':

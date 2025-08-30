@@ -48,6 +48,81 @@
     }
   },
   "strategies": {
+    "tier_weights": {
+      "scalping": 0.4,
+      "trend": 0.35,
+      "macro": 0.25
+    },
+    "scalping_strategies": {
+      "rsi_momentum": {
+        "enabled": true,
+        "weight": 0.4,
+        "rsi_period": 14,
+        "oversold": 30,
+        "overbought": 70,
+        "momentum_threshold": 0.002
+      },
+      "bollinger_squeeze": {
+        "enabled": true,
+        "weight": 0.3,
+        "bb_period": 20,
+        "bb_std": 2.0,
+        "squeeze_threshold": 0.01
+      },
+      "support_resistance": {
+        "enabled": true,
+        "weight": 0.3,
+        "lookback_period": 20,
+        "touch_tolerance": 0.005
+      }
+    },
+    "trend_strategies": {
+      "enhanced_ema": {
+        "enabled": true,
+        "weight": 0.4,
+        "ema_periods": [9, 21, 50, 200],
+        "slope_threshold": 0.001
+      },
+      "enhanced_vwap": {
+        "enabled": true,
+        "weight": 0.35,
+        "short_period": 20,
+        "volume_threshold": 1.2
+      },
+      "fibonacci_retracement": {
+        "enabled": true,
+        "weight": 0.25,
+        "lookback_period": 20,
+        "tolerance": 0.02
+      }
+    },
+    "macro_strategies": {
+      "enhanced_trend_alignment": {
+        "enabled": true,
+        "weight": 0.4,
+        "sma_periods": [20, 50, 100, 200],
+        "slope_threshold": 0.005
+      },
+      "volume_profile": {
+        "enabled": true,
+        "weight": 0.35,
+        "analysis_days": 30,
+        "price_bins": 20,
+        "value_area_percentage": 0.7
+      },
+      "market_strength_index": {
+        "enabled": true,
+        "weight": 0.25,
+        "analysis_period": 20,
+        "component_weights": {
+          "up_down_bias": 0.3,
+          "volatility_strength": 0.2,
+          "volume_momentum": 0.25,
+          "market_participation": 0.15,
+          "pattern_momentum": 0.1
+        }
+      }
+    },
     "active_strategies": [
       "h1",
       "h2",

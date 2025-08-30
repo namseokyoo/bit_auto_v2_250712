@@ -15,13 +15,14 @@ from core.candle_data_collector import candle_collector
 from core.upbit_api import UpbitAPI
 from core.signal_manager import TradingSignal, MarketCondition
 from config.config_manager import config_manager
+from core.strategy_execution_tracker import execution_tracker, StrategyExecution
 
 
 class StrategyTier(Enum):
     """전략 계층"""
-    SCALPING = "5m"      # 5분 스캘핑 레이어
-    TREND = "1h"         # 1시간 트렌드 레이어  
-    MACRO = "1d"         # 1일 매크로 레이어
+    SCALPING = "scalping"    # 스캘핑 레이어 (설정된 거래 주기)
+    TREND = "trend"          # 트렌드 레이어 (거래 주기 * 6배)  
+    MACRO = "macro"          # 매크로 레이어 (일일)
 
 
 class MarketRegime(Enum):
@@ -73,21 +74,23 @@ class MultiTierDecision:
 
 
 class ScalpingLayer:
-    """5분 스캘핑 계층"""
+    """스캘핑 계층 (설정된 거래 주기 기반)"""
     
     def __init__(self):
         self.logger = logging.getLogger('ScalpingLayer')
-        self.timeframe = '5m'
+        # 설정에서 거래 주기 가져오기
+        self.trade_interval = config_manager.get_config('trading.trade_interval_minutes', 10)
+        self.timeframe = f'{self.trade_interval}m' if self.trade_interval <= 60 else f'{self.trade_interval//60}h'
         
     def analyze(self) -> List[TierSignal]:
-        """5분 스캘핑 신호 생성"""
+        """스캘핑 신호 생성 (설정된 주기 기반)"""
         signals = []
         
         try:
-            # 5분 캔들 데이터 조회
-            df = candle_collector.get_dataframe('5m', 50)
+            # 설정된 주기의 캔들 데이터 조회
+            df = candle_collector.get_dataframe(self.timeframe, 100)
             if df is None or len(df) < 20:
-                self.logger.warning("5분 캔들 데이터 부족")
+                self.logger.warning(f"{self.timeframe} 캔들 데이터 부족")
                 return signals
             
             # 1. RSI 모멘텀 스캘핑
@@ -361,32 +364,35 @@ class ScalpingLayer:
 
 
 class TrendFilterLayer:
-    """1시간 트렌드 필터 계층"""
+    """트렌드 필터 계층 (거래 주기 * 6배)"""
     
     def __init__(self):
         self.logger = logging.getLogger('TrendFilterLayer')
-        self.timeframe = '1h'
+        # 설정에서 거래 주기의 6배로 트렌드 분석
+        self.trade_interval = config_manager.get_config('trading.trade_interval_minutes', 10)
+        self.trend_interval = self.trade_interval * 6
+        self.timeframe = f'{self.trend_interval}m' if self.trend_interval <= 60 else f'{self.trend_interval//60}h'
         
     def analyze(self) -> Dict[str, Any]:
-        """1시간 트렌드 필터 분석"""
+        """트렌드 필터 분석 (설정된 주기 * 6배)"""
         try:
-            # 1시간 캔들 데이터 조회
-            df = candle_collector.get_dataframe('1h', 100)
+            # 트렌드 분석용 캔들 데이터 조회
+            df = candle_collector.get_dataframe(self.timeframe, 100)
             if df is None or len(df) < 50:
-                self.logger.warning("1시간 캔들 데이터 부족")
+                self.logger.warning(f"{self.timeframe} 캔들 데이터 부족")
                 return {'trend': 'neutral', 'strength': 0.5, 'regime': MarketRegime.SIDEWAYS}
             
-            # 1. EMA 트렌드 필터
-            ema_trend = self._ema_trend_analysis(df)
+            # 1. EMA 트렌드 필터 (개선됨)
+            ema_trend = self._enhanced_ema_trend_analysis(df)
             
-            # 2. VWAP 포지션 분석
-            vwap_position = self._vwap_analysis(df)
+            # 2. VWAP 포지션 분석 (개선됨) 
+            vwap_position = self._enhanced_vwap_analysis(df)
             
-            # 3. 모멘텀 강도 측정
-            momentum_strength = self._momentum_analysis(df)
+            # 3. 피보나치 되돌림 전략 (새로 추가)
+            fibonacci_signal = self._fibonacci_retracement_analysis(df)
             
             # 통합 분석
-            trend_score = (ema_trend['score'] + vwap_position['score'] + momentum_strength['score']) / 3
+            trend_score = (ema_trend['score'] + vwap_position['score'] + fibonacci_signal['score']) / 3
             
             if trend_score > 0.6:
                 trend = 'bullish'
@@ -404,7 +410,7 @@ class TrendFilterLayer:
                 'regime': regime,
                 'ema_trend': ema_trend,
                 'vwap_position': vwap_position,
-                'momentum_strength': momentum_strength,
+                'fibonacci_signal': fibonacci_signal,
                 'volatility': self._calculate_volatility(df)
             }
             
@@ -412,74 +418,241 @@ class TrendFilterLayer:
             self.logger.error(f"트렌드 필터 분석 오류: {e}")
             return {'trend': 'neutral', 'strength': 0.5, 'regime': MarketRegime.SIDEWAYS}
     
-    def _ema_trend_analysis(self, df: pd.DataFrame) -> Dict[str, float]:
-        """EMA 트렌드 분석"""
+    def _enhanced_ema_trend_analysis(self, df: pd.DataFrame) -> Dict[str, float]:
+        """개선된 EMA 트렌드 분석"""
         try:
-            ema12 = df['close'].ewm(span=12).mean()
-            ema26 = df['close'].ewm(span=26).mean()
+            # 다중 EMA와 기울기 분석
+            ema9 = df['close'].ewm(span=9).mean()
+            ema21 = df['close'].ewm(span=21).mean()
             ema50 = df['close'].ewm(span=50).mean()
+            ema200 = df['close'].ewm(span=200).mean()
             
             latest_price = df['close'].iloc[-1]
-            latest_ema12 = ema12.iloc[-1]
-            latest_ema26 = ema26.iloc[-1]
+            latest_ema9 = ema9.iloc[-1]
+            latest_ema21 = ema21.iloc[-1]
             latest_ema50 = ema50.iloc[-1]
+            latest_ema200 = ema200.iloc[-1] if not pd.isna(ema200.iloc[-1]) else latest_ema50
             
-            # EMA 정렬 점수 계산
-            if latest_ema12 > latest_ema26 > latest_ema50 and latest_price > latest_ema12:
-                score = 1.0  # 강한 상승 트렌드
-            elif latest_ema12 < latest_ema26 < latest_ema50 and latest_price < latest_ema12:
-                score = -1.0  # 강한 하락 트렌드
-            elif latest_ema12 > latest_ema26 and latest_price > latest_ema26:
-                score = 0.5  # 약한 상승 트렌드
-            elif latest_ema12 < latest_ema26 and latest_price < latest_ema26:
-                score = -0.5  # 약한 하락 트렌드
-            else:
-                score = 0.0  # 중립
+            # EMA 기울기 계산 (최근 5개 캔들)
+            ema21_slope = (ema21.iloc[-1] - ema21.iloc[-5]) / ema21.iloc[-5] if len(ema21) >= 5 else 0
+            ema50_slope = (ema50.iloc[-1] - ema50.iloc[-5]) / ema50.iloc[-5] if len(ema50) >= 5 else 0
+            
+            # 점수 계산
+            alignment_score = 0
+            slope_score = 0
+            position_score = 0
+            
+            # 1. EMA 정렬 점수
+            if latest_ema9 > latest_ema21 > latest_ema50 > latest_ema200:
+                alignment_score = 1.0  # 완벽한 상승 정렬
+            elif latest_ema9 < latest_ema21 < latest_ema50 < latest_ema200:
+                alignment_score = -1.0  # 완벽한 하락 정렬
+            elif latest_ema9 > latest_ema21 > latest_ema50:
+                alignment_score = 0.7  # 부분 상승 정렬
+            elif latest_ema9 < latest_ema21 < latest_ema50:
+                alignment_score = -0.7  # 부분 하락 정렬
+            
+            # 2. 기울기 점수
+            if ema21_slope > 0.001 and ema50_slope > 0.001:
+                slope_score = 1.0  # 강한 상승 기울기
+            elif ema21_slope < -0.001 and ema50_slope < -0.001:
+                slope_score = -1.0  # 강한 하락 기울기
+            elif ema21_slope > 0:
+                slope_score = 0.5  # 약한 상승 기울기
+            elif ema21_slope < 0:
+                slope_score = -0.5  # 약한 하락 기울기
+            
+            # 3. 가격 위치 점수
+            if latest_price > latest_ema9:
+                position_score = 0.5
+            elif latest_price < latest_ema9:
+                position_score = -0.5
+            
+            # 최종 점수 (가중 평균)
+            final_score = (alignment_score * 0.5 + slope_score * 0.3 + position_score * 0.2)
             
             return {
-                'score': score,
-                'ema12': latest_ema12,
-                'ema26': latest_ema26,
+                'score': final_score,
+                'ema9': latest_ema9,
+                'ema21': latest_ema21,
                 'ema50': latest_ema50,
-                'price_vs_ema12': (latest_price - latest_ema12) / latest_ema12
+                'ema200': latest_ema200,
+                'ema21_slope': ema21_slope,
+                'ema50_slope': ema50_slope,
+                'alignment_score': alignment_score,
+                'slope_score': slope_score,
+                'position_score': position_score
             }
             
         except Exception as e:
-            self.logger.error(f"EMA 트렌드 분석 오류: {e}")
+            self.logger.error(f"개선된 EMA 트렌드 분석 오류: {e}")
             return {'score': 0.0}
     
-    def _vwap_analysis(self, df: pd.DataFrame) -> Dict[str, float]:
-        """VWAP 분석"""
+    def _enhanced_vwap_analysis(self, df: pd.DataFrame) -> Dict[str, float]:
+        """개선된 VWAP 분석"""
         try:
-            # VWAP 계산 (단순화된 버전)
+            # 다중 기간 VWAP 계산
             typical_price = (df['high'] + df['low'] + df['close']) / 3
-            vwap = (typical_price * df['volume']).cumsum() / df['volume'].cumsum()
+            
+            # 단기 VWAP (최근 20개)
+            recent_data = df.tail(20)
+            recent_typical = (recent_data['high'] + recent_data['low'] + recent_data['close']) / 3
+            short_vwap = (recent_typical * recent_data['volume']).sum() / recent_data['volume'].sum()
+            
+            # 장기 VWAP (전체)
+            long_vwap = (typical_price * df['volume']).cumsum() / df['volume'].cumsum()
+            latest_long_vwap = long_vwap.iloc[-1]
             
             latest_price = df['close'].iloc[-1]
-            latest_vwap = vwap.iloc[-1]
             
-            # VWAP 대비 위치 점수
-            price_vs_vwap = (latest_price - latest_vwap) / latest_vwap
+            # VWAP 기울기 계산
+            vwap_slope = 0
+            if len(long_vwap) >= 5:
+                vwap_slope = (long_vwap.iloc[-1] - long_vwap.iloc[-5]) / long_vwap.iloc[-5]
             
-            if price_vs_vwap > 0.02:
-                score = 1.0  # VWAP 위 2% 이상
-            elif price_vs_vwap > 0.005:
-                score = 0.5  # VWAP 위 0.5~2%
-            elif price_vs_vwap < -0.02:
-                score = -1.0  # VWAP 아래 2% 이상
-            elif price_vs_vwap < -0.005:
-                score = -0.5  # VWAP 아래 0.5~2%
-            else:
-                score = 0.0  # VWAP 근처
+            # 거래량 가중 분석
+            recent_volume = df['volume'].tail(10).mean()
+            avg_volume = df['volume'].mean()
+            volume_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
+            
+            # 점수 계산
+            position_score = 0
+            slope_score = 0
+            volume_score = 0
+            
+            # 1. VWAP 위치 점수
+            short_vs_long = (short_vwap - latest_long_vwap) / latest_long_vwap
+            price_vs_short = (latest_price - short_vwap) / short_vwap
+            price_vs_long = (latest_price - latest_long_vwap) / latest_long_vwap
+            
+            if price_vs_short > 0.01 and price_vs_long > 0.01:
+                position_score = 1.0  # 강한 상승 포지션
+            elif price_vs_short < -0.01 and price_vs_long < -0.01:
+                position_score = -1.0  # 강한 하락 포지션
+            elif price_vs_short > 0.005:
+                position_score = 0.5  # 약한 상승 포지션
+            elif price_vs_short < -0.005:
+                position_score = -0.5  # 약한 하락 포지션
+            
+            # 2. VWAP 기울기 점수
+            if vwap_slope > 0.002:
+                slope_score = 1.0  # 상승 기울기
+            elif vwap_slope < -0.002:
+                slope_score = -1.0  # 하락 기울기
+            elif vwap_slope > 0:
+                slope_score = 0.3  # 약한 상승
+            elif vwap_slope < 0:
+                slope_score = -0.3  # 약한 하락
+            
+            # 3. 거래량 점수
+            if volume_ratio > 1.5:
+                volume_score = 1.0  # 높은 거래량
+            elif volume_ratio > 1.2:
+                volume_score = 0.5  # 평균 이상 거래량
+            elif volume_ratio < 0.7:
+                volume_score = -0.5  # 낮은 거래량
+            
+            # 최종 점수
+            final_score = (position_score * 0.5 + slope_score * 0.3 + volume_score * 0.2)
             
             return {
-                'score': score,
-                'vwap': latest_vwap,
-                'price_vs_vwap': price_vs_vwap
+                'score': final_score,
+                'short_vwap': short_vwap,
+                'long_vwap': latest_long_vwap,
+                'price_vs_short_vwap': price_vs_short,
+                'price_vs_long_vwap': price_vs_long,
+                'vwap_slope': vwap_slope,
+                'volume_ratio': volume_ratio,
+                'position_score': position_score,
+                'slope_score': slope_score,
+                'volume_score': volume_score
             }
             
         except Exception as e:
-            self.logger.error(f"VWAP 분석 오류: {e}")
+            self.logger.error(f"개선된 VWAP 분석 오류: {e}")
+            return {'score': 0.0}
+    
+    def _fibonacci_retracement_analysis(self, df: pd.DataFrame) -> Dict[str, float]:
+        """피보나치 되돌림 전략"""
+        try:
+            # 최근 스윙 고점/저점 찾기 (20개 캔들 기준)
+            lookback = min(20, len(df))
+            recent_data = df.tail(lookback)
+            
+            swing_high = recent_data['high'].max()
+            swing_low = recent_data['low'].min()
+            swing_range = swing_high - swing_low
+            
+            if swing_range == 0:
+                return {'score': 0.0}
+            
+            # 피보나치 레벨 계산
+            fib_levels = {
+                '23.6': swing_high - (swing_range * 0.236),
+                '38.2': swing_high - (swing_range * 0.382), 
+                '50.0': swing_high - (swing_range * 0.500),
+                '61.8': swing_high - (swing_range * 0.618),
+                '78.6': swing_high - (swing_range * 0.786)
+            }
+            
+            latest_price = df['close'].iloc[-1]
+            latest_volume = df['volume'].iloc[-1]
+            avg_volume = df['volume'].tail(10).mean()
+            
+            # 현재 가격이 어느 피보나치 레벨 근처인지 확인
+            score = 0.0
+            support_level = None
+            resistance_level = None
+            tolerance = swing_range * 0.02  # 2% 허용오차
+            
+            for level_name, level_price in fib_levels.items():
+                if abs(latest_price - level_price) <= tolerance:
+                    # 피보나치 레벨 근처에서의 반응 분석
+                    if latest_price > level_price:
+                        # 지지선으로 작용하는 경우
+                        support_level = level_name
+                        # 거래량 증가와 함께 반등하면 매수 신호
+                        if latest_volume > avg_volume * 1.2:
+                            score = float(level_name.replace('.', '')) / 100  # 레벨에 따른 신뢰도
+                        else:
+                            score = 0.3
+                    else:
+                        # 저항선으로 작용하는 경우
+                        resistance_level = level_name
+                        # 거래량 증가와 함께 하락하면 매도 신호
+                        if latest_volume > avg_volume * 1.2:
+                            score = -float(level_name.replace('.', '')) / 100
+                        else:
+                            score = -0.3
+                    break
+            
+            # 트렌드 방향 고려
+            sma20 = df['close'].tail(20).mean()
+            if latest_price > sma20:  # 상승 트렌드
+                if support_level:
+                    score *= 1.2  # 상승 트렌드에서 지지선 반등은 더 강함
+                elif resistance_level:
+                    score *= 0.8  # 상승 트렌드에서 저항선은 약함
+            else:  # 하락 트렌드
+                if resistance_level:
+                    score *= 1.2  # 하락 트렌드에서 저항선 거부는 더 강함
+                elif support_level:
+                    score *= 0.8  # 하락 트렌드에서 지지선은 약함
+            
+            return {
+                'score': max(-1.0, min(1.0, score)),  # -1 ~ 1 범위로 제한
+                'swing_high': swing_high,
+                'swing_low': swing_low,
+                'fib_levels': fib_levels,
+                'current_level': support_level or resistance_level,
+                'support_level': support_level,
+                'resistance_level': resistance_level,
+                'volume_ratio': latest_volume / avg_volume if avg_volume > 0 else 1,
+                'trend_bias': 'up' if latest_price > sma20 else 'down'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"피보나치 되돌림 분석 오류: {e}")
             return {'score': 0.0}
     
     def _momentum_analysis(self, df: pd.DataFrame) -> Dict[str, float]:
@@ -544,32 +717,35 @@ class TrendFilterLayer:
 
 
 class MacroDirectionLayer:
-    """1일 매크로 방향성 계층"""
+    """매크로 방향성 계층 (일일 기준)"""
     
     def __init__(self):
         self.logger = logging.getLogger('MacroDirectionLayer')
-        self.timeframe = '1d'
+        self.timeframe = '1d'  # 매크로는 항상 일일 기준
         
     def analyze(self) -> Dict[str, Any]:
-        """매크로 방향성 분석"""
+        """매크로 방향성 분석 (3개 전략)"""
         try:
-            # 1일 캔들 데이터 조회
+            # 일일 캔들 데이터 조회
             df = candle_collector.get_dataframe('1d', 200)
             if df is None or len(df) < 50:
                 self.logger.warning("일일 캔들 데이터 부족")
                 return {'direction': 'neutral', 'strength': 0.5, 'regime': MarketRegime.SIDEWAYS}
             
-            # 1. 장기 트렌드 정렬
-            trend_alignment = self._trend_alignment_analysis(df)
+            # 1. 장기 트렌드 정렬 (개선됨)
+            trend_alignment = self._enhanced_trend_alignment_analysis(df)
             
-            # 2. 변동성 체제 분석
+            # 2. 거래량 프로파일 분석 (새로 추가)
+            volume_profile = self._volume_profile_analysis(df)
+            
+            # 3. 시장 강도 지수 (새로 추가)
+            market_strength = self._market_strength_index(df)
+            
+            # 변동성 체제 분석 (보조 지표)
             volatility_regime = self._volatility_regime_analysis(df)
             
-            # 3. 시장 구조 분석
-            market_structure = self._market_structure_analysis(df)
-            
             # 통합 방향성 결정
-            macro_score = (trend_alignment['score'] + market_structure['score']) / 2
+            macro_score = (trend_alignment['score'] + volume_profile['score'] + market_strength['score']) / 3
             
             if macro_score > 0.6:
                 direction = 'bullish'
@@ -583,62 +759,276 @@ class MacroDirectionLayer:
             
             # 변동성 체제 반영
             if volatility_regime['high_volatility']:
-                if regime == MarketRegime.BULLISH:
-                    regime = MarketRegime.HIGH_VOLATILITY
-                elif regime == MarketRegime.BEARISH:
-                    regime = MarketRegime.HIGH_VOLATILITY
+                regime = MarketRegime.HIGH_VOLATILITY
+            elif volatility_regime['low_volatility']:
+                regime = MarketRegime.LOW_VOLATILITY
             
             return {
                 'direction': direction,
                 'strength': abs(macro_score),
                 'regime': regime,
                 'trend_alignment': trend_alignment,
-                'volatility_regime': volatility_regime,
-                'market_structure': market_structure
+                'volume_profile': volume_profile,
+                'market_strength': market_strength,
+                'volatility_regime': volatility_regime
             }
             
         except Exception as e:
             self.logger.error(f"매크로 분석 오류: {e}")
             return {'direction': 'neutral', 'strength': 0.5, 'regime': MarketRegime.SIDEWAYS}
     
-    def _trend_alignment_analysis(self, df: pd.DataFrame) -> Dict[str, float]:
-        """트렌드 정렬 분석"""
+    def _enhanced_trend_alignment_analysis(self, df: pd.DataFrame) -> Dict[str, float]:
+        """개선된 장기 트렌드 정렬 분석"""
         try:
+            # 다중 이동평균과 기울기 분석
             sma20 = df['close'].rolling(20).mean()
             sma50 = df['close'].rolling(50).mean()
+            sma100 = df['close'].rolling(100).mean()
             sma200 = df['close'].rolling(200).mean()
             
             latest_price = df['close'].iloc[-1]
             latest_sma20 = sma20.iloc[-1]
             latest_sma50 = sma50.iloc[-1] 
-            latest_sma200 = sma200.iloc[-1] if not pd.isna(sma200.iloc[-1]) else latest_sma50
+            latest_sma100 = sma100.iloc[-1] if not pd.isna(sma100.iloc[-1]) else latest_sma50
+            latest_sma200 = sma200.iloc[-1] if not pd.isna(sma200.iloc[-1]) else latest_sma100
             
-            # 트렌드 정렬 점수
-            if latest_price > latest_sma20 > latest_sma50 > latest_sma200:
-                score = 1.0  # 완벽한 상승 정렬
-            elif latest_price < latest_sma20 < latest_sma50 < latest_sma200:
-                score = -1.0  # 완벽한 하락 정렬
+            # 이동평균 기울기 계산 (최근 5일)
+            sma20_slope = (sma20.iloc[-1] - sma20.iloc[-5]) / sma20.iloc[-5] if len(sma20) >= 5 else 0
+            sma50_slope = (sma50.iloc[-1] - sma50.iloc[-5]) / sma50.iloc[-5] if len(sma50) >= 5 else 0
+            sma200_slope = (sma200.iloc[-1] - sma200.iloc[-5]) / sma200.iloc[-5] if len(sma200) >= 5 else 0
+            
+            # 점수 계산
+            alignment_score = 0
+            slope_score = 0
+            position_score = 0
+            
+            # 1. 이동평균 정렬 점수
+            if latest_price > latest_sma20 > latest_sma50 > latest_sma100 > latest_sma200:
+                alignment_score = 1.0  # 완벽한 상승 정렬
+            elif latest_price < latest_sma20 < latest_sma50 < latest_sma100 < latest_sma200:
+                alignment_score = -1.0  # 완벽한 하락 정렬
             elif latest_price > latest_sma50 > latest_sma200:
-                score = 0.7  # 부분 상승 정렬
+                alignment_score = 0.6  # 부분 상승 정렬
             elif latest_price < latest_sma50 < latest_sma200:
-                score = -0.7  # 부분 하락 정렬
+                alignment_score = -0.6  # 부분 하락 정렬
             elif latest_price > latest_sma200:
-                score = 0.3  # 약한 상승
+                alignment_score = 0.3  # 약한 상승
             elif latest_price < latest_sma200:
-                score = -0.3  # 약한 하락
-            else:
-                score = 0.0  # 중립
+                alignment_score = -0.3  # 약한 하락
+            
+            # 2. 기울기 점수 (장기 모멘텀)
+            if sma20_slope > 0.005 and sma50_slope > 0.002 and sma200_slope > 0.001:
+                slope_score = 1.0  # 강한 상승 모멘텀
+            elif sma20_slope < -0.005 and sma50_slope < -0.002 and sma200_slope < -0.001:
+                slope_score = -1.0  # 강한 하락 모멘텀
+            elif sma20_slope > 0 and sma50_slope > 0:
+                slope_score = 0.5  # 약한 상승 모멘텀
+            elif sma20_slope < 0 and sma50_slope < 0:
+                slope_score = -0.5  # 약한 하락 모멘텀
+            
+            # 3. 가격 위치 점수 (지지/저항 역할)
+            distance_from_sma200 = (latest_price - latest_sma200) / latest_sma200
+            if distance_from_sma200 > 0.1:  # 10% 이상 위
+                position_score = 1.0
+            elif distance_from_sma200 > 0.05:  # 5-10% 위
+                position_score = 0.5
+            elif distance_from_sma200 < -0.1:  # 10% 이상 아래
+                position_score = -1.0
+            elif distance_from_sma200 < -0.05:  # 5-10% 아래
+                position_score = -0.5
+            
+            # 최종 점수 (가중 평균)
+            final_score = (alignment_score * 0.5 + slope_score * 0.3 + position_score * 0.2)
             
             return {
-                'score': score,
+                'score': final_score,
                 'sma20': latest_sma20,
                 'sma50': latest_sma50,
+                'sma100': latest_sma100,
                 'sma200': latest_sma200,
-                'price_vs_sma200': (latest_price - latest_sma200) / latest_sma200
+                'sma20_slope': sma20_slope,
+                'sma50_slope': sma50_slope,
+                'sma200_slope': sma200_slope,
+                'alignment_score': alignment_score,
+                'slope_score': slope_score,
+                'position_score': position_score,
+                'distance_from_sma200': distance_from_sma200
             }
             
         except Exception as e:
-            self.logger.error(f"트렌드 정렬 분석 오류: {e}")
+            self.logger.error(f"개선된 트렌드 정렬 분석 오류: {e}")
+            return {'score': 0.0}
+    
+    def _volume_profile_analysis(self, df: pd.DataFrame) -> Dict[str, float]:
+        """거래량 프로파일 분석"""
+        try:
+            # 최근 30일 거래량 분석
+            recent_data = df.tail(30)
+            
+            # 가격대별 거래량 분포 계산
+            price_range = recent_data['high'].max() - recent_data['low'].min()
+            price_bins = 20  # 20개 구간으로 분할
+            bin_size = price_range / price_bins
+            
+            volume_profile = {}
+            for i, row in recent_data.iterrows():
+                # 각 캔들의 가격 범위를 여러 구간으로 나누어 거래량 분배
+                candle_range = row['high'] - row['low']
+                if candle_range > 0:
+                    # 단순화: 평균 가격 기준으로 거래량 할당
+                    avg_price = (row['high'] + row['low'] + row['close']) / 3
+                    price_bin = int((avg_price - recent_data['low'].min()) / bin_size)
+                    price_bin = max(0, min(price_bins - 1, price_bin))  # 범위 제한
+                    
+                    if price_bin not in volume_profile:
+                        volume_profile[price_bin] = 0
+                    volume_profile[price_bin] += row['volume']
+            
+            if not volume_profile:
+                return {'score': 0.0}
+            
+            # POC (Point of Control) 찾기 - 가장 거래량이 많은 가격대
+            max_volume_bin = max(volume_profile.keys(), key=lambda k: volume_profile[k])
+            poc_price = recent_data['low'].min() + (max_volume_bin + 0.5) * bin_size
+            
+            # Value Area 계산 (총 거래량의 70%)
+            total_volume = sum(volume_profile.values())
+            target_volume = total_volume * 0.7
+            
+            # POC 주변에서 확장하며 Value Area 찾기
+            sorted_bins = sorted(volume_profile.items(), key=lambda x: x[1], reverse=True)
+            value_area_volume = 0
+            value_area_bins = []
+            
+            for bin_idx, volume in sorted_bins:
+                value_area_volume += volume
+                value_area_bins.append(bin_idx)
+                if value_area_volume >= target_volume:
+                    break
+            
+            if value_area_bins:
+                value_area_high = recent_data['low'].min() + (max(value_area_bins) + 1) * bin_size
+                value_area_low = recent_data['low'].min() + min(value_area_bins) * bin_size
+            else:
+                value_area_high = value_area_low = poc_price
+            
+            # 현재 가격과 POC, Value Area 비교
+            current_price = df['close'].iloc[-1]
+            
+            # 점수 계산
+            score = 0.0
+            
+            # 1. POC 대비 위치
+            poc_distance = (current_price - poc_price) / poc_price
+            
+            # 2. Value Area 내 위치
+            in_value_area = value_area_low <= current_price <= value_area_high
+            
+            # 3. 거래량 증가 추세
+            recent_volume = recent_data['volume'].tail(5).mean()
+            avg_volume = recent_data['volume'].mean()
+            volume_trend = recent_volume / avg_volume if avg_volume > 0 else 1
+            
+            # 점수 산정
+            if in_value_area:
+                # Value Area 내에서는 중립적
+                if volume_trend > 1.2:
+                    score = 0.3 if poc_distance > 0 else -0.3  # 거래량 증가 시 방향성 부여
+                else:
+                    score = 0.1 if poc_distance > 0 else -0.1
+            else:
+                # Value Area 밖에서는 평균회귀 성향
+                if current_price > value_area_high:
+                    # 고가권 - 하락 압력
+                    score = -0.5 if volume_trend > 1.2 else -0.3
+                elif current_price < value_area_low:
+                    # 저가권 - 상승 압력
+                    score = 0.5 if volume_trend > 1.2 else 0.3
+            
+            return {
+                'score': score,
+                'poc_price': poc_price,
+                'value_area_high': value_area_high,
+                'value_area_low': value_area_low,
+                'current_vs_poc': poc_distance,
+                'in_value_area': in_value_area,
+                'volume_trend': volume_trend,
+                'total_volume': total_volume
+            }
+            
+        except Exception as e:
+            self.logger.error(f"거래량 프로파일 분석 오류: {e}")
+            return {'score': 0.0}
+    
+    def _market_strength_index(self, df: pd.DataFrame) -> Dict[str, float]:
+        """시장 강도 지수 (커스텀 지표)"""
+        try:
+            # 여러 강도 지표를 조합한 커스텀 지수
+            
+            # 1. 상승/하락 일수 비율 (최근 20일)
+            recent_data = df.tail(20)
+            up_days = (recent_data['close'] > recent_data['open']).sum()
+            down_days = (recent_data['close'] < recent_data['open']).sum()
+            up_down_ratio = up_days / (up_days + down_days) if (up_days + down_days) > 0 else 0.5
+            
+            # 2. 평균 캔들 실체 크기 (변동성 고려)
+            body_sizes = abs(recent_data['close'] - recent_data['open']) / recent_data['open']
+            avg_body_size = body_sizes.mean()
+            
+            # 3. 거래량 가중 상승률
+            price_changes = recent_data['close'].pct_change().fillna(0)
+            volume_weights = recent_data['volume'] / recent_data['volume'].sum()
+            volume_weighted_return = (price_changes * volume_weights).sum()
+            
+            # 4. High-Low 스프레드 (시장 참여도)
+            hl_spreads = (recent_data['high'] - recent_data['low']) / recent_data['close']
+            avg_hl_spread = hl_spreads.mean()
+            
+            # 5. 연속 상승/하락 패턴
+            consecutive_pattern = 0
+            current_direction = 1 if recent_data['close'].iloc[-1] > recent_data['open'].iloc[-1] else -1
+            
+            for i in range(len(recent_data) - 2, -1, -1):
+                day_direction = 1 if recent_data['close'].iloc[i] > recent_data['open'].iloc[i] else -1
+                if day_direction == current_direction:
+                    consecutive_pattern += 1
+                else:
+                    break
+            
+            consecutive_pattern *= current_direction  # 방향 고려
+            
+            # 점수 계산
+            strength_components = {
+                'up_down_bias': (up_down_ratio - 0.5) * 2,  # -1 ~ 1
+                'volatility_strength': min(1.0, avg_body_size * 50),  # 변동성 강도
+                'volume_momentum': max(-1.0, min(1.0, volume_weighted_return * 100)),  # 거래량 가중 모멘텀
+                'market_participation': min(1.0, avg_hl_spread * 20),  # 시장 참여도
+                'pattern_momentum': max(-1.0, min(1.0, consecutive_pattern * 0.2))  # 연속 패턴
+            }
+            
+            # 가중 평균으로 최종 점수 계산
+            weights = {
+                'up_down_bias': 0.3,
+                'volatility_strength': 0.2,
+                'volume_momentum': 0.25,
+                'market_participation': 0.15,
+                'pattern_momentum': 0.1
+            }
+            
+            final_score = sum(strength_components[k] * weights[k] for k in strength_components)
+            
+            return {
+                'score': final_score,
+                'up_down_ratio': up_down_ratio,
+                'avg_body_size': avg_body_size,
+                'volume_weighted_return': volume_weighted_return,
+                'avg_hl_spread': avg_hl_spread,
+                'consecutive_pattern': consecutive_pattern,
+                'components': strength_components
+            }
+            
+        except Exception as e:
+            self.logger.error(f"시장 강도 지수 계산 오류: {e}")
             return {'score': 0.0}
     
     def _volatility_regime_analysis(self, df: pd.DataFrame) -> Dict[str, Any]:
@@ -725,15 +1115,17 @@ class MultiTierStrategyEngine:
         self.trend_filter = TrendFilterLayer()
         self.macro_direction = MacroDirectionLayer()
         
-        # 가중치 설정
+        # 가중치 설정 (설정 파일에서 로드)
         self.tier_weights = {
-            StrategyTier.SCALPING: 0.4,
-            StrategyTier.TREND: 0.35,
-            StrategyTier.MACRO: 0.25
+            StrategyTier.SCALPING: config_manager.get_config('strategies.tier_weights.scalping', 0.4),
+            StrategyTier.TREND: config_manager.get_config('strategies.tier_weights.trend', 0.35),
+            StrategyTier.MACRO: config_manager.get_config('strategies.tier_weights.macro', 0.25)
         }
         
     def analyze(self) -> MultiTierDecision:
         """다층 전략 통합 분석"""
+        start_time = datetime.now()
+        
         try:
             # 각 계층 분석 실행
             scalping_signals = self.scalping_layer.analyze()
@@ -755,10 +1147,19 @@ class MultiTierStrategyEngine:
                 market_regime
             )
             
+            # 실행 추적
+            execution_duration = (datetime.now() - start_time).total_seconds() * 1000
+            self._track_strategy_executions(
+                scalping_signals, trend_analysis, macro_analysis,
+                execution_duration, market_regime.value, decision
+            )
+            
             return decision
             
         except Exception as e:
             self.logger.error(f"다층 전략 분석 오류: {e}")
+            execution_duration = (datetime.now() - start_time).total_seconds() * 1000
+            self._track_error_execution(str(e), execution_duration)
             return self._create_hold_decision(MarketRegime.SIDEWAYS)
     
     def _determine_market_regime(self, trend_analysis: Dict, macro_analysis: Dict) -> MarketRegime:
@@ -939,6 +1340,106 @@ class MultiTierStrategyEngine:
             suggested_amount=0,
             timestamp=datetime.now()
         )
+    
+    def _track_strategy_executions(self, scalping_signals, trend_analysis, macro_analysis,
+                                 execution_duration, market_regime, decision):
+        """전략 실행 추적"""
+        try:
+            execution_time = datetime.now()
+            
+            # 스캘핑 전략들 추적
+            for signal in scalping_signals:
+                execution = StrategyExecution(
+                    execution_time=execution_time,
+                    strategy_tier='scalping',
+                    strategy_id=getattr(signal, 'strategy_id', 'unknown'),
+                    signal_action=getattr(signal, 'action', 'hold'),
+                    confidence=getattr(signal, 'confidence', 0.5),
+                    strength=getattr(signal, 'strength', 0.5),
+                    reasoning=getattr(signal, 'reasoning', ''),
+                    market_regime=market_regime,
+                    indicators=getattr(signal, 'indicators', {}),
+                    execution_duration=execution_duration
+                )
+                execution_tracker.record_execution(execution)
+            
+            # 트렌드 전략들 추적
+            for strategy_name, analysis in trend_analysis.items():
+                if isinstance(analysis, dict) and 'score' in analysis:
+                    action = 'buy' if analysis['score'] > 0.3 else 'sell' if analysis['score'] < -0.3 else 'hold'
+                    execution = StrategyExecution(
+                        execution_time=execution_time,
+                        strategy_tier='trend',
+                        strategy_id=strategy_name,
+                        signal_action=action,
+                        confidence=abs(analysis['score']),
+                        strength=abs(analysis['score']),
+                        reasoning=f"트렌드 분석 점수: {analysis['score']:.3f}",
+                        market_regime=market_regime,
+                        indicators=analysis,
+                        execution_duration=execution_duration
+                    )
+                    execution_tracker.record_execution(execution)
+            
+            # 매크로 전략들 추적
+            for strategy_name, analysis in macro_analysis.items():
+                if isinstance(analysis, dict) and 'score' in analysis:
+                    action = 'buy' if analysis['score'] > 0.3 else 'sell' if analysis['score'] < -0.3 else 'hold'
+                    execution = StrategyExecution(
+                        execution_time=execution_time,
+                        strategy_tier='macro',
+                        strategy_id=strategy_name,
+                        signal_action=action,
+                        confidence=abs(analysis['score']),
+                        strength=abs(analysis['score']),
+                        reasoning=f"매크로 분석 점수: {analysis['score']:.3f}",
+                        market_regime=market_regime,
+                        indicators=analysis,
+                        execution_duration=execution_duration
+                    )
+                    execution_tracker.record_execution(execution)
+            
+            # 통합 결정 추적
+            execution = StrategyExecution(
+                execution_time=execution_time,
+                strategy_tier='integrated',
+                strategy_id='multi_tier_decision',
+                signal_action=decision.final_action,
+                confidence=decision.confidence,
+                strength=decision.confidence,
+                reasoning=decision.reasoning,
+                market_regime=market_regime,
+                indicators={
+                    'tier_contributions': decision.tier_contributions,
+                    'risk_score': decision.risk_score,
+                    'suggested_amount': decision.suggested_amount
+                },
+                execution_duration=execution_duration
+            )
+            execution_tracker.record_execution(execution)
+            
+        except Exception as e:
+            self.logger.error(f"전략 실행 추적 오류: {e}")
+    
+    def _track_error_execution(self, error_message, execution_duration):
+        """오류 실행 추적"""
+        try:
+            execution = StrategyExecution(
+                execution_time=datetime.now(),
+                strategy_tier='error',
+                strategy_id='analysis_error',
+                signal_action='hold',
+                confidence=0.0,
+                strength=0.0,
+                reasoning=f"분석 오류: {error_message}",
+                market_regime='unknown',
+                indicators={'error': error_message},
+                execution_duration=execution_duration
+            )
+            execution_tracker.record_execution(execution)
+            
+        except Exception as e:
+            self.logger.error(f"오류 실행 추적 실패: {e}")
 
 
 # 전역 인스턴스
