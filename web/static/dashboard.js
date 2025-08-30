@@ -6,7 +6,7 @@ function toggleAutoTrading(enable) {
     if (!confirm(`자동 거래를 ${action}하시겠습니까?`)) {
         return;
     }
-    
+
     fetch('/api/trading/toggle', {
         method: 'POST',
         headers: {
@@ -14,22 +14,24 @@ function toggleAutoTrading(enable) {
         },
         body: JSON.stringify({ action: enable ? 'enable' : 'disable' })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', `자동 거래가 ${action}되었습니다.`);
-            // UI 업데이트
-            updateAutoTradingUI(enable);
-            // 상태 업데이트
-            updateAutoTradingStatus();
-        } else {
-            showAlert('danger', data.message || '오류가 발생했습니다.');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', '자동 거래 토글 중 오류가 발생했습니다.');
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', `자동 거래가 ${action}되었습니다.`);
+                // UI 업데이트
+                updateAutoTradingUI(enable);
+                // 상태 업데이트
+                updateAutoTradingStatus();
+                // 대시보드 데이터 새로고침
+                updateDashboardData();
+            } else {
+                showAlert('danger', data.message || '오류가 발생했습니다.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', '자동 거래 토글 중 오류가 발생했습니다.');
+        });
 }
 
 // 긴급 정지
@@ -37,26 +39,26 @@ function emergencyStop() {
     if (!confirm('긴급 정지하시겠습니까? 모든 자동 거래가 즉시 중단됩니다.')) {
         return;
     }
-    
+
     fetch('/api/emergency_stop', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         }
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('danger', '긴급 정지가 실행되었습니다. 모든 자동 거래가 중단되었습니다.');
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            showAlert('danger', data.message || '긴급 정지 실행 중 오류가 발생했습니다.');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', '긴급 정지 실행 중 오류가 발생했습니다.');
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('danger', '긴급 정지가 실행되었습니다. 모든 자동 거래가 중단되었습니다.');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAlert('danger', data.message || '긴급 정지 실행 중 오류가 발생했습니다.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', '긴급 정지 실행 중 오류가 발생했습니다.');
+        });
 }
 
 // 자동 거래 UI 업데이트
@@ -65,16 +67,16 @@ function updateAutoTradingUI(enabled) {
     if (container) {
         container.innerHTML = `
             <div class="d-flex align-items-center gap-2">
-                ${enabled ? 
-                    `<span class="badge bg-success">활성화</span>
+                ${enabled ?
+                `<span class="badge bg-success">활성화</span>
                      <button class="btn btn-sm btn-warning" onclick="toggleAutoTrading(false)">
                          <i class="fas fa-pause"></i> 일시정지
                      </button>` :
-                    `<span class="badge bg-secondary">비활성화</span>
+                `<span class="badge bg-secondary">비활성화</span>
                      <button class="btn btn-sm btn-success" onclick="toggleAutoTrading(true)">
                          <i class="fas fa-play"></i> 시작
                      </button>`
-                }
+            }
                 <button class="btn btn-sm btn-danger" onclick="emergencyStop()">
                     <i class="fas fa-stop"></i> 긴급정지
                 </button>
@@ -83,28 +85,134 @@ function updateAutoTradingUI(enabled) {
     }
 }
 
-// 자동 거래 상태 업데이트
+// 자동 거래 상태 업데이트 (시스템 상태 포함)
 async function updateAutoTradingStatus() {
     try {
-        const response = await fetch('/api/auto_trading_status');
-        const data = await response.json();
-        
-        if (data.success && data.status) {
-            // UI 업데이트
-            updateAutoTradingUI(data.status.auto_trading_enabled);
-            
+        // 시스템 상태와 자동거래 상태를 모두 가져오기
+        const [autoResponse, systemResponse] = await Promise.all([
+            fetch('/api/auto_trading_status'),
+            fetch('/api/system/status')
+        ]);
+
+        const autoData = await autoResponse.json();
+        const systemData = await systemResponse.json();
+
+        if (autoData.success && autoData.status) {
+            // 자동거래 UI 업데이트
+            updateAutoTradingUI(autoData.status.auto_trading_enabled);
+
             // 다음 실행 시간 업데이트
-            if (data.status.next_execution) {
-                document.getElementById('next-trade-time').textContent = data.status.next_execution;
+            if (autoData.status.next_execution) {
+                document.getElementById('next-trade-time').textContent = autoData.status.next_execution;
             }
-            
+
             // 마지막 실행 시간 업데이트
-            if (data.status.last_execution) {
-                document.getElementById('last-trade-time').textContent = data.status.last_execution;
+            if (autoData.status.last_execution) {
+                document.getElementById('last-trade-time').textContent = autoData.status.last_execution;
             }
         }
+
+        // 시스템 상태 업데이트
+        if (systemData && systemData.system_enabled !== undefined) {
+            const systemBadges = document.querySelectorAll('.card-body .row .col-6:first-child .badge');
+            systemBadges.forEach(badge => {
+                const label = badge.closest('.col-6').querySelector('label');
+                if (label && label.textContent.includes('시스템')) {
+                    if (systemData.system_enabled) {
+                        badge.className = 'badge bg-success';
+                        badge.textContent = '활성화';
+                    } else {
+                        badge.className = 'badge bg-secondary';
+                        badge.textContent = '비활성화';
+                    }
+                }
+            });
+        }
+
     } catch (error) {
         console.error('Error updating auto trading status:', error);
+    }
+}
+
+// 대시보드 데이터 업데이트
+async function updateDashboardData() {
+    try {
+        const response = await fetch('/api/dashboard_data');
+        const data = await response.json();
+
+        if (data.success) {
+            // 통계 카드 업데이트
+            const totalTradesEl = document.querySelector('.row.mb-4:nth-of-type(2) .col-md-3:nth-child(1) h2');
+            const todayTradesEl = document.querySelector('.row.mb-4:nth-of-type(2) .col-md-3:nth-child(2) h2');
+            const totalPnlEl = document.querySelector('.row.mb-4:nth-of-type(2) .col-md-3:nth-child(3) h2');
+            const winRateEl = document.querySelector('.row.mb-4:nth-of-type(2) .col-md-3:nth-child(4) h2');
+
+            if (totalTradesEl) totalTradesEl.textContent = data.data.total_trades || 0;
+            if (todayTradesEl) todayTradesEl.textContent = data.data.today_trades || 0;
+            if (totalPnlEl) totalPnlEl.textContent = `${data.data.total_pnl || 0} KRW`;
+            if (winRateEl) winRateEl.textContent = `${(data.data.win_rate || 0).toFixed(1)}%`;
+
+            // 최근 거래 내역 업데이트
+            updateRecentTrades(data.data.recent_trades || []);
+        }
+
+        // 잔고 정보도 업데이트
+        await updateBalanceInfo();
+
+    } catch (error) {
+        console.error('Error updating dashboard data:', error);
+    }
+}
+
+// 잔고 정보 업데이트
+async function updateBalanceInfo() {
+    try {
+        const response = await fetch('/api/balance');
+        const data = await response.json();
+
+        if (data.balances) {
+            const krwEl = document.querySelector('.card-body .row .col-6:first-child .fw-bold');
+            const btcEl = document.querySelector('.card-body .row .col-6:last-child .fw-bold');
+            const btcValueEl = document.querySelector('.card-body .row .col-6:last-child .text-muted');
+            const totalValueEl = document.querySelector('.card-body .row:last-child .col-6:last-child .fw-bold');
+
+            if (krwEl) krwEl.textContent = `₩ ${data.balances.KRW.toLocaleString()}`;
+            if (btcEl) btcEl.textContent = data.balances.BTC.toFixed(8);
+            if (btcValueEl) btcValueEl.textContent = `≈ ₩ ${data.btc_value.toLocaleString()}`;
+            if (totalValueEl) totalValueEl.textContent = `₩ ${data.total_value.toLocaleString()}`;
+        }
+    } catch (error) {
+        console.error('Error updating balance:', error);
+    }
+}
+
+// 최근 거래 내역 업데이트
+function updateRecentTrades(trades) {
+    const container = document.querySelector('.card-body .list-group, .card-body .alert');
+    if (!container) return;
+
+    if (trades.length === 0) {
+        container.innerHTML = '<div class="alert alert-info"><i class="fas fa-info-circle"></i> 거래 내역이 없습니다.</div>';
+    } else {
+        const tradesHTML = trades.map(trade => `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="badge ${trade.side === 'buy' ? 'bg-success' : 'bg-danger'} me-2">
+                        ${trade.side === 'buy' ? '매수' : '매도'}
+                    </span>
+                    <small class="text-muted">${trade.strategy_id}</small>
+                    <div class="small text-muted">${new Date(trade.entry_time).toLocaleString()}</div>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold">₩ ${parseFloat(trade.entry_price).toLocaleString()}</div>
+                    <div class="small ${trade.pnl > 0 ? 'text-success' : trade.pnl < 0 ? 'text-danger' : 'text-muted'}">
+                        ${trade.pnl ? `${trade.pnl > 0 ? '+' : ''}${parseFloat(trade.pnl).toLocaleString()} KRW` : '-'}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = `<div class="list-group">${tradesHTML}</div>`;
     }
 }
 
@@ -113,7 +221,7 @@ function toggleSystem(action) {
     if (!confirm(`정말로 시스템을 ${action === 'enable' ? '활성화' : '비활성화'}하시겠습니까?`)) {
         return;
     }
-    
+
     fetch('/api/system/toggle', {
         method: 'POST',
         headers: {
@@ -121,19 +229,19 @@ function toggleSystem(action) {
         },
         body: JSON.stringify({ action: action })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message);
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            showAlert('danger', data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', '시스템 토글 중 오류가 발생했습니다.');
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', data.message);
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAlert('danger', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', '시스템 토글 중 오류가 발생했습니다.');
+        });
 }
 
 // 자동거래 토글
@@ -141,7 +249,7 @@ function toggleTrading(action) {
     if (!confirm(`정말로 자동거래를 ${action === 'enable' ? '활성화' : '비활성화'}하시겠습니까?`)) {
         return;
     }
-    
+
     fetch('/api/trading/toggle', {
         method: 'POST',
         headers: {
@@ -149,27 +257,27 @@ function toggleTrading(action) {
         },
         body: JSON.stringify({ action: action })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message);
-            // 토글 상태만 업데이트하고 페이지는 새로고침하지 않음
-            updateTradingToggleUI(action === 'enable');
-        } else {
-            showAlert('danger', data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', '자동거래 토글 중 오류가 발생했습니다.');
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', data.message);
+                // 토글 상태만 업데이트하고 페이지는 새로고침하지 않음
+                updateTradingToggleUI(action === 'enable');
+            } else {
+                showAlert('danger', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', '자동거래 토글 중 오류가 발생했습니다.');
+        });
 }
 
 // 자동거래 토글 UI 업데이트
 function updateTradingToggleUI(enabled) {
     const tradingStatusElement = document.getElementById('trading-status-container');
     const timerElement = document.getElementById('next-trade-timer');
-    
+
     if (tradingStatusElement) {
         if (enabled) {
             tradingStatusElement.innerHTML = `
@@ -211,10 +319,10 @@ async function fetchAutoTradingStatus() {
     try {
         const response = await fetch('/api/auto_trading_status');
         const data = await response.json();
-        
+
         if (data.success && data.status) {
             autoTradingStatus = data.status;
-            
+
             // 서버에서 받은 다음 실행 시간 업데이트
             if (autoTradingStatus.next_execution) {
                 // KST 시간 문자열을 올바르게 파싱
@@ -226,7 +334,7 @@ async function fetchAutoTradingStatus() {
                 console.log('서버 다음 실행 시간 (파싱):', nextTradeTime);
                 console.log('현재 시간:', new Date());
             }
-            
+
             // 마지막 실행 시간도 localStorage에 저장
             if (autoTradingStatus.last_execution) {
                 const lastExecStr = autoTradingStatus.last_execution.replace(' KST', '');
@@ -264,18 +372,18 @@ function calculateNextTradeTime() {
         console.log('서버 시간 사용:', nextTradeTime);
         return nextTradeTime;
     }
-    
+
     // 폴백: 로컬 계산
     const now = new Date();
     const lastExecutionTime = localStorage.getItem('lastTradeExecution');
-    
+
     let nextTime = new Date(now);
-    
+
     if (lastExecutionTime) {
         // 마지막 실행 시간이 있으면 그 시간부터 계산
         const lastTime = new Date(parseInt(lastExecutionTime));
         nextTime = new Date(lastTime.getTime() + tradeIntervalMinutes * 60 * 1000);
-        
+
         // 이미 지난 시간이면 다음 주기로
         while (nextTime <= now) {
             nextTime = new Date(nextTime.getTime() + tradeIntervalMinutes * 60 * 1000);
@@ -284,7 +392,7 @@ function calculateNextTradeTime() {
         // 처음이면 현재 시간부터 다음 주기
         nextTime = new Date(now.getTime() + tradeIntervalMinutes * 60 * 1000);
     }
-    
+
     console.log('로컬 계산 시간:', nextTime);
     return nextTime;
 }
@@ -298,15 +406,15 @@ function startTradingCountdown() {
     if (statusUpdateInterval) {
         clearInterval(statusUpdateInterval);
     }
-    
+
     // 서버 상태 가져오기 (이미 페이지 로드 시 가져왔으므로 calculateNextTradeTime만 호출)
     // 다음 거래 시간 계산
     nextTradeTime = calculateNextTradeTime();
-    
+
     // 1초마다 카운트다운 업데이트
     countdownInterval = setInterval(updateCountdown, 1000);
     updateCountdown(); // 즉시 첫 업데이트
-    
+
     // 10초마다 서버 상태 업데이트
     statusUpdateInterval = setInterval(() => {
         fetchAutoTradingStatus();
@@ -330,32 +438,32 @@ function updateCountdown() {
     if (!nextTradeTime) {
         nextTradeTime = calculateNextTradeTime();
     }
-    
+
     // 서버 시간 표시 업데이트
     const nextTradeTimeElement = document.getElementById('next-trade-time');
     const lastTradeTimeElement = document.getElementById('last-trade-time');
-    
+
     if (nextTradeTimeElement && nextTradeTime) {
         // KST 시간으로 표시
-        const options = { 
-            year: 'numeric', 
-            month: '2-digit', 
-            day: '2-digit', 
-            hour: '2-digit', 
-            minute: '2-digit', 
+        const options = {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
             second: '2-digit',
             timeZone: 'Asia/Seoul'
         };
         nextTradeTimeElement.textContent = nextTradeTime.toLocaleString('ko-KR', options) + ' KST';
     }
-    
+
     if (lastTradeTimeElement && autoTradingStatus && autoTradingStatus.last_execution) {
         lastTradeTimeElement.textContent = autoTradingStatus.last_execution;
     }
-    
+
     const now = new Date();
     const diff = nextTradeTime - now;
-    
+
     if (diff <= 0) {
         // 시간이 지났으면 서버 상태 업데이트 후 다시 계산
         const countdownDisplay = document.getElementById('countdown-display');
@@ -363,7 +471,7 @@ function updateCountdown() {
             countdownDisplay.textContent = '분석 중...';
             countdownDisplay.className = 'text-warning animate-pulse';
         }
-        
+
         // 서버 상태 업데이트
         setTimeout(() => {
             fetchAutoTradingStatus().then(() => {
@@ -372,12 +480,12 @@ function updateCountdown() {
         }, 3000);
         return;
     }
-    
+
     // 시간 계산
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
+
     // 표시 형식 결정
     let displayText = '';
     if (hours > 0) {
@@ -387,7 +495,7 @@ function updateCountdown() {
     } else {
         displayText = `${seconds}초 남음`;
     }
-    
+
     // 카운트다운 표시
     const countdownDisplay = document.getElementById('countdown-display');
     if (countdownDisplay) {
@@ -409,38 +517,38 @@ function manualAnalyze() {
     const originalText = analyzeBtn.innerHTML;
     analyzeBtn.disabled = true;
     analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 분석 중...';
-    
+
     fetch('/api/manual_trading/analyze', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         }
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            displayAnalysisResults(data.data);
-            showAlert('success', '전략 분석이 완료되었습니다.');
-        } else {
-            showAlert('danger', `분석 실패: ${data.message}`);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', '분석 중 오류가 발생했습니다.');
-    })
-    .finally(() => {
-        // 버튼 복원
-        analyzeBtn.disabled = false;
-        analyzeBtn.innerHTML = originalText;
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayAnalysisResults(data.data);
+                showAlert('success', '전략 분석이 완료되었습니다.');
+            } else {
+                showAlert('danger', `분석 실패: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', '분석 중 오류가 발생했습니다.');
+        })
+        .finally(() => {
+            // 버튼 복원
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = originalText;
+        });
 }
 
 // 수동 거래 실행
 function manualExecute(action) {
     let confirmMessage = '';
-    
-    switch(action) {
+
+    switch (action) {
         case 'analyze_and_execute':
             confirmMessage = '전략 분석 후 결과에 따라 자동으로 거래를 실행하시겠습니까?';
             break;
@@ -454,17 +562,17 @@ function manualExecute(action) {
             showAlert('danger', '지원하지 않는 액션입니다.');
             return;
     }
-    
+
     if (!confirm(confirmMessage)) {
         return;
     }
-    
+
     // 실행 버튼 비활성화
     const executeBtn = event.target;
     const originalText = executeBtn.innerHTML;
     executeBtn.disabled = true;
     executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 실행 중...';
-    
+
     fetch('/api/manual_trading/execute', {
         method: 'POST',
         headers: {
@@ -472,43 +580,46 @@ function manualExecute(action) {
         },
         body: JSON.stringify({ action: action })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            displayExecutionResults(data.message, 'success');
-            showAlert('success', data.message);
-            // 잔고 정보 새로고침
-            setTimeout(() => location.reload(), 2000);
-        } else {
-            displayExecutionResults(data.message, 'danger');
-            showAlert('danger', `실행 실패: ${data.message}`);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        const errorMsg = '거래 실행 중 오류가 발생했습니다.';
-        displayExecutionResults(errorMsg, 'danger');
-        showAlert('danger', errorMsg);
-    })
-    .finally(() => {
-        // 버튼 복원
-        executeBtn.disabled = false;
-        executeBtn.innerHTML = originalText;
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayExecutionResults(data.message, 'success');
+                showAlert('success', data.message);
+                // 대시보드 데이터 즉시 새로고침 (페이지 리로드 대신)
+                setTimeout(async () => {
+                    await updateDashboardData();
+                    await updateAutoTradingStatus();
+                }, 1000);
+            } else {
+                displayExecutionResults(data.message, 'danger');
+                showAlert('danger', `실행 실패: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            const errorMsg = '거래 실행 중 오류가 발생했습니다.';
+            displayExecutionResults(errorMsg, 'danger');
+            showAlert('danger', errorMsg);
+        })
+        .finally(() => {
+            // 버튼 복원
+            executeBtn.disabled = false;
+            executeBtn.innerHTML = originalText;
+        });
 }
 
 // 분석 결과 표시
 function displayAnalysisResults(data) {
     const resultsDiv = document.getElementById('analysis-results');
     const contentDiv = document.getElementById('analysis-content');
-    
+
     // API 상태 표시
-    const apiStatusBadge = data.api_status === 'REAL_API' ? 
-        '<span class="badge bg-success ms-2"><i class="fas fa-wifi"></i> 실제 API</span>' : 
+    const apiStatusBadge = data.api_status === 'REAL_API' ?
+        '<span class="badge bg-success ms-2"><i class="fas fa-wifi"></i> 실제 API</span>' :
         '<span class="badge bg-warning ms-2"><i class="fas fa-exclamation-triangle"></i> 시뮬레이션</span>';
-    
-    const marketDataBadge = data.market_data_available === false ? 
-        '<span class="badge bg-secondary ms-1">모의 데이터</span>' : 
+
+    const marketDataBadge = data.market_data_available === false ?
+        '<span class="badge bg-secondary ms-1">모의 데이터</span>' :
         '<span class="badge bg-info ms-1">실시간 데이터</span>';
 
     let html = `
@@ -523,13 +634,13 @@ function displayAnalysisResults(data) {
                     ${marketDataBadge}
                 </div>
             </div>
-            ${data.api_status === 'SIMULATION' ? 
-                '<div class="alert alert-warning alert-sm mt-2 mb-0"><i class="fas fa-info-circle"></i> <strong>시뮬레이션 모드:</strong> API 키가 설정되지 않았거나 연결에 실패했습니다. 모의 데이터로 분석을 진행합니다.</div>' : 
-                '<div class="alert alert-success alert-sm mt-2 mb-0"><i class="fas fa-check-circle"></i> <strong>실시간 모드:</strong> 업비트 API를 통해 실제 시장 데이터로 분석을 진행합니다.</div>'
-            }
+            ${data.api_status === 'SIMULATION' ?
+            '<div class="alert alert-warning alert-sm mt-2 mb-0"><i class="fas fa-info-circle"></i> <strong>시뮬레이션 모드:</strong> API 키가 설정되지 않았거나 연결에 실패했습니다. 모의 데이터로 분석을 진행합니다.</div>' :
+            '<div class="alert alert-success alert-sm mt-2 mb-0"><i class="fas fa-check-circle"></i> <strong>실시간 모드:</strong> 업비트 API를 통해 실제 시장 데이터로 분석을 진행합니다.</div>'
+        }
         </div>
     `;
-    
+
     // 개별 전략 신호 - 테이블 형태
     if (data.individual_signals && data.individual_signals.length > 0) {
         html += '<h6><i class="fas fa-chart-line"></i> 개별 전략 분석 결과</h6>';
@@ -547,11 +658,11 @@ function displayAnalysisResults(data) {
                     </thead>
                     <tbody>
         `;
-        
+
         // 전략 이름 매핑 (고정)
         const strategyNames = {
             'ema_cross': 'EMA 골든크로스',
-            'rsi_divergence': 'RSI 다이버전스', 
+            'rsi_divergence': 'RSI 다이버전스',
             'pivot_points': '피봇 포인트',
             'vwap_pullback': 'VWAP 되돌림',
             'macd_zero_cross': 'MACD 제로크로스',
@@ -559,22 +670,22 @@ function displayAnalysisResults(data) {
             'open_interest': '미체결 약정',
             'flag_pennant': '깃발/페넌트'
         };
-        
+
         data.individual_signals.forEach(signal => {
-            const actionClass = signal.action === 'buy' ? 'success' : 
-                               signal.action === 'sell' ? 'danger' : 'secondary';
-            const actionText = signal.action === 'buy' ? '매수' : 
-                              signal.action === 'sell' ? '매도' : '홀드';
-            const actionIcon = signal.action === 'buy' ? 'fa-arrow-up' : 
-                              signal.action === 'sell' ? 'fa-arrow-down' : 'fa-minus';
+            const actionClass = signal.action === 'buy' ? 'success' :
+                signal.action === 'sell' ? 'danger' : 'secondary';
+            const actionText = signal.action === 'buy' ? '매수' :
+                signal.action === 'sell' ? '매도' : '홀드';
+            const actionIcon = signal.action === 'buy' ? 'fa-arrow-up' :
+                signal.action === 'sell' ? 'fa-arrow-down' : 'fa-minus';
             const strategyName = strategyNames[signal.strategy_id] || signal.strategy_id.toUpperCase();
-            
+
             // 신뢰도에 따른 색상 클래스
             const confidence = signal.confidence * 100;
             let confidenceClass = 'confidence-low';
             if (confidence >= 70) confidenceClass = 'confidence-high';
             else if (confidence >= 50) confidenceClass = 'confidence-medium';
-            
+
             html += `
                 <tr class="table-row-${actionClass === 'secondary' ? 'light' : actionClass === 'success' ? 'success' : 'danger'}">
                     <td>
@@ -597,10 +708,10 @@ function displayAnalysisResults(data) {
                         <span class="${confidenceClass}">${confidence.toFixed(1)}%</span>
                     </td>
                     <td class="text-end">
-                        ${signal.suggested_amount > 0 ? 
-                            `<strong class="text-success">${signal.suggested_amount.toLocaleString()}원</strong>` : 
-                            '<span class="text-muted">-</span>'
-                        }
+                        ${signal.suggested_amount > 0 ?
+                    `<strong class="text-success">${signal.suggested_amount.toLocaleString()}원</strong>` :
+                    '<span class="text-muted">-</span>'
+                }
                     </td>
                     <td>
                         <div class="text-dark" style="font-size: 0.85rem; line-height: 1.3;">
@@ -610,7 +721,7 @@ function displayAnalysisResults(data) {
                 </tr>
             `;
         });
-        
+
         html += `
                     </tbody>
                 </table>
@@ -625,17 +736,17 @@ function displayAnalysisResults(data) {
             </div>
         `;
     }
-    
+
     // 통합 신호
     if (data.consolidated_signal) {
         const signal = data.consolidated_signal;
-        const actionClass = signal.action === 'buy' ? 'success' : 
-                           signal.action === 'sell' ? 'danger' : 'warning';
-        const actionText = signal.action === 'buy' ? '매수' : 
-                          signal.action === 'sell' ? '매도' : '홀드';
-        const actionIcon = signal.action === 'buy' ? 'fa-arrow-up' : 
-                          signal.action === 'sell' ? 'fa-arrow-down' : 'fa-pause';
-        
+        const actionClass = signal.action === 'buy' ? 'success' :
+            signal.action === 'sell' ? 'danger' : 'warning';
+        const actionText = signal.action === 'buy' ? '매수' :
+            signal.action === 'sell' ? '매도' : '홀드';
+        const actionIcon = signal.action === 'buy' ? 'fa-arrow-up' :
+            signal.action === 'sell' ? 'fa-arrow-down' : 'fa-pause';
+
         html += `
             <hr>
             <h6><i class="fas fa-magic"></i> 최종 통합 결정</h6>
@@ -660,22 +771,22 @@ function displayAnalysisResults(data) {
                     </div>
                     <div class="col-md-4 text-center">
                         <div class="mt-2">
-                            ${signal.action !== 'hold' ? 
-                                `<button class="btn btn-${actionClass} btn-sm" onclick="manualExecute('analyze_and_execute')">
+                            ${signal.action !== 'hold' ?
+                `<button class="btn btn-${actionClass} btn-sm" onclick="manualExecute('analyze_and_execute')">
                                     <i class="fas fa-bolt"></i> 즉시 실행
-                                </button>` : 
-                                '<span class="text-muted"><i class="fas fa-pause"></i> 실행 권장하지 않음</span>'
-                            }
+                                </button>` :
+                '<span class="text-muted"><i class="fas fa-pause"></i> 실행 권장하지 않음</span>'
+            }
                         </div>
                     </div>
                 </div>
             </div>
         `;
     }
-    
+
     contentDiv.innerHTML = html;
     resultsDiv.style.display = 'block';
-    
+
     // 스크롤을 분석 결과로 이동
     resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -684,15 +795,15 @@ function displayAnalysisResults(data) {
 function displayExecutionResults(message, type) {
     const resultsDiv = document.getElementById('execution-results');
     const messageDiv = document.getElementById('execution-message');
-    
+
     messageDiv.className = `alert alert-${type}`;
     messageDiv.innerHTML = `
         <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
         ${message}
     `;
-    
+
     resultsDiv.style.display = 'block';
-    
+
     // 5초 후 자동 숨김
     setTimeout(() => {
         resultsDiv.style.display = 'none';
@@ -706,7 +817,7 @@ function showAlert(type, message) {
     if (existingAlert) {
         existingAlert.remove();
     }
-    
+
     // 새 알림 생성
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-floating`;
@@ -721,9 +832,9 @@ function showAlert(type, message) {
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         ${message}
     `;
-    
+
     document.body.appendChild(alertDiv);
-    
+
     // 5초 후 자동 제거
     setTimeout(() => {
         if (alertDiv.parentNode) {
@@ -739,49 +850,49 @@ function runBacktest() {
     const period = document.getElementById('backtest-period').value;
     const btn = event.target;
     const originalText = btn.innerHTML;
-    
+
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 실행 중...';
-    
+
     fetch('/api/backtesting/run', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
             mode: 'basic',
             days: parseInt(period)
         })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            displayBacktestResults(data);
-            loadBacktestHistory(); // 히스토리 새로고침
-            showAlert('success', `백테스트 완료: 수익률 ${data.metrics.total_return}`);
-        } else {
-            showAlert('danger', `백테스트 실패: ${data.message}`);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', '백테스트 중 오류가 발생했습니다.');
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayBacktestResults(data);
+                loadBacktestHistory(); // 히스토리 새로고침
+                showAlert('success', `백테스트 완료: 수익률 ${data.metrics.total_return}`);
+            } else {
+                showAlert('danger', `백테스트 실패: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', '백테스트 중 오류가 발생했습니다.');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
 }
 
 // 백테스트 결과 표시
 function displayBacktestResults(data) {
     const resultsDiv = document.getElementById('backtest-results');
     const contentDiv = document.getElementById('backtest-content');
-    
+
     // 성과 등급별 색상
-    const gradeClass = data.metrics.performance_grade === 'A' ? 'success' : 
-                      data.metrics.performance_grade === 'B' ? 'warning' : 'danger';
-    
+    const gradeClass = data.metrics.performance_grade === 'A' ? 'success' :
+        data.metrics.performance_grade === 'B' ? 'warning' : 'danger';
+
     const html = `
         <div class="row">
             <div class="col-md-6">
@@ -851,10 +962,10 @@ function displayBacktestResults(data) {
             </small>
         </div>
     `;
-    
+
     contentDiv.innerHTML = html;
     resultsDiv.style.display = 'block';
-    
+
     // 스크롤을 결과로 이동
     resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -862,18 +973,18 @@ function displayBacktestResults(data) {
 // 백테스트 히스토리 로드
 function loadBacktestHistory() {
     fetch('/api/backtesting/history')
-    .then(response => response.json())
-    .then(data => {
-        const historyDiv = document.getElementById('backtest-history');
-        
-        if (data.results && data.results.length > 0) {
-            let html = '<div class="list-group list-group-flush">';
-            
-            data.results.slice(0, 5).forEach(result => {
-                const returnClass = result.total_return >= 0 ? 'text-success' : 'text-danger';
-                const returnText = (result.total_return * 100).toFixed(2) + '%';
-                
-                html += `
+        .then(response => response.json())
+        .then(data => {
+            const historyDiv = document.getElementById('backtest-history');
+
+            if (data.results && data.results.length > 0) {
+                let html = '<div class="list-group list-group-flush">';
+
+                data.results.slice(0, 5).forEach(result => {
+                    const returnClass = result.total_return >= 0 ? 'text-success' : 'text-danger';
+                    const returnText = (result.total_return * 100).toFixed(2) + '%';
+
+                    html += `
                     <div class="list-group-item list-group-item-action p-2">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -889,45 +1000,45 @@ function loadBacktestHistory() {
                         </div>
                     </div>
                 `;
-            });
-            
-            html += '</div>';
-            historyDiv.innerHTML = html;
-        } else {
-            historyDiv.innerHTML = `
+                });
+
+                html += '</div>';
+                historyDiv.innerHTML = html;
+            } else {
+                historyDiv.innerHTML = `
                 <div class="text-center text-muted py-3">
                     <i class="fas fa-chart-line"></i><br>
                     백테스트 기록이 없습니다
                 </div>
             `;
-        }
-    })
-    .catch(error => {
-        console.error('Error loading backtest history:', error);
-        document.getElementById('backtest-history').innerHTML = `
+            }
+        })
+        .catch(error => {
+            console.error('Error loading backtest history:', error);
+            document.getElementById('backtest-history').innerHTML = `
             <div class="text-center text-muted py-3">
                 <i class="fas fa-exclamation-triangle"></i><br>
                 히스토리 로드 실패
             </div>
         `;
-    });
+        });
 }
 
 // 전략 세부 정보 표시
 function showStrategyDetails(strategyId) {
     fetch(`/api/strategy/${strategyId}/details`)
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            displayStrategyDetails(data.details);
-        } else {
-            showAlert('danger', `전략 정보 조회 실패: ${data.message}`);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', '전략 정보 조회 중 오류가 발생했습니다.');
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayStrategyDetails(data.details);
+            } else {
+                showAlert('danger', `전략 정보 조회 실패: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', '전략 정보 조회 중 오류가 발생했습니다.');
+        });
 }
 
 // 전략 세부 정보 모달 표시
@@ -937,12 +1048,12 @@ function displayStrategyDetails(details) {
     if (existingModal) {
         existingModal.remove();
     }
-    
+
     // 현재 값들 표시
     let currentValuesHtml = '<div class="row">';
     const values = details.current_values || {};
     let colCount = 0;
-    
+
     for (const [key, value] of Object.entries(values)) {
         if (colCount % 2 === 0 && colCount > 0) {
             currentValuesHtml += '</div><div class="row">';
@@ -958,7 +1069,7 @@ function displayStrategyDetails(details) {
         colCount++;
     }
     currentValuesHtml += '</div>';
-    
+
     // 계산 방법 표시
     let calculationHtml = '';
     if (details.calculation_method) {
@@ -972,7 +1083,7 @@ function displayStrategyDetails(details) {
         }
         calculationHtml += '</div>';
     }
-    
+
     // 추가 필터 표시
     let filtersHtml = '';
     if (details.additional_filters) {
@@ -986,7 +1097,7 @@ function displayStrategyDetails(details) {
         }
         filtersHtml += '</div>';
     }
-    
+
     // 임계값 표시
     let thresholdsHtml = '';
     if (details.thresholds) {
@@ -1000,7 +1111,7 @@ function displayStrategyDetails(details) {
         }
         thresholdsHtml += '</div>';
     }
-    
+
     // 모달 HTML
     const modalHtml = `
         <div class="modal fade" id="strategy-details-modal" tabindex="-1">
@@ -1064,14 +1175,14 @@ function displayStrategyDetails(details) {
             </div>
         </div>
     `;
-    
+
     // 모달을 body에 추가
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
+
     // 모달 표시
     const modal = new bootstrap.Modal(document.getElementById('strategy-details-modal'));
     modal.show();
-    
+
     // 모달이 완전히 숨겨진 후 DOM에서 제거
     document.getElementById('strategy-details-modal').addEventListener('hidden.bs.modal', function () {
         this.remove();
@@ -1081,60 +1192,60 @@ function displayStrategyDetails(details) {
 // 자동 분석 이력 로드
 function loadAnalysisHistory() {
     fetch('/api/analysis/latest?limit=5')
-    .then(response => response.json())
-    .then(data => {
-        const historyDiv = document.getElementById('analysis-history');
-        
-        if (data.success && data.analyses && data.analyses.length > 0) {
-            let html = '<div class="table-responsive"><table class="table table-sm table-striped">';
-            html += '<thead><tr><th>시간</th><th>액션</th><th>신뢰도</th><th>이유</th></tr></thead><tbody>';
-            
-            data.analyses.forEach(analysis => {
-                const timestamp = new Date(analysis.timestamp);
-                const action = analysis.action || 'hold';
-                const confidence = (analysis.confidence || 0) * 100;
-                const reasoning = analysis.reasoning || '분석 중...';
-                
-                const actionClass = action === 'buy' ? 'success' : 
-                                   action === 'sell' ? 'danger' : 'secondary';
-                const actionText = action === 'buy' ? '매수' : 
-                                  action === 'sell' ? '매도' : '홀드';
-                
-                html += `
+        .then(response => response.json())
+        .then(data => {
+            const historyDiv = document.getElementById('analysis-history');
+
+            if (data.success && data.analyses && data.analyses.length > 0) {
+                let html = '<div class="table-responsive"><table class="table table-sm table-striped">';
+                html += '<thead><tr><th>시간</th><th>액션</th><th>신뢰도</th><th>이유</th></tr></thead><tbody>';
+
+                data.analyses.forEach(analysis => {
+                    const timestamp = new Date(analysis.timestamp);
+                    const action = analysis.action || 'hold';
+                    const confidence = (analysis.confidence || 0) * 100;
+                    const reasoning = analysis.reasoning || '분석 중...';
+
+                    const actionClass = action === 'buy' ? 'success' :
+                        action === 'sell' ? 'danger' : 'secondary';
+                    const actionText = action === 'buy' ? '매수' :
+                        action === 'sell' ? '매도' : '홀드';
+
+                    html += `
                     <tr>
                         <td>${timestamp.toLocaleString('ko-KR', {
-                            month: '2-digit', 
-                            day: '2-digit', 
-                            hour: '2-digit', 
-                            minute: '2-digit'
-                        })}</td>
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })}</td>
                         <td><span class="badge bg-${actionClass}">${actionText}</span></td>
                         <td>${confidence.toFixed(1)}%</td>
                         <td><small>${reasoning}</small></td>
                     </tr>
                 `;
-            });
-            
-            html += '</tbody></table></div>';
-            historyDiv.innerHTML = html;
-        } else {
-            historyDiv.innerHTML = `
+                });
+
+                html += '</tbody></table></div>';
+                historyDiv.innerHTML = html;
+            } else {
+                historyDiv.innerHTML = `
                 <div class="text-center text-muted py-3">
                     <i class="fas fa-robot"></i><br>
                     자동 분석 기록이 없습니다
                 </div>
             `;
-        }
-    })
-    .catch(error => {
-        console.error('Error loading analysis history:', error);
-        document.getElementById('analysis-history').innerHTML = `
+            }
+        })
+        .catch(error => {
+            console.error('Error loading analysis history:', error);
+            document.getElementById('analysis-history').innerHTML = `
             <div class="text-center text-muted py-3">
                 <i class="fas fa-exclamation-triangle"></i><br>
                 분석 이력 로드 실패
             </div>
         `;
-    });
+        });
 }
 
 // 분석 이력 새로고침
@@ -1145,48 +1256,48 @@ function refreshAnalysisHistory() {
 }
 
 // 페이지 로드 시 실행
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
     console.log('페이지 로드 시작');
-    
+
     // 백테스트 히스토리 로드
     loadBacktestHistory();
-    
+
     // 자동 분석 이력 로드
     loadAnalysisHistory();
-    
+
     // 거래 설정 가져오기
     await fetchTradingConfig();
     console.log('거래 설정 로드 완료:', tradeIntervalMinutes);
-    
+
     // 서버 자동 거래 상태 가져오기 및 UI 업데이트
     await updateAutoTradingStatus();
     console.log('자동 거래 상태 업데이트 완료');
-    
+
     // 10초마다 자동 거래 상태 업데이트
     setInterval(updateAutoTradingStatus, 10000);
-    
+
     // 자동거래 상태 확인 및 타이머 시작
     checkTradingStatusAndStartTimer();
-    
+
     // 주기적으로 분석 이력 업데이트 (1분마다)
     setInterval(loadAnalysisHistory, 60000);
-    
+
     // 전략 링크 클릭 이벤트 처리
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         if (e.target.closest('.strategy-link')) {
             e.preventDefault();
             const strategyId = e.target.closest('.strategy-link').dataset.strategyId;
             showStrategyDetails(strategyId);
         }
     });
-    
+
     // 자동 새로고침 (30초마다)
     setInterval(() => {
         // 분석 결과나 실행 결과가 표시 중이면 새로고침 건너뛰기
         const analysisVisible = document.getElementById('analysis-results').style.display !== 'none';
         const executionVisible = document.getElementById('execution-results').style.display !== 'none';
         const backtestVisible = document.getElementById('backtest-results').style.display !== 'none';
-        
+
         if (!analysisVisible && !executionVisible && !backtestVisible) {
             // 백그라운드에서 데이터만 업데이트
             updateDashboardData();
@@ -1198,7 +1309,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 function checkTradingStatusAndStartTimer() {
     const tradingStatusElement = document.querySelector('#trading-status-container .badge');
     const timerElement = document.getElementById('next-trade-timer');
-    
+
     if (tradingStatusElement && tradingStatusElement.classList.contains('bg-success')) {
         // 자동거래가 활성화 상태면 타이머 시작
         if (timerElement) {
@@ -1211,25 +1322,25 @@ function checkTradingStatusAndStartTimer() {
 // 대시보드 데이터 업데이트 (페이지 새로고침 없이)
 function updateDashboardData() {
     fetch('/api/dashboard_data')
-    .then(response => response.json())
-    .then(data => {
-        // 통계 업데이트
-        if (data.total_trades !== undefined) {
-            document.getElementById('total-trades').textContent = data.total_trades;
-        }
-        if (data.today_trades !== undefined) {
-            document.getElementById('today-trades').textContent = data.today_trades;
-        }
-        if (data.total_pnl !== undefined) {
-            const pnlElement = document.getElementById('total-pnl');
-            pnlElement.textContent = data.total_pnl.toLocaleString() + ' KRW';
-            pnlElement.className = data.total_pnl >= 0 ? 'profit' : 'loss';
-        }
-        if (data.win_rate !== undefined) {
-            document.getElementById('win-rate').textContent = data.win_rate.toFixed(1) + '%';
-        }
-    })
-    .catch(error => {
-        console.error('Dashboard data update error:', error);
-    });
+        .then(response => response.json())
+        .then(data => {
+            // 통계 업데이트
+            if (data.total_trades !== undefined) {
+                document.getElementById('total-trades').textContent = data.total_trades;
+            }
+            if (data.today_trades !== undefined) {
+                document.getElementById('today-trades').textContent = data.today_trades;
+            }
+            if (data.total_pnl !== undefined) {
+                const pnlElement = document.getElementById('total-pnl');
+                pnlElement.textContent = data.total_pnl.toLocaleString() + ' KRW';
+                pnlElement.className = data.total_pnl >= 0 ? 'profit' : 'loss';
+            }
+            if (data.win_rate !== undefined) {
+                document.getElementById('win-rate').textContent = data.win_rate.toFixed(1) + '%';
+            }
+        })
+        .catch(error => {
+            console.error('Dashboard data update error:', error);
+        });
 }
