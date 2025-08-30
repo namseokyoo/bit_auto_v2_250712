@@ -349,32 +349,46 @@ def api_latest_analysis():
 
 @app.route('/api/auto_trading_status')
 def api_auto_trading_status():
-    """자동 거래 상태 API (파일 기반)"""
+    """자동 거래 상태 API (개선된 AutoTrader 기반)"""
     try:
-        from core.result_manager import result_manager
-
-        # 파일에서 상태 읽기
-        status = result_manager.get_current_status()
-
-        if not status:
-            # 파일이 없으면 기본값 반환
-            status = {
-                'running': False,
-                'last_execution': None,
-                'next_execution': None,
-                'auto_trading_enabled': config_manager.is_trading_enabled()
-            }
+        from core.auto_trader import auto_trader, get_auto_trading_status
+        
+        # 실제 AutoTrader에서 상태 가져오기
+        status = get_auto_trading_status()
+        
+        # 추가적인 상태 정보 보강
+        enhanced_status = {
+            'running': status['running'],
+            'auto_trading_enabled': config_manager.is_trading_enabled(),
+            'system_enabled': config_manager.is_system_enabled(),
+            'last_execution': status.get('last_execution_time'),
+            'next_execution': status.get('next_execution_time'),
+            'last_started_at': status.get('last_started_at'),
+            'success_rate': status.get('success_rate', 0),
+            'total_executions': status.get('total_executions', 0),
+            'mode': config_manager.get_config('system.mode'),
+            'last_updated': datetime.now().isoformat()
+        }
 
         return jsonify({
             'success': True,
-            'status': status
+            'status': enhanced_status
         })
     except Exception as e:
         logger.error(f"자동 거래 상태 조회 오류: {e}")
+        # 백업 상태 반환
         return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
+            'success': True,
+            'status': {
+                'running': False,
+                'auto_trading_enabled': config_manager.is_trading_enabled(),
+                'system_enabled': config_manager.is_system_enabled(),
+                'last_execution': None,
+                'next_execution': None,
+                'mode': config_manager.get_config('system.mode'),
+                'error': str(e)
+            }
+        })
 
 
 @app.route('/api/balance')
