@@ -1,0 +1,795 @@
+{% extends "base.html" %}
+
+{% block title %}전략 설정{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-cogs"></i> 전략 설정</h2>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-success" onclick="saveAllSettings()">
+                        <i class="fas fa-save"></i> 모든 설정 저장
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="resetToDefaults()">
+                        <i class="fas fa-undo"></i> 기본값 복원
+                    </button>
+                    <button type="button" class="btn btn-info" onclick="exportConfig()">
+                        <i class="fas fa-download"></i> 설정 내보내기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 알림 영역 -->
+    <div id="alert-container"></div>
+
+    <!-- 전체 가중치 설정 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-balance-scale"></i> 계층별 가중치</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="scalping-weight">스캘핑 계층 가중치:</label>
+                            <div class="d-flex align-items-center">
+                                <input type="range" class="form-range me-3" id="scalping-weight" 
+                                       min="0" max="1" step="0.01" value="0.4" 
+                                       oninput="updateWeightDisplay('scalping', this.value)">
+                                <span id="scalping-weight-value" class="badge bg-primary">0.4</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="trend-weight">트렌드 계층 가중치:</label>
+                            <div class="d-flex align-items-center">
+                                <input type="range" class="form-range me-3" id="trend-weight" 
+                                       min="0" max="1" step="0.01" value="0.35" 
+                                       oninput="updateWeightDisplay('trend', this.value)">
+                                <span id="trend-weight-value" class="badge bg-success">0.35</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="macro-weight">매크로 계층 가중치:</label>
+                            <div class="d-flex align-items-center">
+                                <input type="range" class="form-range me-3" id="macro-weight" 
+                                       min="0" max="1" step="0.01" value="0.25" 
+                                       oninput="updateWeightDisplay('macro', this.value)">
+                                <span id="macro-weight-value" class="badge bg-warning">0.25</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> 
+                                가중치 합계: <span id="total-weight">1.00</span> 
+                                <span id="weight-warning" class="text-danger ms-2" style="display: none;">
+                                    ⚠️ 가중치 합계가 1.0이 아닙니다!
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 스캘핑 전략 설정 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-bolt text-danger"></i> 스캘핑 전략 (단기)</h5>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- RSI 모멘텀 전략 -->
+                    <div class="strategy-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6><i class="fas fa-chart-area"></i> RSI 모멘텀 전략</h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="rsi-momentum-enabled" checked>
+                                <label class="form-check-label" for="rsi-momentum-enabled">활성화</label>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="rsi-period">RSI 기간:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="rsi-period" 
+                                           min="5" max="50" value="14" 
+                                           oninput="updateValueDisplay('rsi-period', this.value)">
+                                    <span id="rsi-period-value" class="badge bg-secondary">14</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="rsi-oversold">과매도 임계값:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="rsi-oversold" 
+                                           min="10" max="40" value="30" 
+                                           oninput="updateValueDisplay('rsi-oversold', this.value)">
+                                    <span id="rsi-oversold-value" class="badge bg-success">30</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="rsi-overbought">과매수 임계값:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="rsi-overbought" 
+                                           min="60" max="90" value="70" 
+                                           oninput="updateValueDisplay('rsi-overbought', this.value)">
+                                    <span id="rsi-overbought-value" class="badge bg-danger">70</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="rsi-momentum-threshold">모멘텀 임계값:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="rsi-momentum-threshold" 
+                                           min="0.001" max="0.01" step="0.001" value="0.002" 
+                                           oninput="updateValueDisplay('rsi-momentum-threshold', this.value, 3)">
+                                    <span id="rsi-momentum-threshold-value" class="badge bg-info">0.002</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-6">
+                                <label for="rsi-weight">전략 가중치:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="rsi-weight" 
+                                           min="0" max="1" step="0.01" value="0.4" 
+                                           oninput="updateValueDisplay('rsi-weight', this.value, 2)">
+                                    <span id="rsi-weight-value" class="badge bg-primary">0.40</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 볼린저밴드 스퀴즈 전략 -->
+                    <div class="strategy-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6><i class="fas fa-compress-arrows-alt"></i> 볼린저밴드 스퀴즈 전략</h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="bollinger-squeeze-enabled" checked>
+                                <label class="form-check-label" for="bollinger-squeeze-enabled">활성화</label>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="bb-period">볼린저밴드 기간:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="bb-period" 
+                                           min="10" max="50" value="20" 
+                                           oninput="updateValueDisplay('bb-period', this.value)">
+                                    <span id="bb-period-value" class="badge bg-secondary">20</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="bb-std">표준편차 배수:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="bb-std" 
+                                           min="1.0" max="3.0" step="0.1" value="2.0" 
+                                           oninput="updateValueDisplay('bb-std', this.value, 1)">
+                                    <span id="bb-std-value" class="badge bg-warning">2.0</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="squeeze-threshold">스퀴즈 임계값:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="squeeze-threshold" 
+                                           min="0.005" max="0.02" step="0.001" value="0.01" 
+                                           oninput="updateValueDisplay('squeeze-threshold', this.value, 3)">
+                                    <span id="squeeze-threshold-value" class="badge bg-info">0.010</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="bollinger-weight">전략 가중치:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="bollinger-weight" 
+                                           min="0" max="1" step="0.01" value="0.3" 
+                                           oninput="updateValueDisplay('bollinger-weight', this.value, 2)">
+                                    <span id="bollinger-weight-value" class="badge bg-primary">0.30</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 지지/저항 전략 -->
+                    <div class="strategy-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6><i class="fas fa-arrows-alt-h"></i> 지지/저항 전략</h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="support-resistance-enabled" checked>
+                                <label class="form-check-label" for="support-resistance-enabled">활성화</label>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="sr-lookback">과거 데이터 기간:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="sr-lookback" 
+                                           min="10" max="50" value="20" 
+                                           oninput="updateValueDisplay('sr-lookback', this.value)">
+                                    <span id="sr-lookback-value" class="badge bg-secondary">20</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="sr-tolerance">터치 허용오차:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="sr-tolerance" 
+                                           min="0.001" max="0.02" step="0.001" value="0.005" 
+                                           oninput="updateValueDisplay('sr-tolerance', this.value, 3)">
+                                    <span id="sr-tolerance-value" class="badge bg-info">0.005</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="sr-weight">전략 가중치:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="sr-weight" 
+                                           min="0" max="1" step="0.01" value="0.3" 
+                                           oninput="updateValueDisplay('sr-weight', this.value, 2)">
+                                    <span id="sr-weight-value" class="badge bg-primary">0.30</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 트렌드 전략 설정 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-trending-up text-success"></i> 트렌드 전략 (중기)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 
+                        트렌드 전략은 스캘핑 주기의 6배 간격으로 실행됩니다. (현재: 1시간)
+                    </div>
+                    
+                    <!-- Enhanced EMA 전략 -->
+                    <div class="strategy-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6><i class="fas fa-chart-line"></i> Enhanced EMA 전략</h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="enhanced-ema-enabled" checked>
+                                <label class="form-check-label" for="enhanced-ema-enabled">활성화</label>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="ema-slope-threshold">기울기 임계값:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="ema-slope-threshold" 
+                                           min="0.0001" max="0.005" step="0.0001" value="0.001" 
+                                           oninput="updateValueDisplay('ema-slope-threshold', this.value, 4)">
+                                    <span id="ema-slope-threshold-value" class="badge bg-info">0.0010</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="enhanced-ema-weight">전략 가중치:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="enhanced-ema-weight" 
+                                           min="0" max="1" step="0.01" value="0.4" 
+                                           oninput="updateValueDisplay('enhanced-ema-weight', this.value, 2)">
+                                    <span id="enhanced-ema-weight-value" class="badge bg-primary">0.40</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-12">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i> 
+                                    EMA 기간: 9, 21, 50, 200 (고정값)
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced VWAP 전략 -->
+                    <div class="strategy-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6><i class="fas fa-balance-scale"></i> Enhanced VWAP 전략</h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="enhanced-vwap-enabled" checked>
+                                <label class="form-check-label" for="enhanced-vwap-enabled">활성화</label>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="vwap-short-period">단기 VWAP 기간:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="vwap-short-period" 
+                                           min="10" max="50" value="20" 
+                                           oninput="updateValueDisplay('vwap-short-period', this.value)">
+                                    <span id="vwap-short-period-value" class="badge bg-secondary">20</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="vwap-volume-threshold">볼륨 임계값:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="vwap-volume-threshold" 
+                                           min="1.0" max="2.0" step="0.1" value="1.2" 
+                                           oninput="updateValueDisplay('vwap-volume-threshold', this.value, 1)">
+                                    <span id="vwap-volume-threshold-value" class="badge bg-warning">1.2</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="enhanced-vwap-weight">전략 가중치:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="enhanced-vwap-weight" 
+                                           min="0" max="1" step="0.01" value="0.35" 
+                                           oninput="updateValueDisplay('enhanced-vwap-weight', this.value, 2)">
+                                    <span id="enhanced-vwap-weight-value" class="badge bg-primary">0.35</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 피보나치 되돌림 전략 -->
+                    <div class="strategy-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6><i class="fas fa-magic"></i> 피보나치 되돌림 전략</h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="fibonacci-enabled" checked>
+                                <label class="form-check-label" for="fibonacci-enabled">활성화</label>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="fib-lookback">고점/저점 탐색 기간:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="fib-lookback" 
+                                           min="10" max="50" value="20" 
+                                           oninput="updateValueDisplay('fib-lookback', this.value)">
+                                    <span id="fib-lookback-value" class="badge bg-secondary">20</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="fib-tolerance">레벨 허용오차:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="fib-tolerance" 
+                                           min="0.01" max="0.05" step="0.01" value="0.02" 
+                                           oninput="updateValueDisplay('fib-tolerance', this.value, 2)">
+                                    <span id="fib-tolerance-value" class="badge bg-info">0.02</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="fibonacci-weight">전략 가중치:</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="range" class="form-range me-2" id="fibonacci-weight" 
+                                           min="0" max="1" step="0.01" value="0.25" 
+                                           oninput="updateValueDisplay('fibonacci-weight', this.value, 2)">
+                                    <span id="fibonacci-weight-value" class="badge bg-primary">0.25</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 실시간 미리보기 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-eye"></i> 실시간 미리보기</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary me-2" onclick="previewStrategy()">
+                        <i class="fas fa-play"></i> 현재 설정으로 전략 테스트
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="loadCurrentConfig()">
+                        <i class="fas fa-sync"></i> 현재 서버 설정 불러오기
+                    </button>
+                    
+                    <div id="preview-results" class="mt-3" style="display: none;">
+                        <div class="alert alert-light">
+                            <h6><i class="fas fa-chart-line"></i> 테스트 결과:</h6>
+                            <div id="preview-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- JavaScript -->
+<script>
+let configCache = {};
+let isLoading = false;
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    loadCurrentConfig();
+    
+    // 가중치 변경 감지
+    ['scalping-weight', 'trend-weight', 'macro-weight'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateTotalWeight);
+    });
+});
+
+function updateValueDisplay(elementId, value, decimals = 0) {
+    const displayElement = document.getElementById(elementId + '-value');
+    if (displayElement) {
+        displayElement.textContent = parseFloat(value).toFixed(decimals);
+    }
+}
+
+function updateWeightDisplay(tier, value) {
+    updateValueDisplay(tier + '-weight', value, 2);
+    updateTotalWeight();
+}
+
+function updateTotalWeight() {
+    const scalpingWeight = parseFloat(document.getElementById('scalping-weight').value);
+    const trendWeight = parseFloat(document.getElementById('trend-weight').value);
+    const macroWeight = parseFloat(document.getElementById('macro-weight').value);
+    
+    const total = scalpingWeight + trendWeight + macroWeight;
+    
+    document.getElementById('total-weight').textContent = total.toFixed(2);
+    
+    const warningElement = document.getElementById('weight-warning');
+    if (Math.abs(total - 1.0) > 0.01) {
+        warningElement.style.display = 'inline';
+    } else {
+        warningElement.style.display = 'none';
+    }
+}
+
+async function loadCurrentConfig() {
+    if (isLoading) return;
+    isLoading = true;
+    
+    try {
+        showAlert('현재 서버 설정을 불러오는 중...', 'info');
+        
+        const response = await fetch('/api/config/current');
+        const data = await response.json();
+        
+        if (data.success) {
+            configCache = data.config;
+            populateConfigForm(data.config);
+            showAlert('설정을 성공적으로 불러왔습니다.', 'success');
+        } else {
+            throw new Error(data.error || '설정 로드 실패');
+        }
+    } catch (error) {
+        console.error('설정 로드 오류:', error);
+        showAlert('설정 로드 중 오류가 발생했습니다: ' + error.message, 'danger');
+    } finally {
+        isLoading = false;
+    }
+}
+
+function populateConfigForm(config) {
+    try {
+        // 계층별 가중치
+        const tierWeights = config.strategies?.tier_weights || {};
+        setSliderValue('scalping-weight', tierWeights.scalping || 0.4);
+        setSliderValue('trend-weight', tierWeights.trend || 0.35);
+        setSliderValue('macro-weight', tierWeights.macro || 0.25);
+        
+        // 스캘핑 전략들
+        const scalpingStrategies = config.strategies?.scalping_strategies || {};
+        
+        // RSI 모멘텀
+        const rsiConfig = scalpingStrategies.rsi_momentum || {};
+        document.getElementById('rsi-momentum-enabled').checked = rsiConfig.enabled !== false;
+        setSliderValue('rsi-period', rsiConfig.rsi_period || 14);
+        setSliderValue('rsi-oversold', rsiConfig.oversold || 30);
+        setSliderValue('rsi-overbought', rsiConfig.overbought || 70);
+        setSliderValue('rsi-momentum-threshold', rsiConfig.momentum_threshold || 0.002);
+        setSliderValue('rsi-weight', rsiConfig.weight || 0.4);
+        
+        // 볼린저밴드
+        const bbConfig = scalpingStrategies.bollinger_squeeze || {};
+        document.getElementById('bollinger-squeeze-enabled').checked = bbConfig.enabled !== false;
+        setSliderValue('bb-period', bbConfig.bb_period || 20);
+        setSliderValue('bb-std', bbConfig.bb_std || 2.0);
+        setSliderValue('squeeze-threshold', bbConfig.squeeze_threshold || 0.01);
+        setSliderValue('bollinger-weight', bbConfig.weight || 0.3);
+        
+        // 지지/저항
+        const srConfig = scalpingStrategies.support_resistance || {};
+        document.getElementById('support-resistance-enabled').checked = srConfig.enabled !== false;
+        setSliderValue('sr-lookback', srConfig.lookback_period || 20);
+        setSliderValue('sr-tolerance', srConfig.touch_tolerance || 0.005);
+        setSliderValue('sr-weight', srConfig.weight || 0.3);
+        
+        // 트렌드 전략들
+        const trendStrategies = config.strategies?.trend_strategies || {};
+        
+        // Enhanced EMA
+        const emaConfig = trendStrategies.enhanced_ema || {};
+        document.getElementById('enhanced-ema-enabled').checked = emaConfig.enabled !== false;
+        setSliderValue('ema-slope-threshold', emaConfig.slope_threshold || 0.001);
+        setSliderValue('enhanced-ema-weight', emaConfig.weight || 0.4);
+        
+        // Enhanced VWAP
+        const vwapConfig = trendStrategies.enhanced_vwap || {};
+        document.getElementById('enhanced-vwap-enabled').checked = vwapConfig.enabled !== false;
+        setSliderValue('vwap-short-period', vwapConfig.short_period || 20);
+        setSliderValue('vwap-volume-threshold', vwapConfig.volume_threshold || 1.2);
+        setSliderValue('enhanced-vwap-weight', vwapConfig.weight || 0.35);
+        
+        // 피보나치
+        const fibConfig = trendStrategies.fibonacci_retracement || {};
+        document.getElementById('fibonacci-enabled').checked = fibConfig.enabled !== false;
+        setSliderValue('fib-lookback', fibConfig.lookback_period || 20);
+        setSliderValue('fib-tolerance', fibConfig.tolerance || 0.02);
+        setSliderValue('fibonacci-weight', fibConfig.weight || 0.25);
+        
+        updateTotalWeight();
+        
+    } catch (error) {
+        console.error('설정 폼 채우기 오류:', error);
+        showAlert('설정 폼 채우기 중 오류가 발생했습니다.', 'warning');
+    }
+}
+
+function setSliderValue(elementId, value) {
+    const slider = document.getElementById(elementId);
+    const valueDisplay = document.getElementById(elementId + '-value');
+    
+    if (slider && valueDisplay) {
+        slider.value = value;
+        
+        // 소수점 자리수 결정
+        let decimals = 0;
+        if (elementId.includes('weight') || elementId.includes('threshold') || elementId.includes('tolerance') || elementId.includes('std')) {
+            if (value < 0.1) decimals = 4;
+            else if (value < 1) decimals = 3;
+            else if (value < 10) decimals = 2;
+            else decimals = 1;
+        }
+        
+        valueDisplay.textContent = parseFloat(value).toFixed(decimals);
+    }
+}
+
+async function saveAllSettings() {
+    try {
+        showAlert('설정을 저장하는 중...', 'info');
+        
+        const config = buildConfigFromForm();
+        
+        const response = await fetch('/api/config/update', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('모든 설정이 성공적으로 저장되었습니다!', 'success');
+            configCache = config;
+        } else {
+            throw new Error(result.error || '설정 저장 실패');
+        }
+    } catch (error) {
+        console.error('설정 저장 오류:', error);
+        showAlert('설정 저장 중 오류가 발생했습니다: ' + error.message, 'danger');
+    }
+}
+
+function buildConfigFromForm() {
+    return {
+        strategies: {
+            tier_weights: {
+                scalping: parseFloat(document.getElementById('scalping-weight').value),
+                trend: parseFloat(document.getElementById('trend-weight').value),
+                macro: parseFloat(document.getElementById('macro-weight').value)
+            },
+            scalping_strategies: {
+                rsi_momentum: {
+                    enabled: document.getElementById('rsi-momentum-enabled').checked,
+                    weight: parseFloat(document.getElementById('rsi-weight').value),
+                    rsi_period: parseInt(document.getElementById('rsi-period').value),
+                    oversold: parseInt(document.getElementById('rsi-oversold').value),
+                    overbought: parseInt(document.getElementById('rsi-overbought').value),
+                    momentum_threshold: parseFloat(document.getElementById('rsi-momentum-threshold').value)
+                },
+                bollinger_squeeze: {
+                    enabled: document.getElementById('bollinger-squeeze-enabled').checked,
+                    weight: parseFloat(document.getElementById('bollinger-weight').value),
+                    bb_period: parseInt(document.getElementById('bb-period').value),
+                    bb_std: parseFloat(document.getElementById('bb-std').value),
+                    squeeze_threshold: parseFloat(document.getElementById('squeeze-threshold').value)
+                },
+                support_resistance: {
+                    enabled: document.getElementById('support-resistance-enabled').checked,
+                    weight: parseFloat(document.getElementById('sr-weight').value),
+                    lookback_period: parseInt(document.getElementById('sr-lookback').value),
+                    touch_tolerance: parseFloat(document.getElementById('sr-tolerance').value)
+                }
+            },
+            trend_strategies: {
+                enhanced_ema: {
+                    enabled: document.getElementById('enhanced-ema-enabled').checked,
+                    weight: parseFloat(document.getElementById('enhanced-ema-weight').value),
+                    ema_periods: [9, 21, 50, 200],
+                    slope_threshold: parseFloat(document.getElementById('ema-slope-threshold').value)
+                },
+                enhanced_vwap: {
+                    enabled: document.getElementById('enhanced-vwap-enabled').checked,
+                    weight: parseFloat(document.getElementById('enhanced-vwap-weight').value),
+                    short_period: parseInt(document.getElementById('vwap-short-period').value),
+                    volume_threshold: parseFloat(document.getElementById('vwap-volume-threshold').value)
+                },
+                fibonacci_retracement: {
+                    enabled: document.getElementById('fibonacci-enabled').checked,
+                    weight: parseFloat(document.getElementById('fibonacci-weight').value),
+                    lookback_period: parseInt(document.getElementById('fib-lookback').value),
+                    tolerance: parseFloat(document.getElementById('fib-tolerance').value)
+                }
+            }
+        }
+    };
+}
+
+async function previewStrategy() {
+    try {
+        showAlert('현재 설정으로 전략을 테스트하는 중...', 'info');
+        
+        const config = buildConfigFromForm();
+        
+        const response = await fetch('/api/strategy/preview', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayPreviewResults(result.data);
+            document.getElementById('preview-results').style.display = 'block';
+            showAlert('전략 테스트가 완료되었습니다.', 'success');
+        } else {
+            throw new Error(result.error || '전략 테스트 실패');
+        }
+    } catch (error) {
+        console.error('전략 테스트 오류:', error);
+        showAlert('전략 테스트 중 오류가 발생했습니다: ' + error.message, 'danger');
+    }
+}
+
+function displayPreviewResults(data) {
+    const content = document.getElementById('preview-content');
+    
+    let html = `
+        <div class="row">
+            <div class="col-md-6">
+                <strong>최종 신호:</strong> 
+                <span class="badge ${data.final_decision?.action === 'buy' ? 'bg-success' : 
+                    data.final_decision?.action === 'sell' ? 'bg-danger' : 'bg-secondary'}">
+                    ${data.final_decision?.action?.toUpperCase() || 'HOLD'}
+                </span>
+            </div>
+            <div class="col-md-6">
+                <strong>신뢰도:</strong> 
+                <span class="badge bg-info">${((data.final_decision?.confidence || 0) * 100).toFixed(1)}%</span>
+            </div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-12">
+                <strong>분석 근거:</strong> ${data.final_decision?.reasoning || '없음'}
+            </div>
+        </div>
+    `;
+    
+    content.innerHTML = html;
+}
+
+function resetToDefaults() {
+    if (confirm('모든 설정을 기본값으로 복원하시겠습니까?')) {
+        // 기본값들로 초기화
+        setSliderValue('scalping-weight', 0.4);
+        setSliderValue('trend-weight', 0.35);
+        setSliderValue('macro-weight', 0.25);
+        
+        // RSI 기본값
+        document.getElementById('rsi-momentum-enabled').checked = true;
+        setSliderValue('rsi-period', 14);
+        setSliderValue('rsi-oversold', 30);
+        setSliderValue('rsi-overbought', 70);
+        setSliderValue('rsi-momentum-threshold', 0.002);
+        setSliderValue('rsi-weight', 0.4);
+        
+        // 볼린저밴드 기본값
+        document.getElementById('bollinger-squeeze-enabled').checked = true;
+        setSliderValue('bb-period', 20);
+        setSliderValue('bb-std', 2.0);
+        setSliderValue('squeeze-threshold', 0.01);
+        setSliderValue('bollinger-weight', 0.3);
+        
+        // 기타 기본값들...
+        showAlert('모든 설정이 기본값으로 복원되었습니다.', 'info');
+        updateTotalWeight();
+    }
+}
+
+function exportConfig() {
+    const config = buildConfigFromForm();
+    const dataStr = JSON.stringify(config, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(dataBlob);
+    link.download = `strategy_config_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    
+    showAlert('설정이 JSON 파일로 내보내졌습니다.', 'success');
+}
+
+function showAlert(message, type) {
+    const alertContainer = document.getElementById('alert-container');
+    const alertId = 'alert-' + Date.now();
+    
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" id="${alertId}" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    alertContainer.innerHTML = alertHtml;
+    
+    // 3초 후 자동 제거
+    setTimeout(() => {
+        const alertElement = document.getElementById(alertId);
+        if (alertElement) {
+            alertElement.remove();
+        }
+    }, 3000);
+}
+</script>
+
+<style>
+.strategy-section {
+    border-left: 4px solid #007bff;
+    padding-left: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+}
+
+.form-range {
+    min-width: 100px;
+}
+
+.badge {
+    min-width: 50px;
+    font-size: 0.9rem;
+}
+
+.card-header h5 {
+    margin-bottom: 0;
+}
+
+.form-check-input:checked {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+</style>
+
+{% endblock %}

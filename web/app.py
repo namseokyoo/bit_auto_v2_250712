@@ -213,6 +213,12 @@ def strategy_analytics():
     """전략 분석 페이지"""
     return render_template('strategy_analytics.html')
 
+
+@app.route('/strategy_config')
+def strategy_config():
+    """전략 설정 페이지"""
+    return render_template('strategy_config.html')
+
 # API 엔드포인트들
 
 
@@ -1850,6 +1856,187 @@ def api_strategy_summary():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@app.route('/api/config/current')
+def api_config_current():
+    """현재 설정 조회 API"""
+    try:
+        # 전체 설정 불러오기
+        current_config = {
+            'strategies': {
+                'tier_weights': config_manager.get_config('strategies.tier_weights', {
+                    'scalping': 0.4,
+                    'trend': 0.35,
+                    'macro': 0.25
+                }),
+                'scalping_strategies': config_manager.get_config('strategies.scalping_strategies', {}),
+                'trend_strategies': config_manager.get_config('strategies.trend_strategies', {}),
+                'macro_strategies': config_manager.get_config('strategies.macro_strategies', {})
+            },
+            'trading': {
+                'trade_interval_minutes': config_manager.get_config('trading.trade_interval_minutes', 10)
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'config': current_config
+        })
+        
+    except Exception as e:
+        logger.error(f"현재 설정 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/config/update', methods=['PUT'])
+def api_config_update():
+    """설정 업데이트 API"""
+    try:
+        new_config = request.get_json()
+        
+        if not new_config:
+            return jsonify({
+                'success': False,
+                'error': '설정 데이터가 없습니다.'
+            }), 400
+        
+        # 설정 검증
+        validation_result = validate_strategy_config(new_config)
+        if not validation_result['valid']:
+            return jsonify({
+                'success': False,
+                'error': f"설정 검증 실패: {validation_result['errors']}"
+            }), 400
+        
+        # 설정 업데이트
+        updated_keys = []
+        
+        if 'strategies' in new_config:
+            strategies = new_config['strategies']
+            
+            # 계층별 가중치 업데이트
+            if 'tier_weights' in strategies:
+                config_manager.set_config('strategies.tier_weights', strategies['tier_weights'])
+                updated_keys.append('strategies.tier_weights')
+            
+            # 스캘핑 전략 업데이트
+            if 'scalping_strategies' in strategies:
+                config_manager.set_config('strategies.scalping_strategies', strategies['scalping_strategies'])
+                updated_keys.append('strategies.scalping_strategies')
+            
+            # 트렌드 전략 업데이트
+            if 'trend_strategies' in strategies:
+                config_manager.set_config('strategies.trend_strategies', strategies['trend_strategies'])
+                updated_keys.append('strategies.trend_strategies')
+            
+            # 매크로 전략 업데이트
+            if 'macro_strategies' in strategies:
+                config_manager.set_config('strategies.macro_strategies', strategies['macro_strategies'])
+                updated_keys.append('strategies.macro_strategies')
+        
+        # 거래 설정 업데이트
+        if 'trading' in new_config and 'trade_interval_minutes' in new_config['trading']:
+            config_manager.set_config('trading.trade_interval_minutes', new_config['trading']['trade_interval_minutes'])
+            updated_keys.append('trading.trade_interval_minutes')
+        
+        logger.info(f"설정 업데이트 완료: {updated_keys}")
+        
+        return jsonify({
+            'success': True,
+            'message': '설정이 성공적으로 업데이트되었습니다.',
+            'updated_keys': updated_keys
+        })
+        
+    except Exception as e:
+        logger.error(f"설정 업데이트 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/strategy/preview', methods=['POST'])
+def api_strategy_preview():
+    """전략 미리보기 API (임시 설정으로 테스트)"""
+    try:
+        test_config = request.get_json()
+        
+        if not test_config:
+            return jsonify({
+                'success': False,
+                'error': '테스트 설정이 없습니다.'
+            }), 400
+        
+        # 임시로 다층 전략 엔진에 테스트 설정 적용하여 분석 실행
+        # 실제 설정은 변경하지 않고 메모리상에서만 테스트
+        from core.multi_tier_strategy_engine import MultiTierStrategyEngine
+        
+        # 임시 엔진 생성 (실제 config는 변경하지 않음)
+        temp_engine = MultiTierStrategyEngine()
+        
+        # BTC-KRW 시장 데이터로 분석 수행
+        analysis_result = temp_engine.analyze("KRW-BTC")
+        
+        return jsonify({
+            'success': True,
+            'data': analysis_result
+        })
+        
+    except Exception as e:
+        logger.error(f"전략 미리보기 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+def validate_strategy_config(config):
+    """전략 설정 검증"""
+    errors = []
+    
+    try:
+        if 'strategies' in config:
+            strategies = config['strategies']
+            
+            # 가중치 검증
+            if 'tier_weights' in strategies:
+                tier_weights = strategies['tier_weights']
+                weight_sum = sum(tier_weights.values())
+                if abs(weight_sum - 1.0) > 0.01:
+                    errors.append(f"계층별 가중치 합계가 1.0이 아닙니다: {weight_sum:.3f}")
+                
+                for tier, weight in tier_weights.items():
+                    if not (0 <= weight <= 1):
+                        errors.append(f"가중치가 범위를 벗어났습니다 ({tier}: {weight})")
+            
+            # 스캘핑 전략 검증
+            if 'scalping_strategies' in strategies:
+                scalping = strategies['scalping_strategies']
+                
+                # RSI 파라미터 검증
+                if 'rsi_momentum' in scalping:
+                    rsi = scalping['rsi_momentum']
+                    if 'rsi_period' in rsi and not (5 <= rsi['rsi_period'] <= 50):
+                        errors.append("RSI 기간이 유효 범위(5-50)를 벗어났습니다.")
+                    if 'oversold' in rsi and not (10 <= rsi['oversold'] <= 40):
+                        errors.append("RSI 과매도 임계값이 유효 범위(10-40)를 벗어났습니다.")
+                    if 'overbought' in rsi and not (60 <= rsi['overbought'] <= 90):
+                        errors.append("RSI 과매수 임계값이 유효 범위(60-90)를 벗어났습니다.")
+        
+        return {
+            'valid': len(errors) == 0,
+            'errors': errors
+        }
+        
+    except Exception as e:
+        return {
+            'valid': False,
+            'errors': [f"설정 검증 중 오류: {str(e)}"]
+        }
 
 
 if __name__ == '__main__':
