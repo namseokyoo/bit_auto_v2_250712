@@ -28,8 +28,20 @@ jobs:
         HOST: ${{ secrets.ORACLE_HOST }}
         USER: ${{ secrets.ORACLE_USER }}
       run: |
-        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no deploy.sh $USER@$HOST:/tmp/
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST "bash /tmp/deploy.sh"
+        # 모든 파일을 서버로 복사
+        rsync -avz --delete -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+          --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
+          ./ $USER@$HOST:/opt/bitcoin_auto_trading/
+        
+        # 서비스 재시작
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
+          cd /opt/bitcoin_auto_trading
+          echo "=== 서비스 재시작 ==="
+          sudo systemctl restart bitcoin-trading
+          sleep 5
+          sudo systemctl status bitcoin-trading --no-pager
+          echo "=== 배포 완료 ==="
+        EOF
 
     - name: Verify Deployment
       env:

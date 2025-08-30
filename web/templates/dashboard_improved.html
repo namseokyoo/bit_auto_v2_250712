@@ -104,7 +104,8 @@
                 </div>
             </div>
             <div class="col-md-4 text-end">
-                <button id="system-toggle-btn" class="btn btn-secondary control-btn me-2" onclick="toggleSystemButton()">
+                <button id="system-toggle-btn" class="btn btn-secondary control-btn me-2"
+                    onclick="toggleSystemButton()">
                     <i id="system-btn-icon" class="fas fa-power-off me-2"></i>
                     <span id="system-btn-text">시스템시작</span>
                 </button>
@@ -476,7 +477,7 @@
     async function toggleSystemButton() {
         const sysText = document.getElementById('system-btn-text').textContent;
         const action = sysText.includes('시작') ? 'enable' : 'disable';
-        const resp = await fetch('/api/system/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action})});
+        const resp = await fetch('/api/system/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
         const data = await resp.json();
         if (data.success) {
             showAlert('success', data.message);
@@ -493,7 +494,7 @@
     async function toggleTradingButton() {
         const trgText = document.getElementById('trading-btn-text').textContent;
         const action = trgText.includes('시작') ? 'enable' : 'disable';
-        const resp = await fetch('/api/trading/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action})});
+        const resp = await fetch('/api/trading/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
         const data = await resp.json();
         if (data.success) {
             showAlert('success', data.message);
@@ -504,7 +505,7 @@
             const sysResp = await fetch('/api/system/status');
             const sys = await sysResp.json();
             if (sys.system_enabled) {
-                await fetch('/api/auto_trader/start', {method:'POST'});
+                await fetch('/api/auto_trader/start', { method: 'POST' });
             }
             setTimeout(updateDashboard, 800);
         } else {
@@ -619,7 +620,7 @@
     // 기존 함수들 (호환성 유지)
     function analyzeAndExecute() {
         if (confirm('현재 시장 상황을 분석하고 신호에 따라 거래를 실행하시겠습니까?')) {
-            fetch('/api/manual_trading/execute', { 
+            fetch('/api/manual_trading/execute', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -706,7 +707,7 @@
         analysis.strategy_details.forEach(strategy => {
             const actionBadge = strategy.action === 'buy' ? 'success' : strategy.action === 'sell' ? 'danger' : 'secondary';
             const actionText = strategy.action === 'buy' ? '매수' : strategy.action === 'sell' ? '매도' : '홀드';
-            
+
             modalHtml += `
                 <tr>
                     <td><small>${strategy.strategy_id}</small></td>
@@ -731,11 +732,11 @@
         // 기존 모달 제거 후 새로 추가
         document.getElementById('analysisModal')?.remove();
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
+
         // Bootstrap 모달 표시
         const modal = new bootstrap.Modal(document.getElementById('analysisModal'));
         modal.show();
-        
+
         // 간단한 성공 알림도 표시
         showAlert('success', '분석 완료');
     }
