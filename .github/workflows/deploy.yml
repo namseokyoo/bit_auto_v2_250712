@@ -28,20 +28,17 @@ jobs:
         HOST: ${{ secrets.ORACLE_HOST }}
         USER: ${{ secrets.ORACLE_USER }}
       run: |
-        # 모든 파일을 서버로 복사
-        rsync -avz --delete -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-          --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
-          ./ $USER@$HOST:/opt/bitcoin_auto_trading/
+        # 기존 방식으로 파일 복사
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no deploy.sh $USER@$HOST:/tmp/
+        
+        # 핵심 파일들 직접 복사
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r web/ $USER@$HOST:/opt/bitcoin_auto_trading/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r core/ $USER@$HOST:/opt/bitcoin_auto_trading/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r config/ $USER@$HOST:/opt/bitcoin_auto_trading/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r data/ $USER@$HOST:/opt/bitcoin_auto_trading/
         
         # 서비스 재시작
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
-          cd /opt/bitcoin_auto_trading
-          echo "=== 서비스 재시작 ==="
-          sudo systemctl restart bitcoin-trading
-          sleep 5
-          sudo systemctl status bitcoin-trading --no-pager
-          echo "=== 배포 완료 ==="
-        EOF
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST "sudo systemctl restart bitcoin-trading && sleep 3"
 
     - name: Verify Deployment
       env:
