@@ -207,6 +207,12 @@ def performance():
         logger.error(f"성과 페이지 로드 오류: {e}")
         return f"오류 발생: {e}", 500
 
+
+@app.route('/strategy_analytics')
+def strategy_analytics():
+    """전략 분석 페이지"""
+    return render_template('strategy_analytics.html')
+
 # API 엔드포인트들
 
 
@@ -1746,7 +1752,7 @@ def api_strategy_details(strategy_id):
             'endpoint': '/api/strategy/<strategy_id>/details',
             'strategy_id': strategy_id
         }, 'WebApp')
-        return jsonify({'success': False, 'message': str(e)        }), 500
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @app.route('/api/strategy/execution_history')
@@ -1758,7 +1764,7 @@ def api_strategy_execution_history():
         strategy_id = request.args.get('id', None)
         hours = int(request.args.get('hours', 24))
         limit = int(request.args.get('limit', 100))
-        
+
         # 실행 이력 조회
         history = execution_tracker.get_execution_history(
             strategy_tier=strategy_tier,
@@ -1766,7 +1772,7 @@ def api_strategy_execution_history():
             hours=hours,
             limit=limit
         )
-        
+
         return jsonify({
             'success': True,
             'data': history,
@@ -1778,7 +1784,7 @@ def api_strategy_execution_history():
                 'limit': limit
             }
         })
-        
+
     except Exception as e:
         logger.error(f"전략 실행 이력 조회 오류: {e}")
         return jsonify({
@@ -1795,14 +1801,14 @@ def api_strategy_performance():
         strategy_tier = request.args.get('tier', None)
         strategy_id = request.args.get('id', None)
         days = int(request.args.get('days', 30))
-        
+
         # 성과 데이터 조회
         performance = execution_tracker.get_strategy_performance(
             strategy_tier=strategy_tier,
             strategy_id=strategy_id,
             days=days
         )
-        
+
         return jsonify({
             'success': True,
             'data': performance,
@@ -1813,7 +1819,7 @@ def api_strategy_performance():
                 'days': days
             }
         })
-        
+
     except Exception as e:
         logger.error(f"전략 성과 조회 오류: {e}")
         return jsonify({
@@ -1828,16 +1834,16 @@ def api_strategy_summary():
     try:
         # 파라미터 가져오기
         days = int(request.args.get('days', 7))
-        
+
         # 요약 통계 조회
         summary = execution_tracker.get_strategy_summary(days=days)
-        
+
         return jsonify({
             'success': True,
             'data': summary,
             'period_days': days
         })
-        
+
     except Exception as e:
         logger.error(f"전략 요약 통계 조회 오류: {e}")
         return jsonify({

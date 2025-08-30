@@ -116,8 +116,18 @@ class ScalpingLayer:
     def _rsi_momentum_strategy(self, df: pd.DataFrame) -> Optional[TierSignal]:
         """RSI 모멘텀 스캘핑 전략"""
         try:
+            # 설정값 로드
+            config = config_manager.get_config('strategies.scalping_strategies.rsi_momentum', {})
+            if not config.get('enabled', True):
+                return None
+            
+            rsi_period = config.get('rsi_period', 14)
+            oversold = config.get('oversold', 30)
+            overbought = config.get('overbought', 70)
+            momentum_threshold = config.get('momentum_threshold', 0.002)
+            
             # RSI 계산
-            rsi = self._calculate_rsi(df['close'], 5)
+            rsi = self._calculate_rsi(df['close'], rsi_period)
             stoch_k, stoch_d = self._calculate_stochastic(df, 5, 3)
             volume_ma = df['volume'].rolling(10).mean()
             
@@ -126,12 +136,16 @@ class ScalpingLayer:
             latest_volume = df['volume'].iloc[-1]
             avg_volume = volume_ma.iloc[-1] if not pd.isna(volume_ma.iloc[-1]) else df['volume'].mean()
             
+            # 가격 모멘텀 확인
+            price_change = (df['close'].iloc[-1] - df['close'].iloc[-2]) / df['close'].iloc[-2]
+            strong_momentum = abs(price_change) > momentum_threshold
+            
             # 신호 조건
-            oversold_bounce = latest_rsi < 25 and latest_stoch_k < 20
+            oversold_bounce = latest_rsi < oversold and latest_stoch_k < 20
             volume_surge = latest_volume > avg_volume * 1.5
             
-            if oversold_bounce and volume_surge:
-                confidence = min(0.9, (30 - latest_rsi) / 10 + 0.3)
+            if oversold_bounce and volume_surge and strong_momentum:
+                confidence = min(0.9, (oversold - latest_rsi) / 10 + 0.3)
                 strength = (latest_volume / avg_volume - 1) * 0.5 + confidence * 0.5
                 
                 return TierSignal(
@@ -150,9 +164,9 @@ class ScalpingLayer:
                 )
             
             # 매도 신호
-            overbought_decline = latest_rsi > 75 and latest_stoch_k > 80
-            if overbought_decline and volume_surge:
-                confidence = min(0.9, (latest_rsi - 70) / 10 + 0.3)
+            overbought_decline = latest_rsi > overbought and latest_stoch_k > 80
+            if overbought_decline and volume_surge and strong_momentum:
+                confidence = min(0.9, (latest_rsi - overbought) / 10 + 0.3)
                 strength = (latest_volume / avg_volume - 1) * 0.5 + confidence * 0.5
                 
                 return TierSignal(
@@ -179,8 +193,17 @@ class ScalpingLayer:
     def _bollinger_squeeze_strategy(self, df: pd.DataFrame) -> Optional[TierSignal]:
         """볼린저밴드 수축/확장 전략"""
         try:
+            # 설정값 로드
+            config = config_manager.get_config('strategies.scalping_strategies.bollinger_squeeze', {})
+            if not config.get('enabled', True):
+                return None
+            
+            bb_period = config.get('bb_period', 20)
+            bb_std = config.get('bb_std', 2.0)
+            squeeze_threshold = config.get('squeeze_threshold', 0.01)
+            
             # 볼린저밴드 계산
-            bb_upper, bb_middle, bb_lower = self._calculate_bollinger_bands(df['close'], 20, 2)
+            bb_upper, bb_middle, bb_lower = self._calculate_bollinger_bands(df['close'], bb_period, bb_std)
             bb_width = (bb_upper - bb_lower) / bb_middle
             
             # MACD 계산
@@ -191,9 +214,9 @@ class ScalpingLayer:
             latest_macd = macd.iloc[-1] if not pd.isna(macd.iloc[-1]) else 0
             latest_macd_signal = macd_signal.iloc[-1] if not pd.isna(macd_signal.iloc[-1]) else 0
             
-            # 밴드 수축 후 돌파
+            # 밴드 수축 후 돌파 (설정값 적용)
             bb_width_ma = bb_width.rolling(10).mean()
-            is_squeeze = latest_bb_width < bb_width_ma.iloc[-1] * 0.8
+            is_squeeze = latest_bb_width < bb_width_ma.iloc[-1] * (1 - squeeze_threshold)
             
             # 상향 돌파
             upper_breakout = latest_close > bb_upper.iloc[-1]
@@ -250,6 +273,14 @@ class ScalpingLayer:
     def _support_resistance_strategy(self, df: pd.DataFrame) -> Optional[TierSignal]:
         """지지/저항 반등 전략"""
         try:
+            # 설정값 로드
+            config = config_manager.get_config('strategies.scalping_strategies.support_resistance', {})
+            if not config.get('enabled', True):
+                return None
+            
+            lookback_period = config.get('lookback_period', 20)
+            touch_tolerance = config.get('touch_tolerance', 0.005)
+            
             # 최근 고점/저점 계산
             highs = df['high'].rolling(5).max()
             lows = df['low'].rolling(5).min()
@@ -259,13 +290,13 @@ class ScalpingLayer:
             latest_low = df['low'].iloc[-1]
             
             # 지지선 근처에서의 반등
-            recent_lows = lows.tail(20).dropna()
+            recent_lows = lows.tail(lookback_period).dropna()
             if len(recent_lows) > 0:
                 support_level = recent_lows.min()
                 distance_to_support = (latest_close - support_level) / support_level
                 
-                # 지지선 근처 (1% 이내) + 반전 캔들
-                if 0 < distance_to_support < 0.01:
+                # 지지선 근처 (설정값 이내) + 반전 캔들
+                if 0 < distance_to_support < touch_tolerance:
                     # 해머/도지 캔들 패턴 체크
                     body_size = abs(df['close'].iloc[-1] - df['open'].iloc[-1])
                     total_range = df['high'].iloc[-1] - df['low'].iloc[-1]
@@ -291,13 +322,13 @@ class ScalpingLayer:
                         )
             
             # 저항선 근처에서의 거부
-            recent_highs = highs.tail(20).dropna()
+            recent_highs = highs.tail(lookback_period).dropna()
             if len(recent_highs) > 0:
                 resistance_level = recent_highs.max()
                 distance_to_resistance = (resistance_level - latest_close) / latest_close
                 
-                # 저항선 근처 (1% 이내) + 반전 캔들
-                if 0 < distance_to_resistance < 0.01:
+                # 저항선 근처 (설정값 이내) + 반전 캔들
+                if 0 < distance_to_resistance < touch_tolerance:
                     # 유성/도지 캔들 패턴 체크
                     body_size = abs(df['close'].iloc[-1] - df['open'].iloc[-1])
                     total_range = df['high'].iloc[-1] - df['low'].iloc[-1]
