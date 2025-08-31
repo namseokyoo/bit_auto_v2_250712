@@ -140,6 +140,45 @@ class ConfigManager:
             self.logger.error(f"설정 업데이트 실패: {e}")
             return False
 
+    def update_config(self, updates: Dict[str, Any]) -> bool:
+        """여러 설정값을 한 번에 업데이트"""
+        try:
+            with self.lock:
+                old_values = {}
+                
+                # 모든 변경사항을 먼저 적용
+                for key_path, value in updates.items():
+                    keys = key_path.split('.')
+                    config = self.config_data
+                    
+                    # 마지막 키를 제외하고 경로 탐색
+                    for key in keys[:-1]:
+                        if key not in config:
+                            config[key] = {}
+                        config = config[key]
+                    
+                    # 기존 값 저장
+                    old_values[key_path] = config.get(keys[-1])
+                    
+                    # 새 값 설정
+                    config[keys[-1]] = value
+                    
+                    # 변경 로그
+                    self.logger.info(f"설정 변경: {key_path} = {old_values[key_path]} -> {value}")
+            
+            # 파일 저장 (한 번만)
+            self.save_config()
+            
+            # 모든 변경사항에 대해 콜백 실행
+            for key_path, value in updates.items():
+                self._notify_callbacks(key_path, value, old_values[key_path])
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"설정 일괄 업데이트 실패: {e}")
+            return False
+
     def register_callback(self, callback_func):
         """설정 변경 시 실행할 콜백 함수 등록"""
         self.callbacks.append(callback_func)
