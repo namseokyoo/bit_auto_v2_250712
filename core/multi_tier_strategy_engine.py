@@ -400,7 +400,7 @@ class TrendFilterLayer:
     def __init__(self):
         self.logger = logging.getLogger('TrendFilterLayer')
         # 설정에서 거래 주기의 6배로 트렌드 분석
-        self.trade_interval = config_manager.get_config('trading.trade_interval_minutes', 10)
+        self.trade_interval = config_manager.get_config('trading.trade_interval_minutes') or 10
         self.trend_interval = self.trade_interval * 6
         self.timeframe = f'{self.trend_interval}m' if self.trend_interval <= 60 else f'{self.trend_interval//60}h'
         
@@ -1298,7 +1298,7 @@ class MultiTierStrategyEngine:
             risk_score = self._calculate_risk_score(regime, trend_analysis, macro_analysis)
             
             # 포지션 크기 결정
-            base_amount = config_manager.get_config('trading.max_trade_amount', 100000)
+            base_amount = config_manager.get_config('trading.max_trade_amount') or 100000
             risk_adjusted_amount = base_amount * confidence * (1 - risk_score)
             
             # 추론 생성
