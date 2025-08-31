@@ -1643,15 +1643,16 @@ def api_manual_execute():
         if action == 'analyze_and_execute':
             # 다층 전략 시스템 사용하여 분석 실행
             from core.multi_tier_strategy_engine import multi_tier_engine
-            
+
             multi_tier_decision = multi_tier_engine.analyze()
-            
+
             # 다층 결정을 ConsolidatedSignal로 변환
-            consolidated_signal = engine._convert_multitier_to_consolidated(multi_tier_decision)
-            
+            consolidated_signal = engine._convert_multitier_to_consolidated(
+                multi_tier_decision)
+
             # 전략별 신호 상세 정보 수집 (다층 전략 결과)
             strategy_details = []
-            
+
             # 다층 전략 시스템의 계층별 기여도 정보 사용
             for tier, contribution in multi_tier_decision.tier_contributions.items():
                 strategy_details.append({
@@ -1662,7 +1663,7 @@ def api_manual_execute():
                     'price': 0,  # 다층 전략에서는 별도 가격 없음
                     'suggested_amount': multi_tier_decision.suggested_amount if tier == max(multi_tier_decision.tier_contributions, key=multi_tier_decision.tier_contributions.get) else 0
                 })
-            
+
             # 통합 결정 정보도 추가
             strategy_details.append({
                 'strategy_id': 'integrated_decision',

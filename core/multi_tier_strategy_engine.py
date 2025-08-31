@@ -79,7 +79,7 @@ class ScalpingLayer:
     def __init__(self):
         self.logger = logging.getLogger('ScalpingLayer')
         # 설정에서 거래 주기 가져오기
-        self.trade_interval = config_manager.get_config('trading.trade_interval_minutes', 10)
+        self.trade_interval = config_manager.get_config('trading.trade_interval_minutes') or 10
         self.timeframe = f'{self.trade_interval}m' if self.trade_interval <= 60 else f'{self.trade_interval//60}h'
         
     def analyze(self) -> List[TierSignal]:
@@ -1148,9 +1148,9 @@ class MultiTierStrategyEngine:
         
         # 가중치 설정 (설정 파일에서 로드)
         self.tier_weights = {
-            StrategyTier.SCALPING: config_manager.get_config('strategies.tier_weights.scalping', 0.4),
-            StrategyTier.TREND: config_manager.get_config('strategies.tier_weights.trend', 0.35),
-            StrategyTier.MACRO: config_manager.get_config('strategies.tier_weights.macro', 0.25)
+            StrategyTier.SCALPING: config_manager.get_config('strategies.tier_weights.scalping') or 0.4,
+            StrategyTier.TREND: config_manager.get_config('strategies.tier_weights.trend') or 0.35,
+            StrategyTier.MACRO: config_manager.get_config('strategies.tier_weights.macro') or 0.25
         }
         
     def analyze(self) -> MultiTierDecision:
