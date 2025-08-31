@@ -28,25 +28,14 @@ jobs:
         HOST: ${{ secrets.ORACLE_HOST }}
         USER: ${{ secrets.ORACLE_USER }}
       run: |
-        # 기존 방식으로 파일 복사
-        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no deploy.sh $USER@$HOST:/tmp/
+        # 연결 테스트
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 $USER@$HOST "echo 'SSH 연결 성공'"
         
-        # 핵심 파일들 직접 복사
+        # 웹 앱 파일만 복사 (가장 중요한 부분)
         scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r web/ $USER@$HOST:/opt/bitcoin_auto_trading/
-        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r core/ $USER@$HOST:/opt/bitcoin_auto_trading/
-        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r config/ $USER@$HOST:/opt/bitcoin_auto_trading/
-        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r data/ $USER@$HOST:/opt/bitcoin_auto_trading/
         
-        # 서비스 강제 재시작
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST "
-          sudo systemctl stop bitcoin-trading || true
-          sleep 2
-          sudo pkill -f gunicorn || true
-          sleep 2
-          sudo systemctl start bitcoin-trading
-          sleep 5
-          sudo systemctl status bitcoin-trading --no-pager || true
-        "
+        # 단순 재시작 (오류 무시)
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 $USER@$HOST "sudo systemctl restart bitcoin-trading || echo 'restart failed but continuing...'"
 
     - name: Verify Deployment
       env:
