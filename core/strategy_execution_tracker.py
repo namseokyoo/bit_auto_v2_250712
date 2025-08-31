@@ -30,7 +30,7 @@ class StrategyExecution:
     trade_id: Optional[int] = None
     pnl: float = 0.0
     execution_duration: float = 0.0  # 실행 시간 (ms)
-    
+
     def to_dict(self) -> Dict:
         """딕셔너리로 변환"""
         data = asdict(self)
@@ -47,26 +47,28 @@ class StrategyPerformanceMetrics:
     total_executions: int
     signals_generated: int
     trades_executed: int
-    success_rate: float
+    execution_rate: float  # 거래 실행률 (trades_executed / signals_generated)
+    profit_rate: float     # 수익 거래 비율 (profitable_trades / trades_executed)
     avg_confidence: float
     avg_pnl: float
     total_pnl: float
     avg_execution_time: float
+    profitable_trades: int  # 수익 거래 수
     last_execution: datetime
-    
-    
+
+
 class StrategyExecutionTracker:
     """전략 실행 추적기"""
-    
+
     def __init__(self, db_path: str = "data/strategy_executions.db"):
         self.db_path = db_path
         self.logger = logging.getLogger('StrategyExecutionTracker')
         self._init_database()
-        
+
     def _init_database(self):
         """데이터베이스 초기화"""
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        
+
         with sqlite3.connect(self.db_path) as conn:
             # 전략 실행 기록 테이블
             conn.execute('''
@@ -88,18 +90,18 @@ class StrategyExecutionTracker:
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
-            
+
             # 인덱스 생성
             conn.execute('''
                 CREATE INDEX IF NOT EXISTS idx_execution_time 
                 ON strategy_executions(execution_time)
             ''')
-            
+
             conn.execute('''
                 CREATE INDEX IF NOT EXISTS idx_strategy 
                 ON strategy_executions(strategy_tier, strategy_id)
             ''')
-            
+
             # 전략 성과 요약 테이블 (캐시용)
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS strategy_performance_cache (
@@ -110,7 +112,9 @@ class StrategyExecutionTracker:
                     total_executions INTEGER DEFAULT 0,
                     signals_generated INTEGER DEFAULT 0,
                     trades_executed INTEGER DEFAULT 0,
-                    success_rate REAL DEFAULT 0,
+                    execution_rate REAL DEFAULT 0,  -- 거래 실행률
+                    profit_rate REAL DEFAULT 0,     -- 수익 거래 비율
+                    profitable_trades INTEGER DEFAULT 0,  -- 수익 거래 수
                     avg_confidence REAL DEFAULT 0,
                     avg_pnl REAL DEFAULT 0,
                     total_pnl REAL DEFAULT 0,
@@ -119,16 +123,63 @@ class StrategyExecutionTracker:
                     UNIQUE(strategy_tier, strategy_id, date)
                 )
             ''')
-            
+
+            # 기존 테이블 마이그레이션 (success_rate -> execution_rate, profit_rate 추가)
+            try:
+                cursor = conn.execute(
+                    "PRAGMA table_info(strategy_performance_cache)")
+                columns = [row[1] for row in cursor.fetchall()]
+
+                if 'success_rate' in columns and 'execution_rate' not in columns:
+                    self.logger.info("데이터베이스 스키마 마이그레이션 시작...")
+
+                    # 새 컬럼 추가
+                    conn.execute(
+                        'ALTER TABLE strategy_performance_cache ADD COLUMN execution_rate REAL DEFAULT 0')
+                    conn.execute(
+                        'ALTER TABLE strategy_performance_cache ADD COLUMN profit_rate REAL DEFAULT 0')
+                    conn.execute(
+                        'ALTER TABLE strategy_performance_cache ADD COLUMN profitable_trades INTEGER DEFAULT 0')
+
+                    # 기존 success_rate 데이터를 execution_rate로 복사
+                    conn.execute(
+                        'UPDATE strategy_performance_cache SET execution_rate = success_rate')
+
+                    # profit_rate 계산 (PnL > 0인 거래 비율)
+                    conn.execute('''
+                        UPDATE strategy_performance_cache 
+                        SET profitable_trades = (
+                            SELECT COUNT(*) FROM strategy_executions 
+                            WHERE strategy_executions.strategy_tier = strategy_performance_cache.strategy_tier
+                            AND strategy_executions.strategy_id = strategy_performance_cache.strategy_id
+                            AND date(strategy_executions.execution_time) = strategy_performance_cache.date
+                            AND strategy_executions.trade_executed = 1 
+                            AND strategy_executions.pnl > 0
+                        )
+                    ''')
+
+                    conn.execute('''
+                        UPDATE strategy_performance_cache 
+                        SET profit_rate = CASE 
+                            WHEN trades_executed > 0 THEN CAST(profitable_trades AS REAL) / trades_executed
+                            ELSE 0 
+                        END
+                    ''')
+
+                    self.logger.info("데이터베이스 스키마 마이그레이션 완료")
+
+            except Exception as e:
+                self.logger.error(f"데이터베이스 마이그레이션 오류: {e}")
+
             conn.commit()
             self.logger.info("전략 실행 추적 데이터베이스 초기화 완료")
-    
+
     def record_execution(self, execution: StrategyExecution) -> bool:
         """전략 실행 기록 저장"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 data = execution.to_dict()
-                
+
                 conn.execute('''
                     INSERT INTO strategy_executions 
                     (execution_time, strategy_tier, strategy_id, signal_action, 
@@ -142,23 +193,23 @@ class StrategyExecutionTracker:
                     data['trade_executed'], data['trade_id'], data['pnl'],
                     data['execution_duration']
                 ))
-                
+
                 conn.commit()
-                
+
                 # 일일 성과 캐시 업데이트
                 self._update_daily_cache(execution)
-                
+
                 return True
-                
+
         except Exception as e:
             self.logger.error(f"전략 실행 기록 저장 오류: {e}")
             return False
-    
+
     def _update_daily_cache(self, execution: StrategyExecution):
         """일일 성과 캐시 업데이트"""
         try:
             date_str = execution.execution_time.date().isoformat()
-            
+
             with sqlite3.connect(self.db_path) as conn:
                 # 해당 날짜의 기존 캐시 조회
                 cursor = conn.execute('''
@@ -167,32 +218,36 @@ class StrategyExecutionTracker:
                     FROM strategy_performance_cache 
                     WHERE strategy_tier = ? AND strategy_id = ? AND date = ?
                 ''', (execution.strategy_tier, execution.strategy_id, date_str))
-                
+
                 row = cursor.fetchone()
-                
+
                 if row:
                     # 기존 캐시 업데이트
                     total_executions, signals_generated, trades_executed, total_pnl, avg_execution_time = row
-                    
+
                     new_total_executions = total_executions + 1
-                    new_signals_generated = signals_generated + (1 if execution.signal_action != 'hold' else 0)
-                    new_trades_executed = trades_executed + (1 if execution.trade_executed else 0)
+                    new_signals_generated = signals_generated + \
+                        (1 if execution.signal_action != 'hold' else 0)
+                    new_trades_executed = trades_executed + \
+                        (1 if execution.trade_executed else 0)
                     new_total_pnl = total_pnl + execution.pnl
-                    new_avg_execution_time = ((avg_execution_time * total_executions) + execution.execution_duration) / new_total_executions
-                    
+                    new_avg_execution_time = (
+                        (avg_execution_time * total_executions) + execution.execution_duration) / new_total_executions
+
                     # 성공률 계산
-                    success_rate = new_trades_executed / new_signals_generated if new_signals_generated > 0 else 0
-                    
+                    success_rate = new_trades_executed / \
+                        new_signals_generated if new_signals_generated > 0 else 0
+
                     # 평균 신뢰도 계산 (오늘 실행된 모든 기록에서)
                     cursor = conn.execute('''
                         SELECT AVG(confidence) FROM strategy_executions 
                         WHERE strategy_tier = ? AND strategy_id = ? 
                         AND date(execution_time) = ?
                     ''', (execution.strategy_tier, execution.strategy_id, date_str))
-                    
+
                     avg_confidence = cursor.fetchone()[0] or 0
                     avg_pnl = new_total_pnl / new_trades_executed if new_trades_executed > 0 else 0
-                    
+
                     conn.execute('''
                         UPDATE strategy_performance_cache 
                         SET total_executions = ?, signals_generated = ?, trades_executed = ?,
@@ -209,7 +264,7 @@ class StrategyExecutionTracker:
                     trades_executed = 1 if execution.trade_executed else 0
                     success_rate = trades_executed / signals_generated if signals_generated > 0 else 0
                     avg_pnl = execution.pnl if trades_executed > 0 else 0
-                    
+
                     conn.execute('''
                         INSERT INTO strategy_performance_cache 
                         (strategy_tier, strategy_id, date, total_executions, signals_generated,
@@ -220,41 +275,43 @@ class StrategyExecutionTracker:
                           1, signals_generated, trades_executed, success_rate,
                           execution.confidence, avg_pnl, execution.pnl,
                           execution.execution_duration, datetime.now().isoformat()))
-                
+
                 conn.commit()
-                
+
         except Exception as e:
             self.logger.error(f"일일 캐시 업데이트 오류: {e}")
-    
-    def get_strategy_performance(self, strategy_tier: str = None, 
-                               strategy_id: str = None,
-                               days: int = 30) -> List[Dict]:
+
+    def get_strategy_performance(self, strategy_tier: str = None,
+                                 strategy_id: str = None,
+                                 days: int = 30) -> List[Dict]:
         """전략 성과 조회"""
         try:
             with sqlite3.connect(self.db_path) as conn:
-                start_date = (datetime.now() - timedelta(days=days)).date().isoformat()
-                
+                start_date = (datetime.now() -
+                              timedelta(days=days)).date().isoformat()
+
                 query = '''
                     SELECT strategy_tier, strategy_id, date, total_executions,
-                           signals_generated, trades_executed, success_rate,
-                           avg_confidence, avg_pnl, total_pnl, avg_execution_time
+                           signals_generated, trades_executed, execution_rate,
+                           profit_rate, profitable_trades, avg_confidence, 
+                           avg_pnl, total_pnl, avg_execution_time
                     FROM strategy_performance_cache
                     WHERE date >= ?
                 '''
                 params = [start_date]
-                
+
                 if strategy_tier:
                     query += ' AND strategy_tier = ?'
                     params.append(strategy_tier)
-                
+
                 if strategy_id:
                     query += ' AND strategy_id = ?'
                     params.append(strategy_id)
-                
+
                 query += ' ORDER BY date DESC, strategy_tier, strategy_id'
-                
+
                 cursor = conn.execute(query, params)
-                
+
                 results = []
                 for row in cursor.fetchall():
                     results.append({
@@ -264,28 +321,31 @@ class StrategyExecutionTracker:
                         'total_executions': row[3],
                         'signals_generated': row[4],
                         'trades_executed': row[5],
-                        'success_rate': row[6],
-                        'avg_confidence': row[7],
-                        'avg_pnl': row[8],
-                        'total_pnl': row[9],
-                        'avg_execution_time': row[10]
+                        'execution_rate': row[6],
+                        'profit_rate': row[7],
+                        'profitable_trades': row[8],
+                        'avg_confidence': row[9],
+                        'avg_pnl': row[10],
+                        'total_pnl': row[11],
+                        'avg_execution_time': row[12]
                     })
-                
+
                 return results
-                
+
         except Exception as e:
             self.logger.error(f"전략 성과 조회 오류: {e}")
             return []
-    
+
     def get_execution_history(self, strategy_tier: str = None,
-                            strategy_id: str = None,
-                            hours: int = 24,
-                            limit: int = 100) -> List[Dict]:
+                              strategy_id: str = None,
+                              hours: int = 24,
+                              limit: int = 100) -> List[Dict]:
         """전략 실행 이력 조회"""
         try:
             with sqlite3.connect(self.db_path) as conn:
-                start_time = (datetime.now() - timedelta(hours=hours)).isoformat()
-                
+                start_time = (datetime.now() -
+                              timedelta(hours=hours)).isoformat()
+
                 query = '''
                     SELECT execution_time, strategy_tier, strategy_id, signal_action,
                            confidence, strength, reasoning, market_regime, indicators,
@@ -294,24 +354,24 @@ class StrategyExecutionTracker:
                     WHERE execution_time >= ?
                 '''
                 params = [start_time]
-                
+
                 if strategy_tier:
                     query += ' AND strategy_tier = ?'
                     params.append(strategy_tier)
-                
+
                 if strategy_id:
                     query += ' AND strategy_id = ?'
                     params.append(strategy_id)
-                
+
                 query += ' ORDER BY execution_time DESC LIMIT ?'
                 params.append(limit)
-                
+
                 cursor = conn.execute(query, params)
-                
+
                 results = []
                 for row in cursor.fetchall():
                     indicators = json.loads(row[8]) if row[8] else {}
-                    
+
                     results.append({
                         'execution_time': row[0],
                         'strategy_tier': row[1],
@@ -327,26 +387,29 @@ class StrategyExecutionTracker:
                         'pnl': row[11],
                         'execution_duration': row[12]
                     })
-                
+
                 return results
-                
+
         except Exception as e:
             self.logger.error(f"전략 실행 이력 조회 오류: {e}")
             return []
-    
+
     def get_strategy_summary(self, days: int = 7) -> Dict[str, Any]:
         """전략 요약 통계"""
         try:
             with sqlite3.connect(self.db_path) as conn:
-                start_date = (datetime.now() - timedelta(days=days)).date().isoformat()
-                
+                start_date = (datetime.now() -
+                              timedelta(days=days)).date().isoformat()
+
                 # 계층별 요약
                 cursor = conn.execute('''
                     SELECT strategy_tier,
                            SUM(total_executions) as total_executions,
                            SUM(signals_generated) as total_signals,
                            SUM(trades_executed) as total_trades,
-                           AVG(success_rate) as avg_success_rate,
+                           AVG(execution_rate) as avg_execution_rate,
+                           AVG(profit_rate) as avg_profit_rate,
+                           SUM(profitable_trades) as total_profitable_trades,
                            AVG(avg_confidence) as avg_confidence,
                            SUM(total_pnl) as total_pnl,
                            AVG(avg_execution_time) as avg_execution_time
@@ -354,73 +417,80 @@ class StrategyExecutionTracker:
                     WHERE date >= ?
                     GROUP BY strategy_tier
                 ''', (start_date,))
-                
+
                 tier_summary = {}
                 for row in cursor.fetchall():
                     tier_summary[row[0]] = {
                         'total_executions': row[1],
                         'total_signals': row[2],
                         'total_trades': row[3],
-                        'avg_success_rate': row[4],
-                        'avg_confidence': row[5],
-                        'total_pnl': row[6],
-                        'avg_execution_time': row[7]
+                        'avg_execution_rate': row[4],
+                        'avg_profit_rate': row[5],
+                        'total_profitable_trades': row[6],
+                        'avg_confidence': row[7],
+                        'total_pnl': row[8],
+                        'avg_execution_time': row[9]
                     }
-                
+
                 # 전체 요약
                 cursor = conn.execute('''
                     SELECT SUM(total_executions), SUM(signals_generated), 
-                           SUM(trades_executed), AVG(success_rate),
+                           SUM(trades_executed), AVG(execution_rate),
+                           AVG(profit_rate), SUM(profitable_trades),
                            AVG(avg_confidence), SUM(total_pnl)
                     FROM strategy_performance_cache
                     WHERE date >= ?
                 ''', (start_date,))
-                
+
                 row = cursor.fetchone()
                 overall_summary = {
                     'total_executions': row[0] or 0,
                     'total_signals': row[1] or 0,
                     'total_trades': row[2] or 0,
-                    'avg_success_rate': row[3] or 0,
-                    'avg_confidence': row[4] or 0,
-                    'total_pnl': row[5] or 0
+                    'avg_execution_rate': row[3] or 0,
+                    'avg_profit_rate': row[4] or 0,
+                    'total_profitable_trades': row[5] or 0,
+                    'avg_confidence': row[6] or 0,
+                    'total_pnl': row[7] or 0
                 }
-                
+
                 return {
                     'period_days': days,
                     'overall': overall_summary,
                     'by_tier': tier_summary
                 }
-                
+
         except Exception as e:
             self.logger.error(f"전략 요약 통계 조회 오류: {e}")
             return {}
-    
+
     def cleanup_old_data(self, days: int = 90):
         """오래된 데이터 정리"""
         try:
             cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
-            
+
             with sqlite3.connect(self.db_path) as conn:
                 # 오래된 실행 기록 삭제
                 cursor = conn.execute('''
                     DELETE FROM strategy_executions WHERE execution_time < ?
                 ''', (cutoff_date,))
-                
+
                 deleted_executions = cursor.rowcount
-                
+
                 # 오래된 캐시 삭제
-                cutoff_date_str = (datetime.now() - timedelta(days=days)).date().isoformat()
+                cutoff_date_str = (
+                    datetime.now() - timedelta(days=days)).date().isoformat()
                 cursor = conn.execute('''
                     DELETE FROM strategy_performance_cache WHERE date < ?
                 ''', (cutoff_date_str,))
-                
+
                 deleted_cache = cursor.rowcount
-                
+
                 conn.commit()
-                
-                self.logger.info(f"오래된 데이터 정리: 실행기록 {deleted_executions}개, 캐시 {deleted_cache}개 삭제")
-                
+
+                self.logger.info(
+                    f"오래된 데이터 정리: 실행기록 {deleted_executions}개, 캐시 {deleted_cache}개 삭제")
+
         except Exception as e:
             self.logger.error(f"데이터 정리 오류: {e}")
 

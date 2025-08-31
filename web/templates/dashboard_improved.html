@@ -75,6 +75,31 @@
         color: #1976d2;
         font-weight: 500;
     }
+
+    .tier-performance-card {
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    /* AI 분석 스타일 */
+    .analysis-content {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        background-color: rgba(255, 255, 255, 0.5);
+    }
+
+    .analysis-text {
+        font-size: 0.9rem;
+        line-height: 1.4;
+        white-space: pre-wrap;
+    }
+
+    #ai-analysis-content {
+        transition: all 0.3s ease;
+    }
 </style>
 {% endblock %}
 
@@ -87,11 +112,19 @@
                 <div class="d-flex align-items-center">
                     <div class="me-4">
                         <small class="text-muted">시스템 상태:</small>
+                        {% if system_status.system_enabled %}
+                        <span id="system-enabled-badge" class="badge bg-success">활성화</span>
+                        {% else %}
                         <span id="system-enabled-badge" class="badge bg-secondary">비활성화</span>
+                        {% endif %}
                     </div>
                     <div class="me-4">
                         <small class="text-muted">거래 상태:</small>
+                        {% if system_status.trading_enabled %}
+                        <span id="trading-enabled-badge" class="badge bg-success">활성화</span>
+                        {% else %}
                         <span id="trading-enabled-badge" class="badge bg-secondary">비활성화</span>
+                        {% endif %}
                     </div>
                     <div class="me-4">
                         <small class="text-muted">다음 실행:</small>
@@ -104,15 +137,30 @@
                 </div>
             </div>
             <div class="col-md-4 text-end">
+                {% if system_status.system_enabled %}
+                <button id="system-toggle-btn" class="btn btn-warning control-btn me-2" onclick="toggleSystemButton()">
+                    <i id="system-btn-icon" class="fas fa-pause me-2"></i>
+                    <span id="system-btn-text">시스템정지</span>
+                </button>
+                {% else %}
                 <button id="system-toggle-btn" class="btn btn-secondary control-btn me-2"
                     onclick="toggleSystemButton()">
                     <i id="system-btn-icon" class="fas fa-power-off me-2"></i>
                     <span id="system-btn-text">시스템시작</span>
                 </button>
+                {% endif %}
+
+                {% if system_status.trading_enabled %}
+                <button id="trading-toggle-btn" class="btn btn-warning control-btn" onclick="toggleTradingButton()">
+                    <i id="trading-btn-icon" class="fas fa-pause me-2"></i>
+                    <span id="trading-btn-text">거래정지</span>
+                </button>
+                {% else %}
                 <button id="trading-toggle-btn" class="btn btn-primary control-btn" onclick="toggleTradingButton()">
                     <i id="trading-btn-icon" class="fas fa-play me-2"></i>
                     <span id="trading-btn-text">거래시작</span>
                 </button>
+                {% endif %}
                 <button class="btn btn-danger control-btn ms-2" onclick="emergencyStop()">
                     <i class="fas fa-stop me-2"></i>긴급정지
                 </button>
@@ -213,6 +261,163 @@
     </div>
 </div>
 
+<!-- 전략 성과 모니터링 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-chart-bar text-success"></i> 전략 성과 (최근 24시간)</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/strategy_analytics'">
+                    상세 분석
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="performance-metric">
+                            <h6 class="text-muted">총 실행</h6>
+                            <div id="strategy-total-executions" class="big-number text-primary">0</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="performance-metric">
+                            <h6 class="text-muted">신호 발생</h6>
+                            <div id="strategy-total-signals" class="big-number text-info">0</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="performance-metric">
+                            <h6 class="text-muted">평균 신뢰도</h6>
+                            <div id="strategy-avg-confidence" class="big-number text-warning">0.0%</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="performance-metric">
+                            <h6 class="text-muted">성공률</h6>
+                            <div id="strategy-success-rate" class="big-number text-success">0.0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 계층별 성과 요약 -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-2">계층별 성과</h6>
+                        <div class="row" id="strategy-tier-performance">
+                            <div class="col-md-4">
+                                <div class="tier-performance-card">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="badge bg-success">스캘핑</span>
+                                        <small id="scalping-performance" class="text-muted">실행 0회</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="tier-performance-card">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="badge bg-info">트렌드</span>
+                                        <small id="trend-performance" class="text-muted">실행 0회</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="tier-performance-card">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="badge bg-primary">통합</span>
+                                        <small id="integrated-performance" class="text-muted">실행 0회</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI 분석 및 조언 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-robot text-primary"></i> AI 분석 및 조언</h5>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="refreshAIAnalysis()">
+                        <i class="fas fa-sync-alt"></i> 새로고침
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="toggleAISection()">
+                        <i class="fas fa-chevron-down" id="ai-toggle-icon"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" id="ai-analysis-content" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-chart-line"></i> 시장 분석
+                                    <span id="market-mock-badge" class="badge bg-warning ms-2" style="display: none;">모의응답</span>
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted">신뢰도</small>
+                                    <span id="market-confidence" class="badge bg-secondary">0%</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <small class="text-muted">리스크 레벨</small>
+                                    <span id="market-risk" class="badge bg-warning">Medium</span>
+                                </div>
+                                <div id="market-analysis-content" class="analysis-content">
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <p class="mt-2">분석 중...</p>
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock"></i>
+                                    <span id="market-timestamp">-</span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-lightbulb"></i> 거래 조언
+                                    <span id="trading-mock-badge" class="badge bg-warning ms-2" style="display: none;">모의응답</span>
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted">신뢰도</small>
+                                    <span id="trading-confidence" class="badge bg-secondary">0%</span>
+                                </div>
+                                <div id="trading-recommendations" class="mb-3">
+                                    <!-- 권장사항 태그들이 여기에 표시됩니다 -->
+                                </div>
+                                <div id="trading-advice-content" class="analysis-content">
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <p class="mt-2">분석 중...</p>
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock"></i>
+                                    <span id="trading-timestamp">-</span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 최근 활동 -->
 <div class="row">
     <div class="col-md-6">
@@ -276,17 +481,19 @@
     async function updateDashboard() {
         try {
             // 병렬로 데이터 가져오기
-            const [autoTraderResponse, systemResponse, balanceResponse, tradesResponse] = await Promise.all([
+            const [autoTraderResponse, systemResponse, balanceResponse, tradesResponse, strategyResponse] = await Promise.all([
                 fetch('/api/auto_trading_status'),
                 fetch('/api/system/status'),
                 fetch('/api/balance'),
-                fetch('/api/trades?limit=5')
+                fetch('/api/trades?limit=5'),
+                fetch('/api/strategy_analytics/summary?days=7')
             ]);
 
             const autoTraderData = await autoTraderResponse.json();
             const systemData = await systemResponse.json();
             const balanceData = await balanceResponse.json();
             const tradesData = await tradesResponse.json();
+            const strategyData = await strategyResponse.json();
 
             // 상태 배지 업데이트
             updateSystemTradingBadges(systemData);
@@ -299,6 +506,9 @@
 
             // 최근 거래 업데이트
             updateRecentTrades(tradesData);
+
+            // 전략 성과 업데이트
+            updateStrategyPerformance(strategyData);
 
         } catch (error) {
             console.error('대시보드 업데이트 오류:', error);
@@ -470,6 +680,187 @@
                 <div>거래 내역이 없습니다</div>
             </div>
         `;
+        }
+    }
+
+    function updateStrategyPerformance(data) {
+        if (!data.success || !data.data) {
+            console.log('전략 성과 데이터 없음');
+            return;
+        }
+
+        const summary = data.data;
+        const overall = summary.overall || {};
+        const byTier = summary.by_tier || {};
+
+        // 전체 성과 지표 업데이트
+        document.getElementById('strategy-total-executions').textContent = overall.total_executions || 0;
+        document.getElementById('strategy-total-signals').textContent = overall.total_signals || 0;
+
+        const avgConfidence = overall.avg_confidence || 0;
+        document.getElementById('strategy-avg-confidence').textContent = (avgConfidence * 100).toFixed(1) + '%';
+
+        const successRate = overall.avg_success_rate || 0;
+        document.getElementById('strategy-success-rate').textContent = (successRate * 100).toFixed(1) + '%';
+
+        // 계층별 성과 업데이트
+        const scalpingData = byTier.scalping || {};
+        const trendData = byTier.trend || {};
+        const integratedData = byTier.integrated || {};
+
+        document.getElementById('scalping-performance').textContent =
+            `실행 ${scalpingData.total_executions || 0}회`;
+
+        document.getElementById('trend-performance').textContent =
+            `실행 ${trendData.total_executions || 0}회`;
+
+        document.getElementById('integrated-performance').textContent =
+            `실행 ${integratedData.total_executions || 0}회`;
+
+        console.log('전략 성과 업데이트 완료:', {
+            total_executions: overall.total_executions,
+            total_signals: overall.total_signals,
+            avg_confidence: avgConfidence,
+            success_rate: successRate
+        });
+    }
+
+    // AI 분석 관련 함수들
+    function toggleAISection() {
+        const content = document.getElementById('ai-analysis-content');
+        const icon = document.getElementById('ai-toggle-icon');
+
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            icon.className = 'fas fa-chevron-up';
+            // 처음 열 때 AI 분석 로드
+            if (!content.dataset.loaded) {
+                loadAIAnalysis();
+                content.dataset.loaded = 'true';
+            }
+        } else {
+            content.style.display = 'none';
+            icon.className = 'fas fa-chevron-down';
+        }
+    }
+
+    function refreshAIAnalysis() {
+        loadAIAnalysis(true);
+    }
+
+    function loadAIAnalysis(forceRefresh = false) {
+        const refreshParam = forceRefresh ? '?refresh=true' : '';
+
+        // 시장 분석 로드
+        fetch(`/api/ai/market_analysis${refreshParam}`)
+            .then(response => response.json())
+            .then(data => updateMarketAnalysis(data))
+            .catch(error => {
+                console.error('시장 분석 로드 오류:', error);
+                updateMarketAnalysis({ success: false, error: error.message });
+            });
+
+        // 거래 조언 로드
+        fetch(`/api/ai/trading_advice${refreshParam}`)
+            .then(response => response.json())
+            .then(data => updateTradingAdvice(data))
+            .catch(error => {
+                console.error('거래 조언 로드 오류:', error);
+                updateTradingAdvice({ success: false, error: error.message });
+            });
+    }
+
+    function updateMarketAnalysis(data) {
+        const contentElement = document.getElementById('market-analysis-content');
+        const confidenceElement = document.getElementById('market-confidence');
+        const riskElement = document.getElementById('market-risk');
+        const timestampElement = document.getElementById('market-timestamp');
+
+        if (data.success && data.data) {
+            const analysis = data.data;
+
+            // 신뢰도 업데이트
+            const confidence = Math.round(analysis.confidence * 100);
+            confidenceElement.textContent = `${confidence}%`;
+            confidenceElement.className = `badge ${confidence >= 70 ? 'bg-success' : confidence >= 50 ? 'bg-warning' : 'bg-danger'}`;
+
+            // 리스크 레벨 업데이트
+            riskElement.textContent = analysis.risk_level.toUpperCase();
+            riskElement.className = `badge ${analysis.risk_level === 'low' ? 'bg-success' : analysis.risk_level === 'high' ? 'bg-danger' : 'bg-warning'}`;
+
+            // 분석 내용 업데이트
+            contentElement.innerHTML = `<div class="analysis-text">${analysis.content.replace(/\n/g, '<br>')}</div>`;
+
+            // 타임스탬프 업데이트
+            const timestamp = new Date(analysis.timestamp);
+            timestampElement.textContent = timestamp.toLocaleString('ko-KR');
+            
+            // 모의응답 배지 표시
+            const mockBadge = document.getElementById('market-mock-badge');
+            if (analysis.is_mock) {
+                mockBadge.style.display = 'inline';
+            } else {
+                mockBadge.style.display = 'none';
+            }
+            
+        } else {
+            contentElement.innerHTML = `<div class="text-danger"><i class="fas fa-exclamation-triangle"></i> ${data.error || '분석을 불러올 수 없습니다.'}</div>`;
+            confidenceElement.textContent = '0%';
+            confidenceElement.className = 'badge bg-secondary';
+            riskElement.textContent = 'UNKNOWN';
+            riskElement.className = 'badge bg-secondary';
+            
+            // 오류 시 모의응답 배지 숨김
+            document.getElementById('market-mock-badge').style.display = 'none';
+        }
+    }
+
+    function updateTradingAdvice(data) {
+        const contentElement = document.getElementById('trading-advice-content');
+        const confidenceElement = document.getElementById('trading-confidence');
+        const recommendationsElement = document.getElementById('trading-recommendations');
+        const timestampElement = document.getElementById('trading-timestamp');
+
+        if (data.success && data.data) {
+            const advice = data.data;
+
+            // 신뢰도 업데이트
+            const confidence = Math.round(advice.confidence * 100);
+            confidenceElement.textContent = `${confidence}%`;
+            confidenceElement.className = `badge ${confidence >= 70 ? 'bg-success' : confidence >= 50 ? 'bg-warning' : 'bg-danger'}`;
+
+            // 권장사항 태그 업데이트
+            if (advice.recommendations && advice.recommendations.length > 0) {
+                recommendationsElement.innerHTML = advice.recommendations.map(rec =>
+                    `<span class="badge bg-info me-1 mb-1">${rec}</span>`
+                ).join('');
+            } else {
+                recommendationsElement.innerHTML = '<span class="text-muted">권장사항 없음</span>';
+            }
+
+            // 조언 내용 업데이트
+            contentElement.innerHTML = `<div class="analysis-text">${advice.content.replace(/\n/g, '<br>')}</div>`;
+
+            // 타임스탬프 업데이트
+            const timestamp = new Date(advice.timestamp);
+            timestampElement.textContent = timestamp.toLocaleString('ko-KR');
+            
+            // 모의응답 배지 표시
+            const mockBadge = document.getElementById('trading-mock-badge');
+            if (advice.is_mock) {
+                mockBadge.style.display = 'inline';
+            } else {
+                mockBadge.style.display = 'none';
+            }
+            
+        } else {
+            contentElement.innerHTML = `<div class="text-danger"><i class="fas fa-exclamation-triangle"></i> ${data.error || '조언을 불러올 수 없습니다.'}</div>`;
+            confidenceElement.textContent = '0%';
+            confidenceElement.className = 'badge bg-secondary';
+            recommendationsElement.innerHTML = '';
+            
+            // 오류 시 모의응답 배지 숨김
+            document.getElementById('trading-mock-badge').style.display = 'none';
         }
     }
 

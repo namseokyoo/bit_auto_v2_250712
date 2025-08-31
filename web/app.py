@@ -214,10 +214,285 @@ def strategy_analytics():
     return render_template('strategy_analytics.html')
 
 
+@app.route('/api/strategy_analytics/summary')
+def api_strategy_analytics_summary():
+    """전략 분석 요약 API"""
+    try:
+        from core.strategy_execution_tracker import execution_tracker
+
+        days = request.args.get('days', 7, type=int)
+        summary = execution_tracker.get_strategy_summary(days=days)
+
+        return jsonify({
+            'success': True,
+            'data': summary
+        })
+
+    except Exception as e:
+        logger.error(f"전략 분석 요약 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/strategy_analytics/executions')
+def api_strategy_analytics_executions():
+    """전략 실행 이력 API"""
+    try:
+        from core.strategy_execution_tracker import execution_tracker
+
+        # 필터 파라미터
+        strategy_tier = request.args.get('strategy_tier')
+        strategy_id = request.args.get('strategy_id')
+        hours = request.args.get('hours', 24, type=int)
+        limit = request.args.get('limit', 50, type=int)
+
+        # 'all' 값은 None으로 처리
+        if strategy_tier == 'all':
+            strategy_tier = None
+        if strategy_id == 'all':
+            strategy_id = None
+
+        executions = execution_tracker.get_execution_history(
+            strategy_tier=strategy_tier,
+            strategy_id=strategy_id,
+            hours=hours,
+            limit=limit
+        )
+
+        return jsonify({
+            'success': True,
+            'data': executions,
+            'total': len(executions)
+        })
+
+    except Exception as e:
+        logger.error(f"전략 실행 이력 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/strategy_analytics/performance')
+def api_strategy_analytics_performance():
+    """전략 성과 분석 API"""
+    try:
+        from core.strategy_execution_tracker import execution_tracker
+
+        strategy_tier = request.args.get('strategy_tier')
+        strategy_id = request.args.get('strategy_id')
+        days = request.args.get('days', 30, type=int)
+
+        # 'all' 값은 None으로 처리
+        if strategy_tier == 'all':
+            strategy_tier = None
+        if strategy_id == 'all':
+            strategy_id = None
+
+        performance = execution_tracker.get_strategy_performance(
+            strategy_tier=strategy_tier,
+            strategy_id=strategy_id,
+            days=days
+        )
+
+        return jsonify({
+            'success': True,
+            'data': performance
+        })
+
+    except Exception as e:
+        logger.error(f"전략 성과 분석 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/strategy_analytics/hourly')
+def api_strategy_analytics_hourly():
+    """시간대별 전략 실행 분석 API"""
+    try:
+        from core.strategy_execution_tracker import execution_tracker
+
+        hours = request.args.get('hours', 24, type=int)
+
+        # 시간대별 실행 데이터 조회
+        executions = execution_tracker.get_execution_history(
+            hours=hours, limit=1000)
+
+        # 시간대별 집계
+        hourly_data = {}
+        strategy_hourly = {}
+
+        for execution in executions:
+            # 실행 시간에서 시간 추출
+            from datetime import datetime
+            exec_time = datetime.fromisoformat(execution['execution_time'])
+            hour = exec_time.hour
+
+            # 전체 시간대별 집계
+            if hour not in hourly_data:
+                hourly_data[hour] = 0
+            hourly_data[hour] += 1
+
+            # 전략별 시간대별 집계
+            strategy_key = f"{execution['strategy_tier']}:{execution['strategy_id']}"
+            if strategy_key not in strategy_hourly:
+                strategy_hourly[strategy_key] = {}
+            if hour not in strategy_hourly[strategy_key]:
+                strategy_hourly[strategy_key][hour] = 0
+            strategy_hourly[strategy_key][hour] += 1
+
+        # 24시간 배열로 변환
+        hourly_array = [hourly_data.get(i, 0) for i in range(24)]
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'hourly_distribution': hourly_array,
+                'strategy_hourly': strategy_hourly,
+                'total_executions': len(executions)
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"시간대별 분석 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/strategy_config')
 def strategy_config():
     """전략 설정 페이지"""
     return render_template('strategy_config.html')
+
+
+# =============================================================================
+# AI 분석 API 엔드포인트
+# =============================================================================
+
+@app.route('/api/ai/market_analysis')
+def api_ai_market_analysis():
+    """AI 시장 분석 API"""
+    try:
+        from core.ai_advisor import ai_advisor
+
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        analysis = ai_advisor.analyze_market(force_refresh=force_refresh)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'type': analysis.analysis_type,
+                'content': analysis.content,
+                'confidence': analysis.confidence,
+                'risk_level': analysis.risk_level,
+                'timestamp': analysis.timestamp.isoformat(),
+                'market_data': analysis.market_data,
+                'is_mock': analysis.is_mock
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"AI 시장 분석 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai/trading_advice')
+def api_ai_trading_advice():
+    """AI 거래 조언 API"""
+    try:
+        from core.ai_advisor import ai_advisor
+
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        advice = ai_advisor.get_trading_advice(force_refresh=force_refresh)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'type': advice.analysis_type,
+                'content': advice.content,
+                'confidence': advice.confidence,
+                'risk_level': advice.risk_level,
+                'timestamp': advice.timestamp.isoformat(),
+                'recommendations': advice.recommendations or [],
+                'is_mock': advice.is_mock
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"AI 거래 조언 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai/comprehensive_analysis')
+def api_ai_comprehensive_analysis():
+    """AI 종합 분석 API"""
+    try:
+        from core.ai_advisor import ai_advisor
+
+        analysis = ai_advisor.get_comprehensive_analysis()
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'market': {
+                    'type': analysis['market'].analysis_type,
+                    'content': analysis['market'].content,
+                    'confidence': analysis['market'].confidence,
+                    'risk_level': analysis['market'].risk_level,
+                    'timestamp': analysis['market'].timestamp.isoformat(),
+                    'market_data': analysis['market'].market_data
+                },
+                'trading': {
+                    'type': analysis['trading'].analysis_type,
+                    'content': analysis['trading'].content,
+                    'confidence': analysis['trading'].confidence,
+                    'risk_level': analysis['trading'].risk_level,
+                    'timestamp': analysis['trading'].timestamp.isoformat(),
+                    'recommendations': analysis['trading'].recommendations or []
+                },
+                'generated_at': analysis['generated_at']
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"AI 종합 분석 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai/clear_cache', methods=['POST'])
+def api_ai_clear_cache():
+    """AI 분석 캐시 초기화 API"""
+    try:
+        from core.ai_advisor import ai_advisor
+
+        ai_advisor.clear_cache()
+
+        return jsonify({
+            'success': True,
+            'message': 'AI 분석 캐시가 초기화되었습니다.'
+        })
+
+    except Exception as e:
+        logger.error(f"AI 캐시 초기화 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # API 엔드포인트들
 
@@ -1865,17 +2140,17 @@ def api_config_current():
         # 전체 설정 불러오기
         current_config = {
             'strategies': {
-                'tier_weights': config_manager.get_config('strategies.tier_weights', {
+                'tier_weights': config_manager.get_config('strategies.tier_weights') or {
                     'scalping': 0.4,
                     'trend': 0.35,
                     'macro': 0.25
-                }),
-                'scalping_strategies': config_manager.get_config('strategies.scalping_strategies', {}),
-                'trend_strategies': config_manager.get_config('strategies.trend_strategies', {}),
-                'macro_strategies': config_manager.get_config('strategies.macro_strategies', {})
+                },
+                'scalping_strategies': config_manager.get_config('strategies.scalping_strategies') or {},
+                'trend_strategies': config_manager.get_config('strategies.trend_strategies') or {},
+                'macro_strategies': config_manager.get_config('strategies.macro_strategies') or {}
             },
             'trading': {
-                'trade_interval_minutes': config_manager.get_config('trading.trade_interval_minutes', 10)
+                'trade_interval_minutes': config_manager.get_config('trading.trade_interval_minutes') or 10
             }
         }
 

@@ -2,6 +2,12 @@
 
 {% block title %}전략 분석{% endblock %}
 
+{% block extra_head %}
+<!-- Chart.js 라이브러리 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="row">
@@ -57,11 +63,26 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h4 id="avg-success-rate">-</h4>
-                            <p class="card-text">평균 성공률</p>
+                            <h4 id="avg-execution-rate">-</h4>
+                            <p class="card-text">거래 실행률</p>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-bullseye fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 id="avg-profit-rate">-</h4>
+                            <p class="card-text">수익 거래 비율</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-trophy fa-2x"></i>
                         </div>
                     </div>
                 </div>
@@ -220,7 +241,7 @@
                             </tbody>
                         </table>
                     </div>
-                    
+
                     <!-- 페이지네이션 -->
                     <nav aria-label="실행 이력 페이지네이션">
                         <ul class="pagination justify-content-center" id="history-pagination">
@@ -235,264 +256,333 @@
 <!-- Chart.js 및 커스텀 스크립트 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-let currentFilters = {
-    tier: '',
-    strategy: '',
-    hours: 24,
-    action: ''
-};
+    let currentFilters = {
+        tier: '',
+        strategy: '',
+        hours: 24,
+        action: ''
+    };
 
-let charts = {};
+    let charts = {};
 
-// 페이지 로드 시 초기화
-document.addEventListener('DOMContentLoaded', function() {
-    initializeCharts();
-    loadSummaryData();
-    loadExecutionHistory();
-    loadStrategyList();
-    
-    // 자동 새로고침 (5분마다)
-    setInterval(function() {
-        refreshData();
-    }, 300000);
-});
+    // 페이지 로드 시 초기화
+    document.addEventListener('DOMContentLoaded', function () {
+        initializeCharts();
+        loadSummaryData();
+        loadExecutionHistory();
+        loadStrategyList();
 
-function initializeCharts() {
-    // 성과 히트맵 초기화
-    const heatmapCtx = document.getElementById('performanceHeatmap').getContext('2d');
-    charts.heatmap = new Chart(heatmapCtx, {
-        type: 'scatter',
-        data: {
-            datasets: []
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: '전략별 성과 (성공률 vs 평균 신뢰도)'
-                },
-                legend: {
-                    display: true
-                }
+        // 자동 새로고침 (5분마다)
+        setInterval(function () {
+            refreshData();
+        }, 300000);
+    });
+
+    function initializeCharts() {
+        // 전략별 성과 바 차트 초기화 (히트맵 대신)
+        const heatmapCtx = document.getElementById('performanceHeatmap').getContext('2d');
+        charts.heatmap = new Chart(heatmapCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '성공률 (%)',
+                    data: [],
+                    backgroundColor: [],
+                    borderColor: [],
+                    borderWidth: 1
+                }]
             },
-            scales: {
-                x: {
+            options: {
+                responsive: true,
+                plugins: {
                     title: {
                         display: true,
-                        text: '성공률 (%)'
+                        text: '전략별 성과 (성공률 기준)'
                     },
-                    min: 0,
-                    max: 100
+                    legend: {
+                        display: false
+                    }
                 },
-                y: {
-                    title: {
-                        display: true,
-                        text: '평균 신뢰도'
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: '성공률 (%)'
+                        }
                     },
-                    min: 0,
-                    max: 1
-                }
-            }
-        }
-    });
-
-    // 시간대별 차트 초기화
-    const timelineCtx = document.getElementById('timelineChart').getContext('2d');
-    charts.timeline = new Chart(timelineCtx, {
-        type: 'bar',
-        data: {
-            labels: [],
-            datasets: [{
-                label: '실행 횟수',
-                data: [],
-                backgroundColor: 'rgba(54, 162, 235, 0.8)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: '시간대별 전략 실행 분포'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: '실행 횟수'
-                    }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: '시간대'
+                    x: {
+                        title: {
+                            display: true,
+                            text: '전략'
+                        }
                     }
                 }
             }
-        }
-    });
-
-    // 정확도 트렌드 차트 초기화
-    const accuracyCtx = document.getElementById('accuracyTrendChart').getContext('2d');
-    charts.accuracy = new Chart(accuracyCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: []
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: '일별 신호 정확도 트렌드'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    max: 100,
-                    title: {
-                        display: true,
-                        text: '정확도 (%)'
-                    }
-                }
-            }
-        }
-    });
-
-    // 계층별 기여도 파이 차트 초기화
-    const tierCtx = document.getElementById('tierContributionChart').getContext('2d');
-    charts.tierContribution = new Chart(tierCtx, {
-        type: 'doughnut',
-        data: {
-            labels: ['스캘핑', '트렌드', '매크로', '통합'],
-            datasets: [{
-                data: [0, 0, 0, 0],
-                backgroundColor: [
-                    'rgba(255, 99, 132, 0.8)',
-                    'rgba(54, 162, 235, 0.8)',
-                    'rgba(255, 205, 86, 0.8)',
-                    'rgba(75, 192, 192, 0.8)'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: '계층별 신호 생성 기여도'
-                }
-            }
-        }
-    });
-}
-
-async function loadSummaryData() {
-    try {
-        const response = await fetch(`/api/strategy/summary?days=7`);
-        const data = await response.json();
-        
-        if (data.success) {
-            const summary = data.data.overall;
-            document.getElementById('total-executions').textContent = summary.total_executions.toLocaleString();
-            document.getElementById('total-signals').textContent = summary.total_signals.toLocaleString();
-            document.getElementById('avg-success-rate').textContent = 
-                (summary.avg_success_rate * 100).toFixed(1) + '%';
-            document.getElementById('avg-confidence').textContent = 
-                (summary.avg_confidence * 100).toFixed(1) + '%';
-                
-            // 계층별 기여도 업데이트
-            if (data.data.by_tier) {
-                const tierData = [
-                    data.data.by_tier.scalping?.total_signals || 0,
-                    data.data.by_tier.trend?.total_signals || 0,
-                    data.data.by_tier.macro?.total_signals || 0,
-                    data.data.by_tier.integrated?.total_signals || 0
-                ];
-                charts.tierContribution.data.datasets[0].data = tierData;
-                charts.tierContribution.update();
-            }
-        }
-    } catch (error) {
-        console.error('요약 데이터 로드 오류:', error);
-    }
-}
-
-async function loadExecutionHistory() {
-    try {
-        const params = new URLSearchParams({
-            hours: currentFilters.hours,
-            limit: 50
         });
-        
-        if (currentFilters.tier) params.append('tier', currentFilters.tier);
-        if (currentFilters.strategy) params.append('id', currentFilters.strategy);
-        
-        const response = await fetch(`/api/strategy/execution_history?${params}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            updateExecutionHistoryTable(data.data);
-            updateTimelineChart(data.data);
-        }
-    } catch (error) {
-        console.error('실행 이력 로드 오류:', error);
-    }
-}
 
-async function loadStrategyList() {
-    try {
-        const response = await fetch('/api/strategy/execution_history?hours=168&limit=1000');
-        const data = await response.json();
-        
-        if (data.success) {
-            const strategies = [...new Set(data.data.map(item => item.strategy_id))];
-            const select = document.getElementById('strategy-filter');
-            
-            // 기존 옵션 제거 (첫 번째 "전체" 옵션 제외)
-            while (select.children.length > 1) {
-                select.removeChild(select.lastChild);
+        // 시간대별 차트 초기화
+        const timelineCtx = document.getElementById('timelineChart').getContext('2d');
+        charts.timeline = new Chart(timelineCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '실행 횟수',
+                    data: [],
+                    backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '시간대별 전략 실행 분포'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '실행 횟수'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '시간대'
+                        }
+                    }
+                }
             }
-            
-            // 새 옵션 추가
-            strategies.forEach(strategy => {
-                const option = document.createElement('option');
-                option.value = strategy;
-                option.textContent = strategy;
-                select.appendChild(option);
-            });
-        }
-    } catch (error) {
-        console.error('전략 목록 로드 오류:', error);
-    }
-}
+        });
 
-function updateExecutionHistoryTable(data) {
-    const tbody = document.getElementById('execution-history-tbody');
-    tbody.innerHTML = '';
-    
-    if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center">데이터가 없습니다.</td></tr>';
-        return;
+        // 정확도 트렌드 차트 초기화
+        const accuracyCtx = document.getElementById('accuracyTrendChart').getContext('2d');
+        charts.accuracy = new Chart(accuracyCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '일별 신호 정확도 트렌드'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: '정확도 (%)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 계층별 기여도 파이 차트 초기화
+        const tierCtx = document.getElementById('tierContributionChart').getContext('2d');
+        charts.tierContribution = new Chart(tierCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['스캘핑', '트렌드', '매크로', '통합'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 205, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '계층별 신호 생성 기여도'
+                    }
+                }
+            }
+        });
     }
-    
-    data.forEach(item => {
-        const row = document.createElement('tr');
-        
-        // 신호 타입에 따른 배지 색상
-        const signalBadge = getSignalBadge(item.signal_action);
-        const tradeBadge = item.trade_executed ? 
-            '<span class="badge badge-success">실행됨</span>' : 
-            '<span class="badge badge-secondary">미실행</span>';
-        
-        row.innerHTML = `
+
+    async function loadSummaryData() {
+        try {
+            // 요약 데이터와 성과 데이터를 병렬로 로드
+            const [summaryResponse, performanceResponse, hourlyResponse] = await Promise.all([
+                fetch(`/api/strategy_analytics/summary?days=7`),
+                fetch(`/api/strategy_analytics/performance?days=7`),
+                fetch(`/api/strategy_analytics/hourly?hours=24`)
+            ]);
+
+            const summaryData = await summaryResponse.json();
+            const performanceData = await performanceResponse.json();
+            const hourlyData = await hourlyResponse.json();
+
+            if (summaryData.success) {
+                const summary = summaryData.data.overall;
+                document.getElementById('total-executions').textContent = summary.total_executions.toLocaleString();
+                document.getElementById('total-signals').textContent = summary.total_signals.toLocaleString();
+                document.getElementById('avg-execution-rate').textContent =
+                    (summary.avg_execution_rate * 100).toFixed(1) + '%';
+                document.getElementById('avg-profit-rate').textContent =
+                    (summary.avg_profit_rate * 100).toFixed(1) + '%';
+                document.getElementById('avg-confidence').textContent =
+                    (summary.avg_confidence * 100).toFixed(1) + '%';
+
+                // 계층별 기여도 업데이트
+                if (summaryData.data.by_tier) {
+                    const tierData = [
+                        summaryData.data.by_tier.scalping?.total_signals || 0,
+                        summaryData.data.by_tier.trend?.total_signals || 0,
+                        summaryData.data.by_tier.macro?.total_signals || 0,
+                        summaryData.data.by_tier.integrated?.total_signals || 0
+                    ];
+                    charts.tierContribution.data.datasets[0].data = tierData;
+                    charts.tierContribution.update();
+                }
+            }
+
+            // 전략별 성과 차트 업데이트
+            if (performanceData.success && performanceData.data.length > 0) {
+                updateStrategyPerformanceChart(performanceData.data);
+            }
+
+            // 시간대별 분포 차트 업데이트
+            if (hourlyData.success) {
+                updateHourlyDistributionChart(hourlyData.data);
+            }
+
+        } catch (error) {
+            console.error('요약 데이터 로드 오류:', error);
+        }
+    }
+
+    function updateStrategyPerformanceChart(performanceData) {
+        // 전략별 성과 데이터 처리
+        const strategyLabels = [];
+        const successRates = [];
+        const backgroundColors = [];
+
+        performanceData.forEach(item => {
+            const label = `${item.strategy_tier}:${item.strategy_id}`;
+            strategyLabels.push(label);
+
+            const successRate = (item.success_rate * 100).toFixed(1);
+            successRates.push(successRate);
+
+            // 성공률에 따른 색상 매핑
+            if (successRate >= 70) {
+                backgroundColors.push('rgba(34, 197, 94, 0.8)'); // 초록 (좋음)
+            } else if (successRate >= 50) {
+                backgroundColors.push('rgba(251, 191, 36, 0.8)'); // 노랑 (보통)
+            } else {
+                backgroundColors.push('rgba(239, 68, 68, 0.8)'); // 빨강 (나쁨)
+            }
+        });
+
+        // 차트 데이터 업데이트
+        charts.heatmap.data.labels = strategyLabels;
+        charts.heatmap.data.datasets[0].data = successRates;
+        charts.heatmap.data.datasets[0].backgroundColor = backgroundColors;
+        charts.heatmap.update();
+    }
+
+    function updateHourlyDistributionChart(hourlyData) {
+        // 24시간 라벨 생성
+        const hourLabels = [];
+        for (let i = 0; i < 24; i++) {
+            hourLabels.push(`${i}:00`);
+        }
+
+        // 시간대별 차트 업데이트
+        charts.timeline.data.labels = hourLabels;
+        charts.timeline.data.datasets[0].data = hourlyData.hourly_distribution;
+        charts.timeline.update();
+    }
+
+    async function loadExecutionHistory() {
+        try {
+            const params = new URLSearchParams({
+                hours: currentFilters.hours,
+                limit: 50
+            });
+
+            if (currentFilters.tier) params.append('tier', currentFilters.tier);
+            if (currentFilters.strategy) params.append('id', currentFilters.strategy);
+
+            const response = await fetch(`/api/strategy/execution_history?${params}`);
+            const data = await response.json();
+
+            if (data.success) {
+                updateExecutionHistoryTable(data.data);
+                updateTimelineChart(data.data);
+            }
+        } catch (error) {
+            console.error('실행 이력 로드 오류:', error);
+        }
+    }
+
+    async function loadStrategyList() {
+        try {
+            const response = await fetch('/api/strategy/execution_history?hours=168&limit=1000');
+            const data = await response.json();
+
+            if (data.success) {
+                const strategies = [...new Set(data.data.map(item => item.strategy_id))];
+                const select = document.getElementById('strategy-filter');
+
+                // 기존 옵션 제거 (첫 번째 "전체" 옵션 제외)
+                while (select.children.length > 1) {
+                    select.removeChild(select.lastChild);
+                }
+
+                // 새 옵션 추가
+                strategies.forEach(strategy => {
+                    const option = document.createElement('option');
+                    option.value = strategy;
+                    option.textContent = strategy;
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('전략 목록 로드 오류:', error);
+        }
+    }
+
+    function updateExecutionHistoryTable(data) {
+        const tbody = document.getElementById('execution-history-tbody');
+        tbody.innerHTML = '';
+
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center">데이터가 없습니다.</td></tr>';
+            return;
+        }
+
+        data.forEach(item => {
+            const row = document.createElement('tr');
+
+            // 신호 타입에 따른 배지 색상
+            const signalBadge = getSignalBadge(item.signal_action);
+            const tradeBadge = item.trade_executed ?
+                '<span class="badge badge-success">실행됨</span>' :
+                '<span class="badge badge-secondary">미실행</span>';
+
+            row.innerHTML = `
             <td>${new Date(item.execution_time).toLocaleString()}</td>
             <td><span class="badge badge-info">${getTierDisplayName(item.strategy_tier)}</span></td>
             <td>${item.strategy_id}</td>
@@ -504,78 +594,78 @@ function updateExecutionHistoryTable(data) {
             <td>${item.execution_duration.toFixed(1)}ms</td>
             <td><small>${item.reasoning}</small></td>
         `;
-        
-        tbody.appendChild(row);
-    });
-}
 
-function updateTimelineChart(data) {
-    // 시간대별 실행 횟수 집계
-    const hourlyData = {};
-    for (let i = 0; i < 24; i++) {
-        hourlyData[i] = 0;
+            tbody.appendChild(row);
+        });
     }
-    
-    data.forEach(item => {
-        const hour = new Date(item.execution_time).getHours();
-        hourlyData[hour]++;
-    });
-    
-    const labels = Object.keys(hourlyData).map(hour => `${hour}:00`);
-    const values = Object.values(hourlyData);
-    
-    charts.timeline.data.labels = labels;
-    charts.timeline.data.datasets[0].data = values;
-    charts.timeline.update();
-}
 
-function getSignalBadge(action) {
-    switch (action) {
-        case 'buy':
-            return '<span class="badge badge-success">매수</span>';
-        case 'sell':
-            return '<span class="badge badge-danger">매도</span>';
-        case 'hold':
-            return '<span class="badge badge-warning">홀드</span>';
-        default:
-            return '<span class="badge badge-secondary">' + action + '</span>';
+    function updateTimelineChart(data) {
+        // 시간대별 실행 횟수 집계
+        const hourlyData = {};
+        for (let i = 0; i < 24; i++) {
+            hourlyData[i] = 0;
+        }
+
+        data.forEach(item => {
+            const hour = new Date(item.execution_time).getHours();
+            hourlyData[hour]++;
+        });
+
+        const labels = Object.keys(hourlyData).map(hour => `${hour}:00`);
+        const values = Object.values(hourlyData);
+
+        charts.timeline.data.labels = labels;
+        charts.timeline.data.datasets[0].data = values;
+        charts.timeline.update();
     }
-}
 
-function getTierDisplayName(tier) {
-    switch (tier) {
-        case 'scalping':
-            return '스캘핑';
-        case 'trend':
-            return '트렌드';
-        case 'macro':
-            return '매크로';
-        case 'integrated':
-            return '통합';
-        default:
-            return tier;
+    function getSignalBadge(action) {
+        switch (action) {
+            case 'buy':
+                return '<span class="badge badge-success">매수</span>';
+            case 'sell':
+                return '<span class="badge badge-danger">매도</span>';
+            case 'hold':
+                return '<span class="badge badge-warning">홀드</span>';
+            default:
+                return '<span class="badge badge-secondary">' + action + '</span>';
+        }
     }
-}
 
-function applyFilters() {
-    currentFilters.tier = document.getElementById('tier-filter').value;
-    currentFilters.strategy = document.getElementById('strategy-filter').value;
-    currentFilters.hours = parseInt(document.getElementById('time-filter').value);
-    currentFilters.action = document.getElementById('action-filter').value;
-    
-    loadExecutionHistory();
-    loadSummaryData();
-}
+    function getTierDisplayName(tier) {
+        switch (tier) {
+            case 'scalping':
+                return '스캘핑';
+            case 'trend':
+                return '트렌드';
+            case 'macro':
+                return '매크로';
+            case 'integrated':
+                return '통합';
+            default:
+                return tier;
+        }
+    }
 
-function refreshData() {
-    loadSummaryData();
-    loadExecutionHistory();
-    loadStrategyList();
-}
+    function applyFilters() {
+        currentFilters.tier = document.getElementById('tier-filter').value;
+        currentFilters.strategy = document.getElementById('strategy-filter').value;
+        currentFilters.hours = parseInt(document.getElementById('time-filter').value);
+        currentFilters.action = document.getElementById('action-filter').value;
 
-function exportData() {
-    // CSV 내보내기 기능 구현
-    alert('CSV 내보내기 기능은 추후 구현됩니다.');
-}
+        loadExecutionHistory();
+        loadSummaryData();
+    }
+
+    function refreshData() {
+        loadSummaryData();
+        loadExecutionHistory();
+        loadStrategyList();
+    }
+
+    function exportData() {
+        // CSV 내보내기 기능 구현
+        alert('CSV 내보내기 기능은 추후 구현됩니다.');
+    }
 </script>
 {% endblock %}
