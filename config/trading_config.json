@@ -2,7 +2,7 @@
   "system": {
     "enabled": true,
     "mode": "paper_trading",
-    "last_updated": "2025-08-29T21:17:31.885024",
+    "last_updated": "2025-09-01T00:04:15.715171",
     "version": "2.0"
   },
   "trading": {
@@ -11,7 +11,7 @@
     "emergency_stop_loss": 100000,
     "daily_loss_limit": 50000,
     "max_positions": 3,
-    "auto_trade_enabled": false,
+    "auto_trade_enabled": true,
     "trade_interval_minutes": 10,
     "market": "KRW-BTC",
     "ai_analysis": {
@@ -86,7 +86,12 @@
       "enhanced_ema": {
         "enabled": true,
         "weight": 0.4,
-        "ema_periods": [9, 21, 50, 200],
+        "ema_periods": [
+          9,
+          21,
+          50,
+          200
+        ],
         "slope_threshold": 0.001
       },
       "enhanced_vwap": {
@@ -106,7 +111,12 @@
       "enhanced_trend_alignment": {
         "enabled": true,
         "weight": 0.4,
-        "sma_periods": [20, 50, 100, 200],
+        "sma_periods": [
+          20,
+          50,
+          100,
+          200
+        ],
         "slope_threshold": 0.005
       },
       "volume_profile": {

@@ -2556,32 +2556,34 @@ def api_debug_config_sync():
     import os
     try:
         # 메모리 상태
-        memory_auto_trade = config_manager.get_config('trading.auto_trade_enabled')
+        memory_auto_trade = config_manager.get_config(
+            'trading.auto_trade_enabled')
         memory_system = config_manager.get_config('system.enabled')
-        
+
         # 파일 직접 읽기
         config_file_path = config_manager.config_file
         file_exists = os.path.exists(config_file_path)
-        
+
         file_auto_trade = None
         file_system = None
         file_last_modified = None
         file_error = None
-        
+
         if file_exists:
             try:
                 import json
                 with open(config_file_path, 'r', encoding='utf-8') as f:
                     file_data = json.load(f)
-                file_auto_trade = file_data.get('trading', {}).get('auto_trade_enabled')
+                file_auto_trade = file_data.get(
+                    'trading', {}).get('auto_trade_enabled')
                 file_system = file_data.get('system', {}).get('enabled')
                 file_last_modified = os.path.getmtime(config_file_path)
             except Exception as e:
                 file_error = str(e)
-        
+
         # ConfigManager 내부 상태
         cm_last_modified = config_manager.last_modified
-        
+
         return jsonify({
             'success': True,
             'debug_info': {

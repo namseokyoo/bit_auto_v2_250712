@@ -512,7 +512,7 @@
             type: typeof nextExecutionStr,
             isRunning: isRunning
         });
-        
+
         if (!nextExecutionStr) {
             element.textContent = isRunning ? '계산중...' : '정지됨';
             console.log('next_execution이 null/undefined - 기본값 표시');
@@ -522,7 +522,7 @@
         try {
             // 다양한 시간 형식 처리
             let nextTime;
-            
+
             // ISO 문자열인 경우 (예: "2025-08-31T15:12:02.230202")
             if (typeof nextExecutionStr === 'string') {
                 // Z가 없으면 로컬 시간으로 처리되므로 KST 처리
@@ -534,17 +534,17 @@
             } else {
                 nextTime = new Date(nextExecutionStr);
             }
-            
+
             console.log('파싱된 시간:', nextTime, 'isValid:', !isNaN(nextTime.getTime()));
-            
+
             if (!isNaN(nextTime.getTime())) {
                 // 현재 시간과 비교하여 남은 시간 계산
                 const now = new Date();
                 const diff = nextTime - now;
-                
+
                 // 전역 변수에 저장 (카운트다운 용)
                 globalNextExecutionTime = nextTime;
-                
+
                 if (diff > 0) {
                     // 미래 시간인 경우 - 한국 시간으로 표시
                     const timeStr = nextTime.toLocaleTimeString('ko-KR', {
@@ -554,12 +554,12 @@
                         minute: '2-digit',
                         second: '2-digit'
                     });
-                    
+
                     // 남은 시간 계산 (분:초)
                     const remainingMinutes = Math.floor(diff / 60000);
                     const remainingSeconds = Math.floor((diff % 60000) / 1000);
                     const remainingStr = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-                    
+
                     element.textContent = `${timeStr} (${remainingStr}후)`;
                     console.log('표시된 시간:', timeStr, '남은시간:', remainingStr);
                 } else {
@@ -591,7 +591,7 @@
         try {
             const now = new Date();
             const diff = globalNextExecutionTime - now;
-            
+
             if (diff > 0) {
                 // 미래 시간인 경우 - 카운트다운 업데이트
                 const timeStr = globalNextExecutionTime.toLocaleTimeString('ko-KR', {
@@ -601,12 +601,12 @@
                     minute: '2-digit',
                     second: '2-digit'
                 });
-                
+
                 // 남은 시간 계산 (분:초)
                 const remainingMinutes = Math.floor(diff / 60000);
                 const remainingSeconds = Math.floor((diff % 60000) / 1000);
                 const remainingStr = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-                
+
                 nextExecution.textContent = `${timeStr} (${remainingStr}후)`;
             } else {
                 // 시간이 지났으면 곧 실행 표시
@@ -631,7 +631,7 @@
 
         // 10초마다 자동 업데이트
         setInterval(updateDashboard, 10000);
-        
+
         // 1초마다 카운트다운 업데이트
         setInterval(updateCountdown, 1000);
 

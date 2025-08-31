@@ -89,7 +89,7 @@ class AutoTrader:
                     self.logger.info("AutoTrader 스케줄 재설정 중...")
                     self._setup_schedule()
                     self.logger.info("AutoTrader 스케줄 재설정 완료")
-            
+
             elif key_path == 'trading.auto_trade_enabled':
                 if new_value:
                     self.logger.info("자동거래 활성화됨")
