@@ -31,10 +31,16 @@ jobs:
         # 연결 테스트
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 $USER@$HOST "echo 'SSH 연결 성공'"
         
-        # 웹 앱 파일만 복사 (가장 중요한 부분)
+        # 전체 프로젝트 동기화 (중요 파일들)
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r core/ $USER@$HOST:/opt/bitcoin_auto_trading/
         scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r web/ $USER@$HOST:/opt/bitcoin_auto_trading/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r config/ $USER@$HOST:/opt/bitcoin_auto_trading/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no main.py $USER@$HOST:/opt/bitcoin_auto_trading/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no requirements.txt $USER@$HOST:/opt/bitcoin_auto_trading/
         
-        # 단순 재시작 (오류 무시)
+        # .env 파일은 서버에 이미 설정되어 있으므로 복사하지 않음
+        
+        # 서비스 재시작
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 $USER@$HOST "sudo systemctl restart bitcoin-trading || echo 'restart failed but continuing...'"
 
     - name: Verify Deployment
