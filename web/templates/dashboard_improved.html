@@ -650,11 +650,19 @@
 
         // 다음 실행 시간 (개선된 로직)
         const nextExecution = document.getElementById('next-execution');
+        console.log('다음 실행 시간 처리:', {
+            next_execution: status.next_execution,
+            type: typeof status.next_execution,
+            isRunning: isRunning
+        });
+        
         if (status.next_execution) {
             try {
                 const nextTime = new Date(status.next_execution);
+                console.log('파싱된 시간:', nextTime, 'isValid:', !isNaN(nextTime.getTime()));
+                
                 if (!isNaN(nextTime.getTime())) {
-                    // 한국 시간으로 변환해서 표시
+                    // 한국 시간으로 변환해서 표시 (MM:SS 포함)
                     const options = {
                         timeZone: 'Asia/Seoul',
                         hour12: false,
@@ -662,16 +670,20 @@
                         minute: '2-digit',
                         second: '2-digit'
                     };
-                    nextExecution.textContent = nextTime.toLocaleTimeString('ko-KR', options);
+                    const timeStr = nextTime.toLocaleTimeString('ko-KR', options);
+                    nextExecution.textContent = timeStr;
+                    console.log('표시된 시간:', timeStr);
                 } else {
                     nextExecution.textContent = isRunning ? '계산중...' : '정지됨';
+                    console.log('시간 파싱 실패 - 기본값 표시');
                 }
             } catch (e) {
-                console.error('시간 파싱 오류:', e);
+                console.error('시간 파싱 오류:', e, 'next_execution:', status.next_execution);
                 nextExecution.textContent = isRunning ? '계산중...' : '정지됨';
             }
         } else {
             nextExecution.textContent = isRunning ? '계산중...' : '정지됨';
+            console.log('next_execution이 null/undefined - 기본값 표시');
         }
 
         // 성공률
