@@ -74,6 +74,28 @@ def dashboard():
             }
         }
 
+        # AI 스케줄러 상태
+        ai_scheduler_status = {}
+        try:
+            from core.ai_scheduler import ai_scheduler
+            ai_config = config_manager.get_config('trading.ai_analysis') or {}
+            ai_scheduler_status = {
+                'enabled': ai_config.get('enabled', False),
+                'interval_minutes': ai_config.get('interval_minutes', 30),
+                'is_running': ai_scheduler.is_running() if ai_scheduler else False,
+                'last_execution': ai_config.get('last_execution'),
+                'auto_on_startup': ai_config.get('auto_on_startup', False)
+            }
+        except Exception as e:
+            logger.error(f"AI 스케줄러 상태 조회 오류: {e}")
+            ai_scheduler_status = {
+                'enabled': False,
+                'interval_minutes': 30,
+                'is_running': False,
+                'last_execution': None,
+                'auto_on_startup': False
+            }
+
         # 대시보드 데이터
         dashboard_data = db.get_dashboard_data()
 
@@ -116,7 +138,8 @@ def dashboard():
                                system_status=system_status,
                                dashboard_data=dashboard_data,
                                balances=balances,
-                               current_price=current_price)
+                               current_price=current_price,
+                               ai_scheduler_status=ai_scheduler_status)
     except Exception as e:
         logger.error(f"대시보드 로드 오류: {e}")
         return f"오류 발생: {e}", 500
