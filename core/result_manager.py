@@ -19,6 +19,8 @@ class ResultManager:
             "next_execution": None,
             "auto_trading_enabled": False,
         }
+        # 시스템 시작 시 항상 락 해제
+        self.force_unlock_on_startup()
 
     # 상태
     def get_current_status(self) -> Dict[str, Any]:
@@ -47,6 +49,21 @@ class ResultManager:
     def release_trading_lock(self):
         with self._lock:
             self._trading_locked = False
+
+    def force_unlock_on_startup(self):
+        """시스템 시작 시 강제로 락 해제"""
+        with self._lock:
+            if self._trading_locked:
+                print("WARNING: 시스템 시작 시 거래 락이 활성화되어 있었습니다. 강제 해제합니다.")
+            self._trading_locked = False
+
+    def get_lock_status(self) -> Dict[str, Any]:
+        """락 상태 상세 정보 반환"""
+        with self._lock:
+            return {
+                "locked": self._trading_locked,
+                "timestamp": datetime.now().isoformat()
+            }
 
 
 result_manager = ResultManager()

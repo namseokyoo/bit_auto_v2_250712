@@ -1638,69 +1638,67 @@ def api_manual_execute():
                 'message': '거래 락을 획득할 수 없습니다. 다른 거래가 진행 중입니다.'
             }), 400
 
-        try:
-            engine = TradingEngine()
+        engine = TradingEngine()
 
-            if action == 'analyze_and_execute':
-                # 다층 전략 시스템 사용하여 분석 실행
-                from core.multi_tier_strategy_engine import multi_tier_engine
+        if action == 'analyze_and_execute':
+            # 다층 전략 시스템 사용하여 분석 실행
+            from core.multi_tier_strategy_engine import multi_tier_engine
 
-                multi_tier_decision = multi_tier_engine.analyze()
+            multi_tier_decision = multi_tier_engine.analyze()
 
-                # 다층 결정을 ConsolidatedSignal로 변환
-                consolidated_signal = engine._convert_multitier_to_consolidated(
-                    multi_tier_decision)
+            # 다층 결정을 ConsolidatedSignal로 변환
+            consolidated_signal = engine._convert_multitier_to_consolidated(
+                multi_tier_decision)
 
-                # 전략별 신호 상세 정보 수집 (다층 전략 결과)
-                strategy_details = []
+            # 전략별 신호 상세 정보 수집 (다층 전략 결과)
+            strategy_details = []
 
-                # 다층 전략 시스템의 계층별 기여도 정보 사용
-                for tier, contribution in multi_tier_decision.tier_contributions.items():
-                    strategy_details.append({
-                        'strategy_id': f"{tier.value}_layer",
-                        'action': multi_tier_decision.final_action,
-                        'confidence': round(contribution, 3),
-                        'reasoning': f"{tier.value} 계층 기여도: {contribution:.1%}",
-                        'price': 0,  # 다층 전략에서는 별도 가격 없음
-                        'suggested_amount': multi_tier_decision.suggested_amount if tier == max(multi_tier_decision.tier_contributions, key=multi_tier_decision.tier_contributions.get) else 0
-                    })
-
-                # 통합 결정 정보도 추가
+            # 다층 전략 시스템의 계층별 기여도 정보 사용
+            for tier, contribution in multi_tier_decision.tier_contributions.items():
                 strategy_details.append({
-                    'strategy_id': 'integrated_decision',
+                    'strategy_id': f"{tier.value}_layer",
                     'action': multi_tier_decision.final_action,
-                    'confidence': round(multi_tier_decision.confidence, 3),
-                    'reasoning': multi_tier_decision.reasoning[:100] + ('...' if len(multi_tier_decision.reasoning) > 100 else ''),
-                    'price': 0,
-                    'suggested_amount': multi_tier_decision.suggested_amount
+                    'confidence': round(contribution, 3),
+                    'reasoning': f"{tier.value} 계층 기여도: {contribution:.1%}",
+                    'price': 0,  # 다층 전략에서는 별도 가격 없음
+                    'suggested_amount': multi_tier_decision.suggested_amount if tier == max(multi_tier_decision.tier_contributions, key=multi_tier_decision.tier_contributions.get) else 0
                 })
 
-                # 실행 결과와 분석 정보
-                analysis_data = {
-                    'strategy_count': len(strategy_details),
-                    'strategy_details': strategy_details,
-                    'consolidated_action': consolidated_signal.action if consolidated_signal else 'hold',
-                    'consolidated_confidence': round(consolidated_signal.confidence, 3) if consolidated_signal else 0,
-                    'consolidated_reasoning': consolidated_signal.reasoning if consolidated_signal else '신호 없음'
-                }
+            # 통합 결정 정보도 추가
+            strategy_details.append({
+                'strategy_id': 'integrated_decision',
+                'action': multi_tier_decision.final_action,
+                'confidence': round(multi_tier_decision.confidence, 3),
+                'reasoning': multi_tier_decision.reasoning[:100] + ('...' if len(multi_tier_decision.reasoning) > 100 else ''),
+                'price': 0,
+                'suggested_amount': multi_tier_decision.suggested_amount
+            })
 
-                if consolidated_signal and consolidated_signal.action != 'hold':
-                    engine._process_consolidated_signal(consolidated_signal)
-                    message = f"분석 후 {consolidated_signal.action} 실행 완료 (신뢰도: {consolidated_signal.confidence:.2f})"
-                    analysis_data['executed'] = True
-                else:
-                    message = "분석 결과 홀드 신호 - 거래 실행하지 않음"
-                    analysis_data['executed'] = False
+            # 실행 결과와 분석 정보
+            analysis_data = {
+                'strategy_count': len(strategy_details),
+                'strategy_details': strategy_details,
+                'consolidated_action': consolidated_signal.action if consolidated_signal else 'hold',
+                'consolidated_confidence': round(consolidated_signal.confidence, 3) if consolidated_signal else 0,
+                'consolidated_reasoning': consolidated_signal.reasoning if consolidated_signal else '신호 없음'
+            }
 
-                # 추가 데이터를 응답에 포함
-                result_response = jsonify({
-                    'success': True,
-                    'message': message,
-                    'analysis': analysis_data
-                })
-                return result_response
+            if consolidated_signal and consolidated_signal.action != 'hold':
+                engine._process_consolidated_signal(consolidated_signal)
+                message = f"분석 후 {consolidated_signal.action} 실행 완료 (신뢰도: {consolidated_signal.confidence:.2f})"
+                analysis_data['executed'] = True
+            else:
+                message = "분석 결과 홀드 신호 - 거래 실행하지 않음"
+                analysis_data['executed'] = False
 
-            elif action == 'buy':
+            # 추가 데이터를 응답에 포함
+            return jsonify({
+                'success': True,
+                'message': message,
+                'analysis': analysis_data
+            })
+
+        elif action == 'buy':
             # 강제 매수
             from core.upbit_api import UpbitAPI
             api = UpbitAPI(paper_trading=False)
@@ -1802,10 +1800,20 @@ def api_manual_execute():
 
         logger.info(f"수동 거래 실행: {action} - {message}")
 
+        # 락 해제
+        result_manager.release_trading_lock()
+
         return jsonify({'success': True, 'message': message})
 
     except Exception as e:
         logger.error(f"수동 거래 실행 오류: {e}")
+
+        # 오류 시에도 락 해제
+        try:
+            from core.result_manager import result_manager
+            result_manager.release_trading_lock()
+        except:
+            pass
 
         log_error(e, {
             'endpoint': '/api/manual_trading/execute',
@@ -1813,13 +1821,6 @@ def api_manual_execute():
             'action': data.get('action') if 'data' in locals() else 'unknown'
         }, 'WebApp')
         return jsonify({'success': False, 'message': str(e)}), 500
-
-    finally:
-        # 반드시 락 해제
-        try:
-            result_manager.release_trading_lock()
-        except:
-            pass
 
 
 @app.route('/api/trading_lock/status', methods=['GET'])
@@ -1829,7 +1830,7 @@ def api_trading_lock_status():
         from core.result_manager import result_manager
         return jsonify({
             'success': True,
-            'locked': result_manager.is_trading_locked()
+            'data': result_manager.get_lock_status()
         })
     except Exception as e:
         logger.error(f"거래 락 상태 확인 오류: {e}")

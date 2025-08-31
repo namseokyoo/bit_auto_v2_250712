@@ -1218,29 +1218,56 @@
     // 기존 함수들 (호환성 유지)
     function analyzeAndExecute() {
         if (confirm('현재 시장 상황을 분석하고 신호에 따라 거래를 실행하시겠습니까?')) {
-            fetch('/api/manual_trading/execute', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    action: 'analyze_and_execute'
-                })
-            })
+            // 먼저 락 상태 확인 후 필요시 해제
+            fetch('/api/trading_lock/status')
                 .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.analysis) {
-                        showAnalysisResults(data.message, data.analysis);
+                .then(lockData => {
+                    if (lockData.success && lockData.data.locked) {
+                        // 락이 걸려있으면 해제
+                        return fetch('/api/trading_lock/release', { method: 'POST' })
+                            .then(response => response.json())
+                            .then(releaseData => {
+                                if (releaseData.success) {
+                                    console.log('거래 락 자동 해제됨');
+                                    showNotification('거래 락이 자동으로 해제되었습니다.', 'info');
+                                }
+                                return executeAnalysis();
+                            });
                     } else {
-                        showAlert(data.success ? 'success' : 'danger', data.message);
+                        return executeAnalysis();
                     }
-                    if (data.success) updateDashboard();
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    showAlert('danger', '분석 실행 중 오류가 발생했습니다.');
+                    console.error('락 상태 확인 오류:', error);
+                    // 락 상태 확인 실패해도 분석은 시도
+                    executeAnalysis();
                 });
         }
+    }
+
+    function executeAnalysis() {
+        return fetch('/api/manual_trading/execute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'analyze_and_execute'
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.analysis) {
+                    showAnalysisResults(data.message, data.analysis);
+                } else {
+                    showAlert(data.success ? 'success' : 'danger', data.message);
+                }
+                if (data.success) updateDashboard();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('danger', '분석 실행 중 오류가 발생했습니다.');
+            });
     }
 
     function showAnalysisResults(message, analysis) {
