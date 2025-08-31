@@ -342,10 +342,10 @@
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-robot text-primary"></i> AI 분석 및 조언</h5>
-                                        <div>
-                            <button class="btn btn-sm btn-outline-primary me-2" onclick="refreshAIAnalysis()">
-                                <i class="fas fa-brain"></i> AI 분석
-                            </button>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="refreshAIAnalysis()">
+                        <i class="fas fa-brain"></i> AI 분석
+                    </button>
                     <button class="btn btn-sm btn-outline-info" onclick="toggleAISection()">
                         <i class="fas fa-chevron-down" id="ai-toggle-icon"></i>
                     </button>
@@ -358,7 +358,8 @@
                             <div class="card-header bg-primary text-white">
                                 <h6 class="mb-0">
                                     <i class="fas fa-chart-line"></i> 시장 분석
-                                    <span id="market-mock-badge" class="badge bg-warning ms-2" style="display: none;">모의응답</span>
+                                    <span id="market-mock-badge" class="badge bg-warning ms-2"
+                                        style="display: none;">모의응답</span>
                                 </h6>
                             </div>
                             <div class="card-body">
@@ -388,7 +389,8 @@
                             <div class="card-header bg-success text-white">
                                 <h6 class="mb-0">
                                     <i class="fas fa-lightbulb"></i> 거래 조언
-                                    <span id="trading-mock-badge" class="badge bg-warning ms-2" style="display: none;">모의응답</span>
+                                    <span id="trading-mock-badge" class="badge bg-warning ms-2"
+                                        style="display: none;">모의응답</span>
                                 </h6>
                             </div>
                             <div class="card-body">
@@ -669,7 +671,7 @@
                         ${trade.side === 'buy' ? '매수' : '매도'} 
                         ${Number(trade.quantity).toFixed(8)} BTC
                     </div>
-                    <small class="text-muted">${new Date(trade.entry_time).toLocaleString('ko-KR')}</small>
+                    <small class="text-muted">${formatKST(trade.entry_time)}</small>
                 </div>
                 <div class="text-end">
                     <div class="fw-bold">₩ ${Number(trade.amount).toLocaleString()}</div>
@@ -758,7 +760,7 @@
         // 시장 분석 로드 (타임아웃 3분)
         const controller1 = new AbortController();
         const timeoutId1 = setTimeout(() => controller1.abort(), 180000); // 3분 타임아웃
-        
+
         fetch(`/api/ai/market_analysis${refreshParam}`, {
             signal: controller1.signal
         })
@@ -776,7 +778,7 @@
         // 거래 조언 로드 (타임아웃 3분)
         const controller2 = new AbortController();
         const timeoutId2 = setTimeout(() => controller2.abort(), 180000); // 3분 타임아웃
-        
+
         fetch(`/api/ai/trading_advice${refreshParam}`, {
             signal: controller2.signal
         })
@@ -814,9 +816,8 @@
             contentElement.innerHTML = `<div class="analysis-text">${analysis.content.replace(/\n/g, '<br>')}</div>`;
 
             // 타임스탬프 업데이트
-            const timestamp = new Date(analysis.timestamp);
-            timestampElement.textContent = timestamp.toLocaleString('ko-KR');
-            
+            timestampElement.textContent = formatKST(analysis.timestamp);
+
             // 모의응답 배지 표시
             const mockBadge = document.getElementById('market-mock-badge');
             if (analysis.is_mock) {
@@ -824,14 +825,14 @@
             } else {
                 mockBadge.style.display = 'none';
             }
-            
+
         } else {
             contentElement.innerHTML = `<div class="text-danger"><i class="fas fa-exclamation-triangle"></i> ${data.error || '분석을 불러올 수 없습니다.'}</div>`;
             confidenceElement.textContent = '0%';
             confidenceElement.className = 'badge bg-secondary';
             riskElement.textContent = 'UNKNOWN';
             riskElement.className = 'badge bg-secondary';
-            
+
             // 오류 시 모의응답 배지 숨김
             document.getElementById('market-mock-badge').style.display = 'none';
         }
@@ -864,9 +865,8 @@
             contentElement.innerHTML = `<div class="analysis-text">${advice.content.replace(/\n/g, '<br>')}</div>`;
 
             // 타임스탬프 업데이트
-            const timestamp = new Date(advice.timestamp);
-            timestampElement.textContent = timestamp.toLocaleString('ko-KR');
-            
+            timestampElement.textContent = formatKST(advice.timestamp);
+
             // 모의응답 배지 표시
             const mockBadge = document.getElementById('trading-mock-badge');
             if (advice.is_mock) {
@@ -874,16 +874,30 @@
             } else {
                 mockBadge.style.display = 'none';
             }
-            
+
         } else {
             contentElement.innerHTML = `<div class="text-danger"><i class="fas fa-exclamation-triangle"></i> ${data.error || '조언을 불러올 수 없습니다.'}</div>`;
             confidenceElement.textContent = '0%';
             confidenceElement.className = 'badge bg-secondary';
             recommendationsElement.innerHTML = '';
-            
+
             // 오류 시 모의응답 배지 숨김
             document.getElementById('trading-mock-badge').style.display = 'none';
         }
+    }
+
+    // KST 시간 포맷팅 함수
+    function formatKST(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleString('ko-KR', {
+            timeZone: 'Asia/Seoul',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
     }
 
     // 시스템/거래 전용 버튼 핸들러

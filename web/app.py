@@ -24,6 +24,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # .env 파일 로드를 가장 먼저 수행
 load_dotenv()
 
+# KST 시간대 설정
+KST = pytz.timezone('Asia/Seoul')
+
+def now_kst():
+    """KST 시간으로 현재 시간 반환"""
+    return datetime.now(KST)
+
 
 app = Flask(__name__)
 CORS(app)
@@ -52,8 +59,7 @@ def dashboard():
     """메인 대시보드"""
     try:
         # KST 시간으로 현재 시간 설정
-        kst = pytz.timezone('Asia/Seoul')
-        current_time_kst = datetime.now(kst).strftime('%Y-%m-%d %H:%M:%S KST')
+        current_time_kst = now_kst().strftime('%Y-%m-%d %H:%M:%S KST')
 
         # 시스템 상태
         system_status = {

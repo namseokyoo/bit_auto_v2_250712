@@ -5,6 +5,7 @@ DeepSeek AI를 활용한 지능형 거래 지원 시스템
 
 import logging
 from datetime import datetime, timedelta
+import pytz
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 import json
@@ -12,6 +13,13 @@ import json
 from .deepseek_client import deepseek_client
 from .upbit_api import UpbitAPI
 from .strategy_execution_tracker import execution_tracker
+
+# KST 시간대 설정
+KST = pytz.timezone('Asia/Seoul')
+
+def now_kst():
+    """KST 시간으로 현재 시간 반환"""
+    return datetime.now(KST)
 
 
 @dataclass
@@ -61,7 +69,7 @@ class AIAdvisor:
                 'volume': float(ticker_data['acc_trade_volume_24h']),
                 'high_24h': float(ticker_data['high_price']),
                 'low_24h': float(ticker_data['low_price']),
-                'timestamp': datetime.now().isoformat()
+                'timestamp': now_kst().isoformat()
             }
 
             # 기술적 지표 계산
@@ -150,7 +158,7 @@ class AIAdvisor:
         # 캐시 확인
         if not force_refresh and cache_key in self.analysis_cache:
             cached_analysis, cached_time = self.analysis_cache[cache_key]
-            if (datetime.now() - cached_time).seconds < self.cache_duration:
+            if (now_kst() - cached_time).total_seconds() < self.cache_duration:
                 return cached_analysis
 
         try:
@@ -161,7 +169,7 @@ class AIAdvisor:
                     analysis_type='market',
                     content='시장 데이터를 가져올 수 없습니다.',
                     confidence=0.0,
-                    timestamp=datetime.now(),
+                    timestamp=now_kst(),
                     risk_level='high'
                 )
 
@@ -206,14 +214,14 @@ RSI (14): {market_data.get('rsi', 50):.1f}
                 analysis_type='market',
                 content=analysis_content,
                 confidence=confidence,
-                timestamp=datetime.now(),
+                timestamp=now_kst(),
                 market_data=market_data,
                 risk_level=risk_level,
                 is_mock=is_mock_response
             )
 
             # 캐시 저장
-            self.analysis_cache[cache_key] = (analysis, datetime.now())
+            self.analysis_cache[cache_key] = (analysis, now_kst())
 
             return analysis
 
@@ -223,7 +231,7 @@ RSI (14): {market_data.get('rsi', 50):.1f}
                 analysis_type='market',
                 content=f'분석 중 오류가 발생했습니다: {str(e)}',
                 confidence=0.0,
-                timestamp=datetime.now(),
+                timestamp=now_kst(),
                 risk_level='high'
             )
 
@@ -234,7 +242,7 @@ RSI (14): {market_data.get('rsi', 50):.1f}
         # 캐시 확인
         if not force_refresh and cache_key in self.analysis_cache:
             cached_analysis, cached_time = self.analysis_cache[cache_key]
-            if (datetime.now() - cached_time).seconds < self.cache_duration:
+            if (now_kst() - cached_time).total_seconds() < self.cache_duration:
                 return cached_analysis
 
         try:
@@ -248,7 +256,7 @@ RSI (14): {market_data.get('rsi', 50):.1f}
                     analysis_type='trading',
                     content='전략 성과 데이터가 부족합니다.',
                     confidence=0.0,
-                    timestamp=datetime.now(),
+                    timestamp=now_kst(),
                     risk_level='medium'
                 )
 
@@ -295,14 +303,14 @@ RSI (14): {market_data.get('rsi', 50):.1f}
                 analysis_type='trading',
                 content=advice_content,
                 confidence=confidence,
-                timestamp=datetime.now(),
+                timestamp=now_kst(),
                 recommendations=recommendations,
                 risk_level='medium',
                 is_mock=is_mock_response
             )
 
             # 캐시 저장
-            self.analysis_cache[cache_key] = (analysis, datetime.now())
+            self.analysis_cache[cache_key] = (analysis, now_kst())
 
             return analysis
 
@@ -312,7 +320,7 @@ RSI (14): {market_data.get('rsi', 50):.1f}
                 analysis_type='trading',
                 content=f'조언 생성 중 오류가 발생했습니다: {str(e)}',
                 confidence=0.0,
-                timestamp=datetime.now(),
+                timestamp=now_kst(),
                 risk_level='high'
             )
 
@@ -325,7 +333,7 @@ RSI (14): {market_data.get('rsi', 50):.1f}
             return {
                 'market': market_analysis,
                 'trading': trading_advice,
-                'generated_at': datetime.now().isoformat()
+                'generated_at': now_kst().isoformat()
             }
 
         except Exception as e:
@@ -335,15 +343,15 @@ RSI (14): {market_data.get('rsi', 50):.1f}
                     analysis_type='market',
                     content='분석 실패',
                     confidence=0.0,
-                    timestamp=datetime.now()
+                    timestamp=now_kst()
                 ),
                 'trading': AIAnalysis(
                     analysis_type='trading',
                     content='분석 실패',
                     confidence=0.0,
-                    timestamp=datetime.now()
+                    timestamp=now_kst()
                 ),
-                'generated_at': datetime.now().isoformat()
+                'generated_at': now_kst().isoformat()
             }
 
     def clear_cache(self):
