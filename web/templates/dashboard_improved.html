@@ -751,6 +751,9 @@ type: ${typeof data.status.next_execution}`);
 
     // AutoTrader 상태 업데이트
     function updateAutoTraderStatus(data) {
+        console.log('=== updateAutoTraderStatus 호출됨 ===');
+        console.log('받은 데이터:', data);
+        
         if (!data || !data.status) {
             console.error('Invalid data received:', data);
             return;
@@ -802,7 +805,18 @@ type: ${typeof data.status.next_execution}`);
 
         // 다음 실행 시간 업데이트
         const nextExecution = document.getElementById('next-execution');
-        updateNextExecutionTime(status.next_execution, isRunning, nextExecution);
+        console.log('다음 실행 시간 업데이트 시도:', {
+            element: nextExecution,
+            elementFound: !!nextExecution,
+            nextExecutionValue: status.next_execution,
+            isRunning: isRunning
+        });
+        
+        if (nextExecution) {
+            updateNextExecutionTime(status.next_execution, isRunning, nextExecution);
+        } else {
+            console.error('next-execution 엘리먼트를 찾을 수 없습니다!');
+        }
 
         // 성공률
         const successRateDisplay = document.getElementById('success-rate-display');
