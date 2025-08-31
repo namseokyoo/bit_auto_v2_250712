@@ -78,7 +78,7 @@ class AIScheduler:
         while not self._stop_event.is_set():
             try:
                 # 설정 확인
-                ai_config = config_manager.get_config('trading.ai_analysis', {})
+                ai_config = config_manager.get_config('trading.ai_analysis') or {}
                 if not ai_config.get('enabled', False):
                     time.sleep(30)  # 30초마다 설정 확인
                     continue
