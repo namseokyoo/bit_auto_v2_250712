@@ -343,8 +343,11 @@
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-robot text-primary"></i> AI 분석 및 조언</h5>
                 <div>
-                    <button class="btn btn-sm btn-outline-primary me-2" onclick="refreshAIAnalysis()">
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="executeAIAnalysis()">
                         <i class="fas fa-brain"></i> AI 분석
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="toggleAIScheduler()" id="ai-scheduler-btn">
+                        <i class="fas fa-clock"></i> <span id="ai-scheduler-text">자동 실행</span>
                     </button>
                     <button class="btn btn-sm btn-outline-info" onclick="toggleAISection()">
                         <i class="fas fa-chevron-down" id="ai-toggle-icon"></i>
@@ -352,6 +355,28 @@
                 </div>
             </div>
             <div class="card-body" id="ai-analysis-content" style="display: none;">
+                <!-- AI 스케줄러 상태 -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="alert alert-info d-flex justify-content-between align-items-center" style="margin-bottom: 1rem;">
+                            <div>
+                                <strong><i class="fas fa-clock"></i> 자동 실행 상태:</strong>
+                                <span id="ai-scheduler-status" class="badge bg-secondary ms-2">비활성화</span>
+                                <span id="ai-scheduler-interval" class="text-muted ms-2"></span>
+                                <div class="mt-1">
+                                    <small class="text-muted">마지막 실행: <span id="ai-last-execution">-</span></small>
+                                </div>
+                            </div>
+                            <div>
+                                <input type="number" id="ai-interval-input" class="form-control form-control-sm d-inline-block" 
+                                       style="width: 80px;" min="5" max="1440" value="30" placeholder="분">
+                                <button class="btn btn-sm btn-outline-primary ms-2" onclick="updateAIInterval()">
+                                    <i class="fas fa-save"></i> 저장
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="row">
                     <div class="col-md-6">
                         <div class="card border-0 bg-light">
@@ -739,19 +764,164 @@
         if (content.style.display === 'none') {
             content.style.display = 'block';
             icon.className = 'fas fa-chevron-up';
-            // 처음 열 때 AI 분석 로드
-            if (!content.dataset.loaded) {
-                loadAIAnalysis();
-                content.dataset.loaded = 'true';
-            }
+            // AI 섹션을 열 때 스케줄러 상태 업데이트
+            updateAISchedulerStatus();
         } else {
             content.style.display = 'none';
             icon.className = 'fas fa-chevron-down';
         }
     }
 
-    function refreshAIAnalysis() {
-        loadAIAnalysis(true);
+    // AI 분석 즉시 실행
+    function executeAIAnalysis() {
+        fetch('/api/ai/scheduler/execute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 실행 성공 시 결과 로드
+                loadAIAnalysis(true);
+                updateAISchedulerStatus();
+                showNotification('AI 분석이 실행되었습니다.', 'success');
+            } else {
+                showNotification(`AI 분석 실행 실패: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('AI 분석 실행 오류:', error);
+            showNotification('AI 분석 실행 중 오류가 발생했습니다.', 'error');
+        });
+    }
+
+    // AI 스케줄러 토글
+    function toggleAIScheduler() {
+        fetch('/api/ai/scheduler/toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateAISchedulerStatus();
+                showNotification(data.message, 'success');
+            } else {
+                showNotification(`스케줄러 토글 실패: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('AI 스케줄러 토글 오류:', error);
+            showNotification('스케줄러 토글 중 오류가 발생했습니다.', 'error');
+        });
+    }
+
+    // AI 실행 주기 업데이트
+    function updateAIInterval() {
+        const interval = document.getElementById('ai-interval-input').value;
+        if (!interval || interval < 5 || interval > 1440) {
+            showNotification('실행 주기는 5분에서 1440분(24시간) 사이여야 합니다.', 'error');
+            return;
+        }
+
+        fetch('/api/ai/scheduler/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                interval_minutes: parseInt(interval)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateAISchedulerStatus();
+                showNotification('실행 주기가 업데이트되었습니다.', 'success');
+            } else {
+                showNotification(`설정 업데이트 실패: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('AI 주기 업데이트 오류:', error);
+            showNotification('설정 업데이트 중 오류가 발생했습니다.', 'error');
+        });
+    }
+
+    // AI 스케줄러 상태 업데이트
+    function updateAISchedulerStatus() {
+        fetch('/api/ai/scheduler/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const status = data.data;
+                
+                // 스케줄러 상태 배지 업데이트
+                const statusBadge = document.getElementById('ai-scheduler-status');
+                const intervalSpan = document.getElementById('ai-scheduler-interval');
+                const lastExecutionSpan = document.getElementById('ai-last-execution');
+                const schedulerBtn = document.getElementById('ai-scheduler-btn');
+                const schedulerText = document.getElementById('ai-scheduler-text');
+                const intervalInput = document.getElementById('ai-interval-input');
+                
+                if (status.enabled) {
+                    statusBadge.className = 'badge bg-success ms-2';
+                    statusBadge.textContent = '활성화';
+                    intervalSpan.textContent = `(${status.interval_minutes}분마다)`;
+                    schedulerBtn.className = 'btn btn-sm btn-success me-2';
+                    schedulerText.textContent = '자동 실행 중';
+                } else {
+                    statusBadge.className = 'badge bg-secondary ms-2';
+                    statusBadge.textContent = '비활성화';
+                    intervalSpan.textContent = '';
+                    schedulerBtn.className = 'btn btn-sm btn-outline-secondary me-2';
+                    schedulerText.textContent = '자동 실행';
+                }
+                
+                // 마지막 실행 시간 업데이트
+                if (status.last_execution) {
+                    lastExecutionSpan.textContent = formatKST(status.last_execution);
+                } else {
+                    lastExecutionSpan.textContent = '-';
+                }
+                
+                // 실행 주기 입력란 업데이트
+                intervalInput.value = status.interval_minutes;
+            }
+        })
+        .catch(error => {
+            console.error('AI 스케줄러 상태 조회 오류:', error);
+        });
+    }
+
+    // 알림 표시 함수
+    function showNotification(message, type = 'info') {
+        // 간단한 알림 (나중에 Toast 라이브러리로 개선 가능)
+        const alertClass = type === 'success' ? 'alert-success' : 
+                          type === 'error' ? 'alert-danger' : 'alert-info';
+        
+        const notification = document.createElement('div');
+        notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '9999';
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // 3초 후 자동 제거
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
     }
 
     function loadAIAnalysis(forceRefresh = false) {

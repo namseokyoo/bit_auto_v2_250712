@@ -13,7 +13,13 @@
     "max_positions": 3,
     "auto_trade_enabled": false,
     "trade_interval_minutes": 10,
-    "market": "KRW-BTC"
+    "market": "KRW-BTC",
+    "ai_analysis": {
+      "enabled": false,
+      "interval_minutes": 30,
+      "auto_on_startup": false,
+      "last_execution": null
+    }
   },
   "risk_management": {
     "max_position_size_percent": 10,

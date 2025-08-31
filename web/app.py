@@ -27,6 +27,7 @@ load_dotenv()
 # KST 시간대 설정
 KST = pytz.timezone('Asia/Seoul')
 
+
 def now_kst():
     """KST 시간으로 현재 시간 반환"""
     return datetime.now(KST)
@@ -495,6 +496,159 @@ def api_ai_clear_cache():
 
     except Exception as e:
         logger.error(f"AI 캐시 초기화 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai/scheduler/status')
+def api_ai_scheduler_status():
+    """AI 스케줄러 상태 조회"""
+    try:
+        from core.ai_scheduler import ai_scheduler
+        
+        ai_config = config_manager.get_config('trading.ai_analysis', {})
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'enabled': ai_config.get('enabled', False),
+                'interval_minutes': ai_config.get('interval_minutes', 30),
+                'is_running': ai_scheduler.is_running(),
+                'last_execution': ai_config.get('last_execution'),
+                'auto_on_startup': ai_config.get('auto_on_startup', False)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"AI 스케줄러 상태 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai/scheduler/toggle', methods=['POST'])
+def api_ai_scheduler_toggle():
+    """AI 스케줄러 시작/중지"""
+    try:
+        from core.ai_scheduler import ai_scheduler
+        
+        data = request.get_json() or {}
+        action = data.get('action', 'toggle')  # 'start', 'stop', 'toggle'
+        
+        ai_config = config_manager.get_config('trading.ai_analysis', {})
+        current_enabled = ai_config.get('enabled', False)
+        
+        if action == 'start' or (action == 'toggle' and not current_enabled):
+            # 스케줄러 시작
+            config_manager.update_config({
+                'trading.ai_analysis.enabled': True
+            })
+            ai_scheduler.start()
+            new_status = True
+            message = 'AI 분석 스케줄러가 시작되었습니다.'
+            
+        elif action == 'stop' or (action == 'toggle' and current_enabled):
+            # 스케줄러 중지
+            config_manager.update_config({
+                'trading.ai_analysis.enabled': False
+            })
+            ai_scheduler.stop()
+            new_status = False
+            message = 'AI 분석 스케줄러가 중지되었습니다.'
+            
+        else:
+            return jsonify({
+                'success': False,
+                'error': '잘못된 액션입니다.'
+            }), 400
+            
+        return jsonify({
+            'success': True,
+            'data': {
+                'enabled': new_status,
+                'is_running': ai_scheduler.is_running()
+            },
+            'message': message
+        })
+        
+    except Exception as e:
+        logger.error(f"AI 스케줄러 토글 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai/scheduler/execute', methods=['POST'])
+def api_ai_scheduler_execute():
+    """AI 분석 즉시 실행"""
+    try:
+        from core.ai_scheduler import ai_scheduler
+        
+        success = ai_scheduler.execute_now()
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'AI 분석이 성공적으로 실행되었습니다.',
+                'data': {
+                    'last_execution': ai_scheduler.get_last_execution().isoformat() if ai_scheduler.get_last_execution() else None
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'AI 분석 실행 중 오류가 발생했습니다.'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"AI 분석 즉시 실행 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai/scheduler/config', methods=['POST'])
+def api_ai_scheduler_config():
+    """AI 스케줄러 설정 업데이트"""
+    try:
+        data = request.get_json() or {}
+        
+        # 설정 업데이트
+        updates = {}
+        if 'interval_minutes' in data:
+            interval = int(data['interval_minutes'])
+            if 5 <= interval <= 1440:  # 5분 ~ 24시간
+                updates['trading.ai_analysis.interval_minutes'] = interval
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': '실행 주기는 5분에서 24시간(1440분) 사이여야 합니다.'
+                }), 400
+                
+        if 'auto_on_startup' in data:
+            updates['trading.ai_analysis.auto_on_startup'] = bool(data['auto_on_startup'])
+            
+        if updates:
+            config_manager.update_config(updates)
+            
+        return jsonify({
+            'success': True,
+            'message': '설정이 업데이트되었습니다.',
+            'data': config_manager.get_config('trading.ai_analysis', {})
+        })
+        
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': '잘못된 설정 값입니다.'
+        }), 400
+    except Exception as e:
+        logger.error(f"AI 스케줄러 설정 업데이트 오류: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
