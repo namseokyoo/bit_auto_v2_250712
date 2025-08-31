@@ -129,6 +129,7 @@
                     <div class="me-4">
                         <small class="text-muted">다음 실행:</small>
                         <span id="next-execution" class="fw-bold text-primary">계산중...</span>
+                        <button onclick="testNextExecution()" class="btn btn-sm btn-outline-primary ms-2">테스트</button>
                     </div>
                     <div>
                         <small class="text-muted">성공률:</small>
@@ -580,6 +581,36 @@
 
     // 전역 변수로 다음 실행 시간 저장
     let globalNextExecutionTime = null;
+
+    // 테스트 함수
+    async function testNextExecution() {
+        console.log('=== 수동 테스트 시작 ===');
+        const nextExecution = document.getElementById('next-execution');
+        
+        if (!nextExecution) {
+            alert('next-execution 엘리먼트를 찾을 수 없습니다!');
+            return;
+        }
+        
+        try {
+            // API 호출
+            const response = await fetch('/api/auto_trading_status');
+            const data = await response.json();
+            
+            console.log('API 응답:', data);
+            alert(`API 응답:
+running: ${data.status.running}
+next_execution: ${data.status.next_execution}
+type: ${typeof data.status.next_execution}`);
+            
+            // 시간 업데이트 테스트
+            updateNextExecutionTime(data.status.next_execution, data.status.running, nextExecution);
+            
+        } catch (error) {
+            console.error('테스트 오류:', error);
+            alert('테스트 실패: ' + error.message);
+        }
+    }
 
     // 카운트다운 업데이트 함수
     function updateCountdown() {
