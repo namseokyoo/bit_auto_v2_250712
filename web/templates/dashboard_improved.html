@@ -500,6 +500,124 @@
 
 <!-- 실시간 업데이트를 위한 JavaScript -->
 <script>
+    // 다음 실행 시간 포맷팅 함수
+    function updateNextExecutionTime(nextExecutionStr, isRunning, element) {
+        if (!element) {
+            console.error('next-execution 엘리먼트를 찾을 수 없습니다');
+            return;
+        }
+
+        console.log('다음 실행 시간 처리:', {
+            next_execution: nextExecutionStr,
+            type: typeof nextExecutionStr,
+            isRunning: isRunning
+        });
+        
+        if (!nextExecutionStr) {
+            element.textContent = isRunning ? '계산중...' : '정지됨';
+            console.log('next_execution이 null/undefined - 기본값 표시');
+            return;
+        }
+
+        try {
+            // 다양한 시간 형식 처리
+            let nextTime;
+            
+            // ISO 문자열인 경우 (예: "2025-08-31T15:12:02.230202")
+            if (typeof nextExecutionStr === 'string') {
+                // Z가 없으면 로컬 시간으로 처리되므로 KST 처리
+                if (!nextExecutionStr.includes('Z') && !nextExecutionStr.includes('+')) {
+                    nextTime = new Date(nextExecutionStr + '+09:00'); // KST 명시
+                } else {
+                    nextTime = new Date(nextExecutionStr);
+                }
+            } else {
+                nextTime = new Date(nextExecutionStr);
+            }
+            
+            console.log('파싱된 시간:', nextTime, 'isValid:', !isNaN(nextTime.getTime()));
+            
+            if (!isNaN(nextTime.getTime())) {
+                // 현재 시간과 비교하여 남은 시간 계산
+                const now = new Date();
+                const diff = nextTime - now;
+                
+                // 전역 변수에 저장 (카운트다운 용)
+                globalNextExecutionTime = nextTime;
+                
+                if (diff > 0) {
+                    // 미래 시간인 경우 - 한국 시간으로 표시
+                    const timeStr = nextTime.toLocaleTimeString('ko-KR', {
+                        timeZone: 'Asia/Seoul',
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                    
+                    // 남은 시간 계산 (분:초)
+                    const remainingMinutes = Math.floor(diff / 60000);
+                    const remainingSeconds = Math.floor((diff % 60000) / 1000);
+                    const remainingStr = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+                    
+                    element.textContent = `${timeStr} (${remainingStr}후)`;
+                    console.log('표시된 시간:', timeStr, '남은시간:', remainingStr);
+                } else {
+                    // 과거 시간인 경우
+                    element.textContent = isRunning ? '곧 실행...' : '정지됨';
+                    globalNextExecutionTime = null; // 과거 시간이면 리셋
+                    console.log('과거 시간 - 곧 실행 표시');
+                }
+            } else {
+                element.textContent = isRunning ? '계산중...' : '정지됨';
+                console.log('시간 파싱 실패 - 기본값 표시');
+            }
+        } catch (e) {
+            console.error('시간 파싱 오류:', e, 'next_execution:', nextExecutionStr);
+            element.textContent = isRunning ? '계산중...' : '정지됨';
+        }
+    }
+
+    // 전역 변수로 다음 실행 시간 저장
+    let globalNextExecutionTime = null;
+
+    // 카운트다운 업데이트 함수
+    function updateCountdown() {
+        const nextExecution = document.getElementById('next-execution');
+        if (!nextExecution || !globalNextExecutionTime) {
+            return;
+        }
+
+        try {
+            const now = new Date();
+            const diff = globalNextExecutionTime - now;
+            
+            if (diff > 0) {
+                // 미래 시간인 경우 - 카운트다운 업데이트
+                const timeStr = globalNextExecutionTime.toLocaleTimeString('ko-KR', {
+                    timeZone: 'Asia/Seoul',
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                
+                // 남은 시간 계산 (분:초)
+                const remainingMinutes = Math.floor(diff / 60000);
+                const remainingSeconds = Math.floor((diff % 60000) / 1000);
+                const remainingStr = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+                
+                nextExecution.textContent = `${timeStr} (${remainingStr}후)`;
+            } else {
+                // 시간이 지났으면 곧 실행 표시
+                nextExecution.textContent = '곧 실행...';
+                globalNextExecutionTime = null; // 리셋
+            }
+        } catch (e) {
+            console.error('카운트다운 업데이트 오류:', e);
+        }
+    }
+
     // 페이지 로드 시 초기화
     document.addEventListener('DOMContentLoaded', function () {
         console.log('=== 대시보드 초기화 시작 ===');
@@ -513,6 +631,9 @@
 
         // 10초마다 자동 업데이트
         setInterval(updateDashboard, 10000);
+        
+        // 1초마다 카운트다운 업데이트
+        setInterval(updateCountdown, 1000);
 
         console.log('자동 업데이트 타이머 설정 완료');
     });
@@ -648,43 +769,9 @@
             button.setAttribute('data-running', 'false');
         }
 
-        // 다음 실행 시간 (개선된 로직)
+        // 다음 실행 시간 업데이트
         const nextExecution = document.getElementById('next-execution');
-        console.log('다음 실행 시간 처리:', {
-            next_execution: status.next_execution,
-            type: typeof status.next_execution,
-            isRunning: isRunning
-        });
-        
-        if (status.next_execution) {
-            try {
-                const nextTime = new Date(status.next_execution);
-                console.log('파싱된 시간:', nextTime, 'isValid:', !isNaN(nextTime.getTime()));
-                
-                if (!isNaN(nextTime.getTime())) {
-                    // 한국 시간으로 변환해서 표시 (MM:SS 포함)
-                    const options = {
-                        timeZone: 'Asia/Seoul',
-                        hour12: false,
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit'
-                    };
-                    const timeStr = nextTime.toLocaleTimeString('ko-KR', options);
-                    nextExecution.textContent = timeStr;
-                    console.log('표시된 시간:', timeStr);
-                } else {
-                    nextExecution.textContent = isRunning ? '계산중...' : '정지됨';
-                    console.log('시간 파싱 실패 - 기본값 표시');
-                }
-            } catch (e) {
-                console.error('시간 파싱 오류:', e, 'next_execution:', status.next_execution);
-                nextExecution.textContent = isRunning ? '계산중...' : '정지됨';
-            }
-        } else {
-            nextExecution.textContent = isRunning ? '계산중...' : '정지됨';
-            console.log('next_execution이 null/undefined - 기본값 표시');
-        }
+        updateNextExecutionTime(status.next_execution, isRunning, nextExecution);
 
         // 성공률
         const successRateDisplay = document.getElementById('success-rate-display');
