@@ -1638,9 +1638,10 @@ def api_manual_execute():
                 'message': '거래 락을 획득할 수 없습니다. 다른 거래가 진행 중입니다.'
             }), 400
 
-        engine = TradingEngine()
+        try:
+            engine = TradingEngine()
 
-        if action == 'analyze_and_execute':
+            if action == 'analyze_and_execute':
             # 다층 전략 시스템 사용하여 분석 실행
             from core.multi_tier_strategy_engine import multi_tier_engine
 
@@ -1692,11 +1693,12 @@ def api_manual_execute():
                 analysis_data['executed'] = False
 
             # 추가 데이터를 응답에 포함
-            return jsonify({
+            result_response = jsonify({
                 'success': True,
                 'message': message,
                 'analysis': analysis_data
             })
+            return result_response
 
         elif action == 'buy':
             # 강제 매수
@@ -1800,26 +1802,53 @@ def api_manual_execute():
 
         logger.info(f"수동 거래 실행: {action} - {message}")
 
-        # 락 해제
-        result_manager.release_trading_lock()
-
         return jsonify({'success': True, 'message': message})
 
     except Exception as e:
         logger.error(f"수동 거래 실행 오류: {e}")
-
-        # 오류 시에도 락 해제
-        try:
-            from core.result_manager import result_manager
-            result_manager.release_trading_lock()
-        except:
-            pass
 
         log_error(e, {
             'endpoint': '/api/manual_trading/execute',
             'user_action': 'manual_trading_execute',
             'action': data.get('action') if 'data' in locals() else 'unknown'
         }, 'WebApp')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+    finally:
+        # 반드시 락 해제
+        try:
+            result_manager.release_trading_lock()
+        except:
+            pass
+
+
+@app.route('/api/trading_lock/status', methods=['GET'])
+def api_trading_lock_status():
+    """거래 락 상태 확인"""
+    try:
+        from core.result_manager import result_manager
+        return jsonify({
+            'success': True,
+            'locked': result_manager.is_trading_locked()
+        })
+    except Exception as e:
+        logger.error(f"거래 락 상태 확인 오류: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/trading_lock/release', methods=['POST'])
+def api_trading_lock_release():
+    """거래 락 강제 해제"""
+    try:
+        from core.result_manager import result_manager
+        result_manager.release_trading_lock()
+        logger.info("거래 락 강제 해제됨")
+        return jsonify({
+            'success': True,
+            'message': '거래 락이 해제되었습니다.'
+        })
+    except Exception as e:
+        logger.error(f"거래 락 해제 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
