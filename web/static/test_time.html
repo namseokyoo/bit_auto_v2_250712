@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>다음 실행 시간 테스트</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+    </style>
+</head>
+<body>
+    <h1>다음 실행 시간 표시 테스트</h1>
+    
+    <div class="test-result info">
+        <h3>1. API 응답 테스트</h3>
+        <div id="api-test">테스트 중...</div>
+    </div>
+    
+    <div class="test-result info">
+        <h3>2. 시간 파싱 테스트</h3>
+        <div id="parsing-test">테스트 중...</div>
+    </div>
+    
+    <div class="test-result info">
+        <h3>3. 표시 테스트</h3>
+        <div>다음 실행: <span id="next-execution-test" style="font-weight: bold; color: blue;">계산중...</span></div>
+    </div>
+    
+    <div class="test-result info">
+        <h3>4. 실시간 카운트다운 테스트</h3>
+        <div>카운트다운: <span id="countdown-test" style="font-weight: bold; color: green;">대기중...</span></div>
+    </div>
+
+    <button onclick="runTest()">테스트 실행</button>
+    <button onclick="startCountdown()">카운트다운 시작</button>
+
+    <script>
+        let globalTestTime = null;
+
+        async function runTest() {
+            console.log('=== 다음 실행 시간 테스트 시작 ===');
+            
+            // 1. API 테스트
+            try {
+                const response = await fetch('/api/auto_trading_status');
+                const data = await response.json();
+                
+                document.getElementById('api-test').innerHTML = `
+                    <strong>API 성공:</strong><br>
+                    next_execution: ${data.status.next_execution}<br>
+                    type: ${typeof data.status.next_execution}<br>
+                    running: ${data.status.running}
+                `;
+                document.getElementById('api-test').className = 'success';
+                
+                // 2. 시간 파싱 테스트
+                testTimeParsing(data.status.next_execution, data.status.running);
+                
+            } catch (error) {
+                console.error('API 테스트 실패:', error);
+                document.getElementById('api-test').innerHTML = `<strong>API 실패:</strong> ${error.message}`;
+                document.getElementById('api-test').className = 'error';
+            }
+        }
+
+        function testTimeParsing(nextExecutionStr, isRunning) {
+            const testDiv = document.getElementById('parsing-test');
+            const displayDiv = document.getElementById('next-execution-test');
+            
+            try {
+                console.log('시간 파싱 테스트:', {
+                    next_execution: nextExecutionStr,
+                    type: typeof nextExecutionStr,
+                    isRunning: isRunning
+                });
+                
+                if (!nextExecutionStr) {
+                    testDiv.innerHTML = '<strong>파싱 실패:</strong> next_execution이 null/undefined';
+                    testDiv.className = 'error';
+                    displayDiv.textContent = isRunning ? '계산중...' : '정지됨';
+                    return;
+                }
+
+                // 시간 파싱
+                let nextTime;
+                if (typeof nextExecutionStr === 'string') {
+                    // KST 처리
+                    if (!nextExecutionStr.includes('Z') && !nextExecutionStr.includes('+')) {
+                        nextTime = new Date(nextExecutionStr + '+09:00');
+                    } else {
+                        nextTime = new Date(nextExecutionStr);
+                    }
+                } else {
+                    nextTime = new Date(nextExecutionStr);
+                }
+                
+                console.log('파싱된 시간:', nextTime, 'isValid:', !isNaN(nextTime.getTime()));
+                
+                if (isNaN(nextTime.getTime())) {
+                    testDiv.innerHTML = '<strong>파싱 실패:</strong> 잘못된 시간 형식';
+                    testDiv.className = 'error';
+                    displayDiv.textContent = '계산중...';
+                    return;
+                }
+
+                const now = new Date();
+                const diff = nextTime - now;
+                
+                testDiv.innerHTML = `
+                    <strong>파싱 성공:</strong><br>
+                    원본: ${nextExecutionStr}<br>
+                    파싱됨: ${nextTime.toString()}<br>
+                    현재 시간: ${now.toString()}<br>
+                    차이: ${diff}ms (${Math.floor(diff/1000)}초)
+                `;
+                testDiv.className = 'success';
+                
+                // 전역 변수에 저장
+                globalTestTime = nextTime;
+                
+                // 표시 업데이트
+                updateDisplay(nextTime, isRunning);
+                
+            } catch (error) {
+                console.error('파싱 오류:', error);
+                testDiv.innerHTML = `<strong>파싱 오류:</strong> ${error.message}`;
+                testDiv.className = 'error';
+                displayDiv.textContent = '오류 발생';
+            }
+        }
+
+        function updateDisplay(nextTime, isRunning) {
+            const displayDiv = document.getElementById('next-execution-test');
+            const now = new Date();
+            const diff = nextTime - now;
+            
+            if (diff > 0) {
+                const timeStr = nextTime.toLocaleTimeString('ko-KR', {
+                    timeZone: 'Asia/Seoul',
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                
+                const remainingMinutes = Math.floor(diff / 60000);
+                const remainingSeconds = Math.floor((diff % 60000) / 1000);
+                const remainingStr = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+                
+                displayDiv.textContent = `${timeStr} (${remainingStr}후)`;
+                displayDiv.style.color = 'blue';
+            } else {
+                displayDiv.textContent = isRunning ? '곧 실행...' : '정지됨';
+                displayDiv.style.color = 'orange';
+            }
+        }
+
+        function startCountdown() {
+            if (!globalTestTime) {
+                document.getElementById('countdown-test').textContent = '먼저 테스트를 실행하세요';
+                return;
+            }
+            
+            setInterval(() => {
+                const countdownDiv = document.getElementById('countdown-test');
+                const now = new Date();
+                const diff = globalTestTime - now;
+                
+                if (diff > 0) {
+                    const remainingMinutes = Math.floor(diff / 60000);
+                    const remainingSeconds = Math.floor((diff % 60000) / 1000);
+                    const remainingStr = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+                    countdownDiv.textContent = `${remainingStr} 남음`;
+                    countdownDiv.style.color = 'green';
+                } else {
+                    countdownDiv.textContent = '시간 만료';
+                    countdownDiv.style.color = 'red';
+                }
+            }, 1000);
+        }
+
+        // 페이지 로드 시 자동 테스트
+        window.onload = function() {
+            runTest();
+        };
+    </script>
+</body>
+</html>
