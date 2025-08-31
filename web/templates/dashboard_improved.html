@@ -346,9 +346,11 @@
                     <button class="btn btn-sm btn-outline-primary me-2" onclick="executeAIAnalysis()">
                         <i class="fas fa-brain"></i> AI 분석
                     </button>
-                    <button class="btn btn-sm {% if ai_scheduler_status.enabled %}btn-success{% else %}btn-outline-secondary{% endif %} me-2" onclick="toggleAIScheduler()"
-                        id="ai-scheduler-btn">
-                        <i class="fas fa-clock"></i> <span id="ai-scheduler-text">{% if ai_scheduler_status.enabled %}자동 실행 중{% else %}자동 실행{% endif %}</span>
+                    <button
+                        class="btn btn-sm {% if ai_scheduler_status.enabled %}btn-success{% else %}btn-outline-secondary{% endif %} me-2"
+                        onclick="toggleAIScheduler()" id="ai-scheduler-btn">
+                        <i class="fas fa-clock"></i> <span id="ai-scheduler-text">{% if ai_scheduler_status.enabled %}자동
+                            실행 중{% else %}자동 실행{% endif %}</span>
                     </button>
 
                 </div>
@@ -361,10 +363,16 @@
                             style="margin-bottom: 1rem;">
                             <div>
                                 <strong><i class="fas fa-clock"></i> 자동 실행 상태:</strong>
-                                <span id="ai-scheduler-status" class="badge {% if ai_scheduler_status.enabled %}bg-success{% else %}bg-secondary{% endif %} ms-2">{% if ai_scheduler_status.enabled %}활성화{% else %}비활성화{% endif %}</span>
-                                <span id="ai-scheduler-interval" class="text-muted ms-2">{% if ai_scheduler_status.enabled %}({{ ai_scheduler_status.interval_minutes }}분마다){% endif %}</span>
+                                <span id="ai-scheduler-status"
+                                    class="badge {% if ai_scheduler_status.enabled %}bg-success{% else %}bg-secondary{% endif %} ms-2">{%
+                                    if ai_scheduler_status.enabled %}활성화{% else %}비활성화{% endif %}</span>
+                                <span id="ai-scheduler-interval" class="text-muted ms-2">{% if
+                                    ai_scheduler_status.enabled %}({{ ai_scheduler_status.interval_minutes }}분마다){%
+                                    endif %}</span>
                                 <div class="mt-1">
-                                    <small class="text-muted">마지막 실행: <span id="ai-last-execution">{% if ai_scheduler_status.last_execution %}{{ ai_scheduler_status.last_execution }}{% else %}-{% endif %}</span></small>
+                                    <small class="text-muted">마지막 실행: <span id="ai-last-execution">{% if
+                                            ai_scheduler_status.last_execution %}{{ ai_scheduler_status.last_execution
+                                            }}{% else %}-{% endif %}</span></small>
                                 </div>
                             </div>
                             <div>

@@ -1641,25 +1641,41 @@ def api_manual_execute():
         engine = TradingEngine()
 
         if action == 'analyze_and_execute':
-            # 전략 분석 후 자동 실행
-            strategy_signals = engine._collect_all_signals('hourly')
-            consolidated_signal = engine._consolidate_signals(strategy_signals)
-
-            # 전략별 신호 상세 정보 수집
+            # 다층 전략 시스템 사용하여 분석 실행
+            from core.multi_tier_strategy_engine import multi_tier_engine
+            
+            multi_tier_decision = multi_tier_engine.analyze()
+            
+            # 다층 결정을 ConsolidatedSignal로 변환
+            consolidated_signal = engine._convert_multitier_to_consolidated(multi_tier_decision)
+            
+            # 전략별 신호 상세 정보 수집 (다층 전략 결과)
             strategy_details = []
-            for signal in strategy_signals:
+            
+            # 다층 전략 시스템의 계층별 기여도 정보 사용
+            for tier, contribution in multi_tier_decision.tier_contributions.items():
                 strategy_details.append({
-                    'strategy_id': signal.strategy_id,
-                    'action': signal.action,
-                    'confidence': round(signal.confidence, 3),
-                    'reasoning': signal.reasoning[:100] + '...' if len(signal.reasoning) > 100 else signal.reasoning,
-                    'price': signal.price,
-                    'suggested_amount': signal.suggested_amount
+                    'strategy_id': f"{tier.value}_layer",
+                    'action': multi_tier_decision.final_action,
+                    'confidence': round(contribution, 3),
+                    'reasoning': f"{tier.value} 계층 기여도: {contribution:.1%}",
+                    'price': 0,  # 다층 전략에서는 별도 가격 없음
+                    'suggested_amount': multi_tier_decision.suggested_amount if tier == max(multi_tier_decision.tier_contributions, key=multi_tier_decision.tier_contributions.get) else 0
                 })
+            
+            # 통합 결정 정보도 추가
+            strategy_details.append({
+                'strategy_id': 'integrated_decision',
+                'action': multi_tier_decision.final_action,
+                'confidence': round(multi_tier_decision.confidence, 3),
+                'reasoning': multi_tier_decision.reasoning[:100] + ('...' if len(multi_tier_decision.reasoning) > 100 else ''),
+                'price': 0,
+                'suggested_amount': multi_tier_decision.suggested_amount
+            })
 
             # 실행 결과와 분석 정보
             analysis_data = {
-                'strategy_count': len(strategy_signals),
+                'strategy_count': len(strategy_details),
                 'strategy_details': strategy_details,
                 'consolidated_action': consolidated_signal.action if consolidated_signal else 'hold',
                 'consolidated_confidence': round(consolidated_signal.confidence, 3) if consolidated_signal else 0,
