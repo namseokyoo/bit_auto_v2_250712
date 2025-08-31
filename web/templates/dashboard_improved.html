@@ -342,10 +342,10 @@
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-robot text-primary"></i> AI 분석 및 조언</h5>
-                <div>
-                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="refreshAIAnalysis()">
-                        <i class="fas fa-sync-alt"></i> 새로고침
-                    </button>
+                                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="refreshAIAnalysis()">
+                                <i class="fas fa-brain"></i> AI 분석
+                            </button>
                     <button class="btn btn-sm btn-outline-info" onclick="toggleAISection()">
                         <i class="fas fa-chevron-down" id="ai-toggle-icon"></i>
                     </button>
@@ -366,9 +366,13 @@
                                     <small class="text-muted">신뢰도</small>
                                     <span id="market-confidence" class="badge bg-secondary">0%</span>
                                 </div>
-                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
                                     <small class="text-muted">리스크 레벨</small>
                                     <span id="market-risk" class="badge bg-warning">Medium</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <small class="text-muted">분석 시간</small>
+                                    <small id="market-analysis-timestamp" class="text-info">-</small>
                                 </div>
                                 <div id="market-analysis-content" class="analysis-content">
                                     <div class="text-center text-muted">
@@ -376,10 +380,6 @@
                                         <p class="mt-2">분석 중...</p>
                                     </div>
                                 </div>
-                                <small class="text-muted">
-                                    <i class="fas fa-clock"></i>
-                                    <span id="market-timestamp">-</span>
-                                </small>
                             </div>
                         </div>
                     </div>
@@ -395,6 +395,10 @@
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <small class="text-muted">신뢰도</small>
                                     <span id="trading-confidence" class="badge bg-secondary">0%</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted">분석 시간</small>
+                                    <small id="trading-advice-timestamp" class="text-info">-</small>
                                 </div>
                                 <div id="trading-recommendations" class="mb-3">
                                     <!-- 권장사항 태그들이 여기에 표시됩니다 -->
@@ -751,20 +755,38 @@
     function loadAIAnalysis(forceRefresh = false) {
         const refreshParam = forceRefresh ? '?refresh=true' : '';
 
-        // 시장 분석 로드
-        fetch(`/api/ai/market_analysis${refreshParam}`)
-            .then(response => response.json())
+        // 시장 분석 로드 (타임아웃 3분)
+        const controller1 = new AbortController();
+        const timeoutId1 = setTimeout(() => controller1.abort(), 180000); // 3분 타임아웃
+        
+        fetch(`/api/ai/market_analysis${refreshParam}`, {
+            signal: controller1.signal
+        })
+            .then(response => {
+                clearTimeout(timeoutId1);
+                return response.json();
+            })
             .then(data => updateMarketAnalysis(data))
             .catch(error => {
+                clearTimeout(timeoutId1);
                 console.error('시장 분석 로드 오류:', error);
                 updateMarketAnalysis({ success: false, error: error.message });
             });
 
-        // 거래 조언 로드
-        fetch(`/api/ai/trading_advice${refreshParam}`)
-            .then(response => response.json())
+        // 거래 조언 로드 (타임아웃 3분)
+        const controller2 = new AbortController();
+        const timeoutId2 = setTimeout(() => controller2.abort(), 180000); // 3분 타임아웃
+        
+        fetch(`/api/ai/trading_advice${refreshParam}`, {
+            signal: controller2.signal
+        })
+            .then(response => {
+                clearTimeout(timeoutId2);
+                return response.json();
+            })
             .then(data => updateTradingAdvice(data))
             .catch(error => {
+                clearTimeout(timeoutId2);
                 console.error('거래 조언 로드 오류:', error);
                 updateTradingAdvice({ success: false, error: error.message });
             });
@@ -774,7 +796,7 @@
         const contentElement = document.getElementById('market-analysis-content');
         const confidenceElement = document.getElementById('market-confidence');
         const riskElement = document.getElementById('market-risk');
-        const timestampElement = document.getElementById('market-timestamp');
+        const timestampElement = document.getElementById('market-analysis-timestamp');
 
         if (data.success && data.data) {
             const analysis = data.data;
@@ -819,7 +841,7 @@
         const contentElement = document.getElementById('trading-advice-content');
         const confidenceElement = document.getElementById('trading-confidence');
         const recommendationsElement = document.getElementById('trading-recommendations');
-        const timestampElement = document.getElementById('trading-timestamp');
+        const timestampElement = document.getElementById('trading-advice-timestamp');
 
         if (data.success && data.data) {
             const advice = data.data;

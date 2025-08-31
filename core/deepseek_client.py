@@ -42,7 +42,7 @@ class DeepSeekClient:
 
         try:
             url = f"{self.base_url}/{endpoint}"
-            response = self.session.post(url, json=data, timeout=60)  # 타임아웃 60초로 증가
+            response = self.session.post(url, json=data, timeout=120)  # 타임아웃 120초로 증가
             response.raise_for_status()
             return response.json()
 
