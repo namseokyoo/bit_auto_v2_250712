@@ -51,6 +51,9 @@ class AutoTrader:
         from core.data_collection_scheduler import data_scheduler
         self.data_scheduler = data_scheduler
 
+        # 설정 변경 콜백 등록
+        self._setup_config_callbacks()
+
         self.logger.info("AutoTrader 초기화 완료")
 
     def _setup_logger(self) -> logging.Logger:
@@ -76,6 +79,24 @@ class AutoTrader:
             logger.addHandler(console_handler)
 
         return logger
+
+    def _setup_config_callbacks(self):
+        """설정 변경 콜백 등록"""
+        def on_config_change(key_path: str, new_value, old_value):
+            if key_path == 'trading.trade_interval_minutes':
+                self.logger.info(f"거래 주기 변경 감지: {old_value}분 -> {new_value}분")
+                if self.state.running:
+                    self.logger.info("AutoTrader 스케줄 재설정 중...")
+                    self._setup_schedule()
+                    self.logger.info("AutoTrader 스케줄 재설정 완료")
+            
+            elif key_path == 'trading.auto_trade_enabled':
+                if new_value:
+                    self.logger.info("자동거래 활성화됨")
+                else:
+                    self.logger.info("자동거래 비활성화됨")
+
+        config_manager.register_callback(on_config_change)
 
     @property
     def running(self) -> bool:
