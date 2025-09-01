@@ -638,45 +638,69 @@
         }
     }
 
+    // 🚀 새로운 단순 함수: 다음 실행 시간만 업데이트
+    async function updateNextExecutionOnly() {
+        console.log('🎯 updateNextExecutionOnly 시작!');
+        
+        try {
+            console.log('API 호출 중...');
+            const response = await fetch('/api/auto_trading_status');
+            console.log('응답 상태:', response.status);
+            
+            const data = await response.json();
+            console.log('받은 데이터:', data);
+            
+            if (data.status && data.status.next_execution && data.status.server_time) {
+                console.log('시간 계산 시작...');
+                const nextTime = new Date(data.status.next_execution);
+                const serverTime = new Date(data.status.server_time);
+                const diff = Math.max(0, (nextTime - serverTime) / 1000);
+                
+                console.log('다음 실행:', nextTime.toLocaleTimeString());
+                console.log('서버 시간:', serverTime.toLocaleTimeString());
+                console.log('남은 시간(초):', diff);
+                
+                const element = document.getElementById('next-execution-time');
+                if (element) {
+                    if (diff > 0) {
+                        const minutes = Math.floor(diff / 60);
+                        const seconds = Math.floor(diff % 60);
+                        element.textContent = `${nextTime.toLocaleTimeString()} (${minutes}:${seconds.toString().padStart(2, '0')}후)`;
+                        console.log('✅ 시간 표시 완료!');
+                    } else {
+                        element.textContent = '곧 실행...';
+                    }
+                } else {
+                    console.error('next-execution-time 요소를 찾을 수 없음');
+                }
+            } else {
+                console.error('필요한 데이터 없음:', data);
+            }
+        } catch (error) {
+            console.error('🚨 오류:', error);
+            alert('오류: ' + error.message);
+        }
+    }
+
     // 페이지 로드 시 초기화
     document.addEventListener('DOMContentLoaded', function () {
         console.log('=== 대시보드 초기화 시작 ===');
 
-        // 함수 존재 여부 확인
-        console.log('updateDashboard 함수 존재:', typeof updateDashboard);
-        console.log('updateCountdown 함수 존재:', typeof updateCountdown);
-
-        // 초기 업데이트 (딜레이 후 재시도)
-        try {
-            console.log('첫 번째 updateDashboard 호출 시도...');
-            updateDashboard();
-        } catch (e) {
-            console.error('첫 번째 updateDashboard 호출 실패:', e);
-        }
+        // 새로운 단순 함수 사용
+        console.log('새로운 함수 테스트...');
+        updateNextExecutionOnly();
 
         setTimeout(() => {
-            console.log('강제 재업데이트 실행');
-            try {
-                updateDashboard();
-            } catch (e) {
-                console.error('두 번째 updateDashboard 호출 실패:', e);
-            }
+            console.log('2초 후 재실행...');
+            updateNextExecutionOnly();
         }, 2000);
 
-        // 10초마다 자동 업데이트
+        // 30초마다 자동 업데이트 (새로운 함수 사용)
         try {
-            setInterval(updateDashboard, 10000);
-            console.log('10초 자동 업데이트 타이머 설정 완료');
+            setInterval(updateNextExecutionOnly, 30000);
+            console.log('30초 자동 업데이트 타이머 설정 완료');
         } catch (e) {
             console.error('자동 업데이트 타이머 설정 실패:', e);
-        }
-
-        // 1초마다 카운트다운 업데이트
-        try {
-            setInterval(updateCountdown, 1000);
-            console.log('1초 카운트다운 타이머 설정 완료');
-        } catch (e) {
-            console.error('카운트다운 타이머 설정 실패:', e);
         }
 
         console.log('자동 업데이트 타이머 설정 완료');
@@ -685,22 +709,22 @@
     // 통합 대시보드 업데이트
     async function updateDashboard() {
         console.log('=== updateDashboard 함수 시작 ===');
-        
+
         try {
             console.log('API 호출 준비 중...');
-            
+
             // 우선 auto_trading_status만 호출해서 next_execution 확인
             console.log('auto_trading_status API 호출...');
             const autoTraderResponse = await fetch('/api/auto_trading_status');
             console.log('auto_trading_status 응답 수신:', autoTraderResponse.status);
-            
+
             const autoTraderData = await autoTraderResponse.json();
             console.log('auto_trading_status 데이터:', autoTraderData);
-            
+
             // 다음 실행 시간 업데이트 (최우선)
             console.log('다음 실행 시간 업데이트 시도...');
             updateAutoTraderStatus(autoTraderData);
-            
+
             // 나머지 API들은 잠시 주석 처리
             /*
             const [systemResponse, balanceResponse, tradesResponse, strategyResponse] = await Promise.all([
@@ -726,7 +750,7 @@
             // AI 스케줄러 상태 업데이트
             updateAISchedulerStatus();
             */
-            
+
             console.log('✅ 다음 실행 시간 업데이트 완료');
 
         } catch (error) {
@@ -734,10 +758,10 @@
             console.error('오류 객체:', error);
             console.error('오류 메시지:', error.message);
             console.error('오류 스택:', error.stack);
-            
+
             // 사용자에게도 알림
             alert('대시보드 업데이트 오류: ' + error.message);
-            
+
             // next_execution 요소에 오류 표시
             const nextExecElement = document.getElementById('next-execution-time');
             if (nextExecElement) {
