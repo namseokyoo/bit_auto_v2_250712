@@ -684,50 +684,65 @@
 
     // 통합 대시보드 업데이트
     async function updateDashboard() {
-        console.log('=== updateDashboard 시작 ===');
+        console.log('=== updateDashboard 함수 시작 ===');
+        
         try {
-            // 병렬로 데이터 가져오기
-            console.log('API 호출 시작...');
-            const [autoTraderResponse, systemResponse, balanceResponse, tradesResponse, strategyResponse] = await Promise.all([
-                fetch('/api/auto_trading_status'),
+            console.log('API 호출 준비 중...');
+            
+            // 우선 auto_trading_status만 호출해서 next_execution 확인
+            console.log('auto_trading_status API 호출...');
+            const autoTraderResponse = await fetch('/api/auto_trading_status');
+            console.log('auto_trading_status 응답 수신:', autoTraderResponse.status);
+            
+            const autoTraderData = await autoTraderResponse.json();
+            console.log('auto_trading_status 데이터:', autoTraderData);
+            
+            // 다음 실행 시간 업데이트 (최우선)
+            console.log('다음 실행 시간 업데이트 시도...');
+            updateAutoTraderStatus(autoTraderData);
+            
+            // 나머지 API들은 잠시 주석 처리
+            /*
+            const [systemResponse, balanceResponse, tradesResponse, strategyResponse] = await Promise.all([
                 fetch('/api/system/status'),
                 fetch('/api/balance'),
                 fetch('/api/trades?limit=5'),
                 fetch('/api/strategy_analytics/summary?days=7')
             ]);
 
-            console.log('API 응답 수신 완료, JSON 파싱 중...');
-            const autoTraderData = await autoTraderResponse.json();
             const systemData = await systemResponse.json();
             const balanceData = await balanceResponse.json();
             const tradesData = await tradesResponse.json();
             const strategyData = await strategyResponse.json();
 
-            console.log('AutoTrader 데이터:', autoTraderData);
-
             // 상태 배지 업데이트
             updateSystemTradingBadges(systemData);
-
-            // AutoTrader 상태 업데이트
-            console.log('updateAutoTraderStatus 호출 직전');
-            updateAutoTraderStatus(autoTraderData);
-
             // 잔고 정보 업데이트
             updateBalanceInfo(balanceData);
-
             // 최근 거래 업데이트
             updateRecentTrades(tradesData);
-
             // 전략 성과 업데이트
             updateStrategyPerformance(strategyData);
-
             // AI 스케줄러 상태 업데이트
             updateAISchedulerStatus();
+            */
+            
+            console.log('✅ 다음 실행 시간 업데이트 완료');
 
         } catch (error) {
-            console.error('updateDashboard 오류:', error);
-            console.error('오류 상세:', error.message);
+            console.error('🚨 updateDashboard 오류 발생!');
+            console.error('오류 객체:', error);
+            console.error('오류 메시지:', error.message);
             console.error('오류 스택:', error.stack);
+            
+            // 사용자에게도 알림
+            alert('대시보드 업데이트 오류: ' + error.message);
+            
+            // next_execution 요소에 오류 표시
+            const nextExecElement = document.getElementById('next-execution-time');
+            if (nextExecElement) {
+                nextExecElement.textContent = '오류 발생';
+            }
         }
     }
 
