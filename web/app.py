@@ -850,6 +850,7 @@ def api_auto_trading_status():
             'system_enabled': config_manager.is_system_enabled(),
             'last_execution': status.get('last_execution_time'),
             'next_execution': status.get('next_execution_time'),
+            'server_time': datetime.now().isoformat(),  # 서버 현재 시간 추가
             'last_started_at': status.get('last_started_at'),
             'success_rate': status.get('success_rate', 0),
             'total_executions': status.get('total_executions', 0),

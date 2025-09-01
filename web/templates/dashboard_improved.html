@@ -501,8 +501,8 @@
 
 <!-- 실시간 업데이트를 위한 JavaScript -->
 <script>
-    // 다음 실행 시간 포맷팅 함수
-    function updateNextExecutionTime(nextExecutionStr, isRunning, element) {
+        // 다음 실행 시간 포맷팅 함수 (서버 시간 기준)
+    function updateNextExecutionTime(nextExecutionStr, isRunning, element, serverTimeStr) {
         if (!element) {
             console.error('next-execution 엘리먼트를 찾을 수 없습니다');
             return;
@@ -510,10 +510,11 @@
 
         console.log('다음 실행 시간 처리:', {
             next_execution: nextExecutionStr,
+            server_time: serverTimeStr,
             type: typeof nextExecutionStr,
             isRunning: isRunning
         });
-
+        
         if (!nextExecutionStr) {
             element.textContent = isRunning ? '계산중...' : '정지됨';
             console.log('next_execution이 null/undefined - 기본값 표시');
@@ -522,8 +523,8 @@
 
         try {
             // 다양한 시간 형식 처리
-            let nextTime;
-
+            let nextTime, serverTime;
+            
             // ISO 문자열인 경우 (예: "2025-08-31T15:12:02.230202")
             if (typeof nextExecutionStr === 'string') {
                 // Z가 없으면 로컬 시간으로 처리되므로 KST 처리
@@ -535,17 +536,34 @@
             } else {
                 nextTime = new Date(nextExecutionStr);
             }
-
+            
+            // 서버 시간 파싱 (서버 시간이 제공된 경우)
+            if (serverTimeStr) {
+                if (typeof serverTimeStr === 'string') {
+                    if (!serverTimeStr.includes('Z') && !serverTimeStr.includes('+')) {
+                        serverTime = new Date(serverTimeStr + '+09:00');
+                    } else {
+                        serverTime = new Date(serverTimeStr);
+                    }
+                } else {
+                    serverTime = new Date(serverTimeStr);
+                }
+            } else {
+                serverTime = new Date(); // fallback to local time
+            }
+            
             console.log('파싱된 시간:', nextTime, 'isValid:', !isNaN(nextTime.getTime()));
-
-            if (!isNaN(nextTime.getTime())) {
-                // 현재 시간과 비교하여 남은 시간 계산
-                const now = new Date();
-                const diff = nextTime - now;
-
-                // 전역 변수에 저장 (카운트다운 용)
-                globalNextExecutionTime = nextTime;
-
+            console.log('서버 시간:', serverTime, 'isValid:', !isNaN(serverTime.getTime()));
+            
+            if (!isNaN(nextTime.getTime()) && !isNaN(serverTime.getTime())) {
+                // 서버 시간 기준으로 남은 시간 계산
+                const diff = nextTime - serverTime;
+                console.log('서버 기준 시간 차이:', diff, 'ms');
+                
+                // 전역 변수에 저장 (카운트다운 용) - 로컬 시간 기준으로 조정
+                const localAdjustedTime = new Date(Date.now() + diff);
+                globalNextExecutionTime = localAdjustedTime;
+                
                 if (diff > 0) {
                     // 미래 시간인 경우 - 한국 시간으로 표시
                     const timeStr = nextTime.toLocaleTimeString('ko-KR', {
@@ -555,12 +573,12 @@
                         minute: '2-digit',
                         second: '2-digit'
                     });
-
+                    
                     // 남은 시간 계산 (분:초)
                     const remainingMinutes = Math.floor(diff / 60000);
                     const remainingSeconds = Math.floor((diff % 60000) / 1000);
                     const remainingStr = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-
+                    
                     element.textContent = `${timeStr} (${remainingStr}후)`;
                     console.log('표시된 시간:', timeStr, '남은시간:', remainingStr);
                 } else {
@@ -586,26 +604,27 @@
     async function testNextExecution() {
         console.log('=== 수동 테스트 시작 ===');
         const nextExecution = document.getElementById('next-execution');
-        
+
         if (!nextExecution) {
             alert('next-execution 엘리먼트를 찾을 수 없습니다!');
             return;
         }
-        
+
         try {
             // API 호출
             const response = await fetch('/api/auto_trading_status');
             const data = await response.json();
-            
-            console.log('API 응답:', data);
+
+                        console.log('API 응답:', data);
             alert(`API 응답:
 running: ${data.status.running}
 next_execution: ${data.status.next_execution}
+server_time: ${data.status.server_time}
 type: ${typeof data.status.next_execution}`);
             
             // 시간 업데이트 테스트
-            updateNextExecutionTime(data.status.next_execution, data.status.running, nextExecution);
-            
+            updateNextExecutionTime(data.status.next_execution, data.status.running, nextExecution, data.status.server_time);
+
         } catch (error) {
             console.error('테스트 오류:', error);
             alert('테스트 실패: ' + error.message);
@@ -753,7 +772,7 @@ type: ${typeof data.status.next_execution}`);
     function updateAutoTraderStatus(data) {
         console.log('=== updateAutoTraderStatus 호출됨 ===');
         console.log('받은 데이터:', data);
-        
+
         if (!data || !data.status) {
             console.error('Invalid data received:', data);
             return;
@@ -811,9 +830,9 @@ type: ${typeof data.status.next_execution}`);
             nextExecutionValue: status.next_execution,
             isRunning: isRunning
         });
-        
+
         if (nextExecution) {
-            updateNextExecutionTime(status.next_execution, isRunning, nextExecution);
+            updateNextExecutionTime(status.next_execution, isRunning, nextExecution, status.server_time);
         } else {
             console.error('next-execution 엘리먼트를 찾을 수 없습니다!');
         }
