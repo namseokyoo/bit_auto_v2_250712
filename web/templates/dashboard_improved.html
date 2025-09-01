@@ -642,18 +642,42 @@
     document.addEventListener('DOMContentLoaded', function () {
         console.log('=== 대시보드 초기화 시작 ===');
 
+        // 함수 존재 여부 확인
+        console.log('updateDashboard 함수 존재:', typeof updateDashboard);
+        console.log('updateCountdown 함수 존재:', typeof updateCountdown);
+
         // 초기 업데이트 (딜레이 후 재시도)
-        updateDashboard();
+        try {
+            console.log('첫 번째 updateDashboard 호출 시도...');
+            updateDashboard();
+        } catch (e) {
+            console.error('첫 번째 updateDashboard 호출 실패:', e);
+        }
+
         setTimeout(() => {
             console.log('강제 재업데이트 실행');
-            updateDashboard();
+            try {
+                updateDashboard();
+            } catch (e) {
+                console.error('두 번째 updateDashboard 호출 실패:', e);
+            }
         }, 2000);
 
         // 10초마다 자동 업데이트
-        setInterval(updateDashboard, 10000);
+        try {
+            setInterval(updateDashboard, 10000);
+            console.log('10초 자동 업데이트 타이머 설정 완료');
+        } catch (e) {
+            console.error('자동 업데이트 타이머 설정 실패:', e);
+        }
 
         // 1초마다 카운트다운 업데이트
-        setInterval(updateCountdown, 1000);
+        try {
+            setInterval(updateCountdown, 1000);
+            console.log('1초 카운트다운 타이머 설정 완료');
+        } catch (e) {
+            console.error('카운트다운 타이머 설정 실패:', e);
+        }
 
         console.log('자동 업데이트 타이머 설정 완료');
     });
