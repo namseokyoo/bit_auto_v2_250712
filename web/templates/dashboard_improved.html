@@ -599,7 +599,7 @@
     // 전역 변수로 다음 실행 시간 저장
     let globalNextExecutionTime = null;
 
-    
+
 
     // 카운트다운 업데이트 함수
     function updateCountdown() {
@@ -660,8 +660,10 @@
 
     // 통합 대시보드 업데이트
     async function updateDashboard() {
+        console.log('=== updateDashboard 시작 ===');
         try {
             // 병렬로 데이터 가져오기
+            console.log('API 호출 시작...');
             const [autoTraderResponse, systemResponse, balanceResponse, tradesResponse, strategyResponse] = await Promise.all([
                 fetch('/api/auto_trading_status'),
                 fetch('/api/system/status'),
@@ -670,16 +672,20 @@
                 fetch('/api/strategy_analytics/summary?days=7')
             ]);
 
+            console.log('API 응답 수신 완료, JSON 파싱 중...');
             const autoTraderData = await autoTraderResponse.json();
             const systemData = await systemResponse.json();
             const balanceData = await balanceResponse.json();
             const tradesData = await tradesResponse.json();
             const strategyData = await strategyResponse.json();
 
+            console.log('AutoTrader 데이터:', autoTraderData);
+
             // 상태 배지 업데이트
             updateSystemTradingBadges(systemData);
 
             // AutoTrader 상태 업데이트
+            console.log('updateAutoTraderStatus 호출 직전');
             updateAutoTraderStatus(autoTraderData);
 
             // 잔고 정보 업데이트
@@ -695,7 +701,9 @@
             updateAISchedulerStatus();
 
         } catch (error) {
-            console.error('대시보드 업데이트 오류:', error);
+            console.error('updateDashboard 오류:', error);
+            console.error('오류 상세:', error.message);
+            console.error('오류 스택:', error.stack);
         }
     }
 
