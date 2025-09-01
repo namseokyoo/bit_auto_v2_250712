@@ -641,26 +641,26 @@
     // 🚀 새로운 단순 함수: 다음 실행 시간만 업데이트
     async function updateNextExecutionOnly() {
         console.log('🎯 updateNextExecutionOnly 시작!');
-        
+
         try {
             console.log('API 호출 중...');
             const response = await fetch('/api/auto_trading_status');
             console.log('응답 상태:', response.status);
-            
+
             const data = await response.json();
             console.log('받은 데이터:', data);
-            
+
             if (data.status && data.status.next_execution && data.status.server_time) {
                 console.log('시간 계산 시작...');
                 const nextTime = new Date(data.status.next_execution);
                 const serverTime = new Date(data.status.server_time);
                 const diff = Math.max(0, (nextTime - serverTime) / 1000);
-                
+
                 console.log('다음 실행:', nextTime.toLocaleTimeString());
                 console.log('서버 시간:', serverTime.toLocaleTimeString());
                 console.log('남은 시간(초):', diff);
-                
-                const element = document.getElementById('next-execution-time');
+
+                const element = document.getElementById('next-execution');
                 if (element) {
                     if (diff > 0) {
                         const minutes = Math.floor(diff / 60);
@@ -671,7 +671,7 @@
                         element.textContent = '곧 실행...';
                     }
                 } else {
-                    console.error('next-execution-time 요소를 찾을 수 없음');
+                    console.error('next-execution 요소를 찾을 수 없음');
                 }
             } else {
                 console.error('필요한 데이터 없음:', data);
@@ -763,7 +763,7 @@
             alert('대시보드 업데이트 오류: ' + error.message);
 
             // next_execution 요소에 오류 표시
-            const nextExecElement = document.getElementById('next-execution-time');
+            const nextExecElement = document.getElementById('next-execution');
             if (nextExecElement) {
                 nextExecElement.textContent = '오류 발생';
             }
