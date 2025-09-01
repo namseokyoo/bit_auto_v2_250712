@@ -850,13 +850,35 @@ def api_auto_trading_status():
             'system_enabled': config_manager.is_system_enabled(),
             'last_execution': status.get('last_execution_time'),
             'next_execution': status.get('next_execution_time'),
-            'server_time': datetime.now().isoformat(),  # 서버 현재 시간 추가
+            'server_time': now_kst().isoformat(),  # 서버 현재 시간을 KST로 제공
             'last_started_at': status.get('last_started_at'),
             'success_rate': status.get('success_rate', 0),
             'total_executions': status.get('total_executions', 0),
             'mode': config_manager.get_config('system.mode'),
-            'last_updated': datetime.now().isoformat()
+            'last_updated': now_kst().isoformat()
         }
+
+        # next_execution이 비어있을 때, 설정된 주기 기준으로 계산하여 제공
+        try:
+            if not enhanced_status.get('next_execution'):
+                trading_cfg = config_manager.get_trading_config()
+                interval_minutes = trading_cfg.get('trade_interval_minutes', 10)
+
+                now = now_kst()
+                base = now.replace(second=0, microsecond=0)
+
+                # 기본 계산: 다음 인터벌 경계 시각
+                if interval_minutes >= 60:
+                    # 시간 단위 이상이면 단순히 interval 만큼 더함
+                    next_time = base + timedelta(minutes=interval_minutes)
+                else:
+                    remainder = now.minute % interval_minutes
+                    add_minutes = interval_minutes if remainder == 0 else (interval_minutes - remainder)
+                    next_time = base + timedelta(minutes=add_minutes)
+
+                enhanced_status['next_execution'] = next_time.isoformat()
+        except Exception as calc_err:
+            logger.error(f"다음 실행 시간 계산 오류: {calc_err}")
 
         return jsonify({
             'success': True,
