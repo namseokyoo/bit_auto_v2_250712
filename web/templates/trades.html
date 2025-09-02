@@ -291,7 +291,7 @@ function renderActivities(activities) {
             <td class="${pnlClass} fw-bold">${pnlText}</td>
             <td>
                 <button class="btn btn-sm btn-outline-primary" 
-                        onclick="showActivityDetail('${btoa(JSON.stringify(activity))}')">
+                        onclick="showActivityDetail('${encodeURIComponent(JSON.stringify(activity))}')">
                     <i class="fas fa-eye"></i>
                 </button>
             </td>
@@ -304,7 +304,7 @@ function renderActivities(activities) {
 }
 
 function showActivityDetail(encodedData) {
-    const activity = JSON.parse(atob(encodedData));
+    const activity = JSON.parse(decodeURIComponent(encodedData));
     
     let detailContent = `
         <div class="row">
