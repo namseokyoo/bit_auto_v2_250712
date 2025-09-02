@@ -35,7 +35,23 @@ class StrategyExecution:
         """딕셔너리로 변환"""
         data = asdict(self)
         data['execution_time'] = self.execution_time.isoformat()
-        data['indicators'] = json.dumps(self.indicators)
+        
+        # indicators 내의 StrategyTier enum을 문자열로 변환
+        indicators_clean = {}
+        for key, value in self.indicators.items():
+            if key == 'tier_contributions' and isinstance(value, dict):
+                # StrategyTier enum 키를 문자열로 변환
+                tier_contributions_clean = {}
+                for tier_key, tier_value in value.items():
+                    if hasattr(tier_key, 'value'):  # StrategyTier enum인 경우
+                        tier_contributions_clean[tier_key.value] = float(tier_value)
+                    else:
+                        tier_contributions_clean[str(tier_key)] = float(tier_value) if isinstance(tier_value, (int, float)) else tier_value
+                indicators_clean[key] = tier_contributions_clean
+            else:
+                indicators_clean[key] = value
+        
+        data['indicators'] = json.dumps(indicators_clean)
         return data
 
 
@@ -66,7 +82,8 @@ class StrategyExecutionTracker:
         if not self.logger.handlers:
             # 콘솔 핸들러 추가
             handler = logging.StreamHandler()
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
             self.logger.setLevel(logging.INFO)
@@ -184,11 +201,12 @@ class StrategyExecutionTracker:
     def record_execution(self, execution: StrategyExecution) -> bool:
         """전략 실행 기록 저장"""
         try:
-            self.logger.info(f"전략 실행 기록 저장 시작: {execution.strategy_tier} - {execution.signal_action}")
-            
+            self.logger.info(
+                f"전략 실행 기록 저장 시작: {execution.strategy_tier} - {execution.signal_action}")
+
             with sqlite3.connect(self.db_path) as conn:
                 data = execution.to_dict()
-                
+
                 self.logger.debug(f"저장할 데이터: {data}")
 
                 conn.execute('''
@@ -211,7 +229,8 @@ class StrategyExecutionTracker:
                 # 일일 성과 캐시 업데이트
                 self._update_daily_cache(execution)
 
-                self.logger.info(f"전략 실행 기록 저장 성공: {execution.strategy_tier} - {execution.signal_action}")
+                self.logger.info(
+                    f"전략 실행 기록 저장 성공: {execution.strategy_tier} - {execution.signal_action}")
                 return True
 
         except Exception as e:
