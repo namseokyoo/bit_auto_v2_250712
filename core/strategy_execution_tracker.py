@@ -35,7 +35,7 @@ class StrategyExecution:
         """딕셔너리로 변환"""
         data = asdict(self)
         data['execution_time'] = self.execution_time.isoformat()
-        
+
         # indicators 내의 StrategyTier enum을 문자열로 변환
         indicators_clean = {}
         for key, value in self.indicators.items():
@@ -44,13 +44,15 @@ class StrategyExecution:
                 tier_contributions_clean = {}
                 for tier_key, tier_value in value.items():
                     if hasattr(tier_key, 'value'):  # StrategyTier enum인 경우
-                        tier_contributions_clean[tier_key.value] = float(tier_value)
+                        tier_contributions_clean[tier_key.value] = float(
+                            tier_value)
                     else:
-                        tier_contributions_clean[str(tier_key)] = float(tier_value) if isinstance(tier_value, (int, float)) else tier_value
+                        tier_contributions_clean[str(tier_key)] = float(
+                            tier_value) if isinstance(tier_value, (int, float)) else tier_value
                 indicators_clean[key] = tier_contributions_clean
             else:
                 indicators_clean[key] = value
-        
+
         data['indicators'] = json.dumps(indicators_clean)
         return data
 
