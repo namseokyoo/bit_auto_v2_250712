@@ -697,23 +697,30 @@ def api_system_status():
 def api_current_price():
     """실시간 비트코인 현재가격 조회 API"""
     try:
-        from core.upbit_api import UpbitAPI
-        api = UpbitAPI(paper_trading=False)  # 공개 API는 인증 불필요
+        import requests
         
-        # 직접 ticker API 호출로 현재가 조회
-        ticker_data = api._make_request('GET', '/v1/ticker', {'markets': 'KRW-BTC'})
+        # Upbit API 직접 호출
+        response = requests.get('https://api.upbit.com/v1/ticker?markets=KRW-BTC', timeout=10)
+        
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'message': f'Upbit API 호출 실패: {response.status_code}'
+            })
+        
+        ticker_data = response.json()
         
         if not ticker_data or len(ticker_data) == 0:
             return jsonify({
                 'success': False,
-                'message': 'ticker 데이터 조회 실패'
+                'message': 'ticker 데이터가 비어있음'
             })
         
         ticker = ticker_data[0]
         current_price = float(ticker['trade_price'])
 
         # 시장 정보 생성
-        response = {
+        response_data = {
             'success': True,
             'data': {
                 'price': current_price,
@@ -727,9 +734,9 @@ def api_current_price():
                 'timestamp': datetime.now().isoformat()
             }
         }
-
-        return jsonify(response)
-
+            
+        return jsonify(response_data)
+        
     except Exception as e:
         logger.error(f"현재가 조회 오류: {e}")
         return jsonify({
@@ -742,11 +749,18 @@ def api_current_price():
 def api_chart_data():
     """실시간 차트 데이터 조회 API"""
     try:
-        from core.upbit_api import UpbitAPI
-        api = UpbitAPI(paper_trading=False)
-
-        # 최근 24시간 5분봉 데이터 (288개)
-        candles = api.get_candles('KRW-BTC', minutes=5, count=288)
+        import requests
+        
+        # 최근 24시간 5분봉 데이터 (288개) 직접 호출
+        response = requests.get('https://api.upbit.com/v1/candles/minutes/5?market=KRW-BTC&count=288', timeout=15)
+        
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'message': f'Upbit 캔들 API 호출 실패: {response.status_code}'
+            })
+        
+        candles = response.json()
 
         if candles:
             chart_data = []
