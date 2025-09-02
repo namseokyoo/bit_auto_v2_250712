@@ -215,7 +215,7 @@ class AutoTrader:
         if jobs:
             next_run = min(job.next_run for job in jobs if job.next_run)
             self.logger.debug(f"schedule.next_run 원본: {next_run}")
-            
+
             # schedule 라이브러리는 시스템 로컬 시간 기준의 naive datetime을 반환
             # 서버가 UTC에서 실행 중이라면 UTC로 해석하고 KST로 변환 필요
             if next_run.tzinfo is None:
@@ -223,18 +223,19 @@ class AutoTrader:
                     # 시스템 시간대 확인 후 KST로 변환
                     import time
                     system_tz_offset = time.timezone  # 초 단위
-                    
+
                     # 시스템이 UTC라면 next_run을 UTC로 해석하고 KST로 변환
                     if abs(system_tz_offset) < 3600:  # UTC 근처 (1시간 이내)
-                        next_run = pytz.utc.localize(next_run).astimezone(self.kst)
+                        next_run = pytz.utc.localize(
+                            next_run).astimezone(self.kst)
                     else:
                         # 다른 시간대라면 로컬 시간으로 가정
                         next_run = self.kst.localize(next_run)
-                        
+
                 except Exception as e:
                     self.logger.warning(f"시간대 변환 오류: {e}, 로컬 시간으로 가정")
                     next_run = self.kst.localize(next_run)
-                    
+
             self.state.next_execution_time = next_run
             self.logger.debug(f"다음 실행 시간 (최종 KST): {next_run}")
 
@@ -385,16 +386,21 @@ class AutoTrader:
                     # 3. 투표 기반 전략 실행 (새로운 시스템)
                     self.logger.info("🗳️ 투표 기반 전략 실행 중...")
                     if self.voting_engine:
-                        voting_signal = self.voting_engine.get_trading_signal()
-                        if voting_signal:
-                            self.logger.info(
-                                f"투표 결과: {voting_signal.action} (신뢰도: {voting_signal.confidence:.3f})")
-                            # TradingEngine을 통해 실제 거래 실행
-                            if self.trading_engine:
-                                self.trading_engine.execute_signal(
-                                    voting_signal)
-                        else:
-                            self.logger.info("투표 결과: HOLD (거래 없음)")
+                        try:
+                            voting_signal = self.voting_engine.get_trading_signal()
+                            if voting_signal:
+                                self.logger.info(
+                                    f"투표 결과: {voting_signal.action} (신뢰도: {voting_signal.confidence:.3f})")
+                                # TradingEngine을 통해 실제 거래 실행
+                                if self.trading_engine:
+                                    self.trading_engine.execute_signal(
+                                        voting_signal)
+                            else:
+                                self.logger.info("투표 결과: HOLD (신뢰도 부족 또는 HOLD 신호)")
+                        except Exception as ve:
+                            self.logger.error(f"투표 엔진 실행 오류: {ve}")
+                    else:
+                        self.logger.warning("VotingEngine을 사용할 수 없습니다.")
 
                     # 3-1. 기존 시간별 전략 (병행 실행 - 추후 단계적 교체)
                     legacy_strategies_enabled = config_manager.get_config(
@@ -593,6 +599,27 @@ class AutoTrader:
             'successful_executions': self.state.successful_executions,
             'failed_executions': self.state.failed_executions,
             'success_rate': (self.state.successful_executions / max(1, self.state.total_executions)) * 100
+        }
+    
+    def debug_schedule(self) -> Dict[str, Any]:
+        """스케줄 디버그 정보 반환"""
+        jobs = schedule.get_jobs()
+        trading_config = config_manager.get_trading_config()
+        
+        return {
+            'config_interval_minutes': trading_config.get('trade_interval_minutes', 10),
+            'total_jobs': len(jobs),
+            'jobs': [
+                {
+                    'interval': getattr(job, 'interval', None),
+                    'start_day': getattr(job, 'start_day', None),
+                    'unit': getattr(job, 'unit', None),
+                    'at_time': getattr(job, 'at_time', None),
+                    'next_run': job.next_run.isoformat() if job.next_run else None,
+                    'job_func_name': job.job_func.__name__ if hasattr(job, 'job_func') else 'unknown'
+                }
+                for job in jobs
+            ]
         }
 
 

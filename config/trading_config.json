@@ -12,7 +12,7 @@
     "daily_loss_limit": 50000,
     "max_positions": 3,
     "auto_trade_enabled": true,
-    "trade_interval_minutes": 10,
+    "trade_interval_minutes": 1,
     "market": "KRW-BTC",
     "ai_analysis": {
       "enabled": false,
