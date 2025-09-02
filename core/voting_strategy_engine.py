@@ -185,11 +185,21 @@ class VotingStrategyEngine:
             return 50000  # 기본값
     
     def get_trading_signal(self) -> Optional[TradingSignal]:
-        """거래 신호 생성"""
+        """거래 신호 생성 (항상 실행 기록 저장)"""
         try:
+            # 항상 분석 수행 및 기록 저장
             result = self.analyze()
             
-            if not result or not self.should_execute_trade(result):
+            if not result:
+                self.logger.warning("투표 분석 결과가 없습니다")
+                return None
+            
+            # 거래 실행 여부와 관계없이 분석은 완료되었음
+            # (analyze()에서 이미 _record_execution 호출됨)
+            
+            # 거래 신호 생성 여부 판단
+            if not self.should_execute_trade(result):
+                self.logger.info(f"거래 조건 미충족 - 신호: {result.decision.final_signal.value}, 신뢰도: {result.decision.confidence:.3f}")
                 return None
             
             # 현재가 조회
@@ -204,6 +214,7 @@ class VotingStrategyEngine:
             trade_amount = self.calculate_trade_amount(result)
             
             # TradingSignal 생성
+            self.logger.info(f"거래 신호 생성: {result.decision.final_signal.value} (신뢰도: {result.decision.confidence:.3f})")
             return result.to_trading_signal(current_price, trade_amount)
             
         except Exception as e:
