@@ -693,6 +693,104 @@ def api_system_status():
     })
 
 
+@app.route('/api/market/current_price')
+def api_current_price():
+    """실시간 비트코인 현재가격 조회 API"""
+    try:
+        from core.upbit_api import UpbitAPI
+        api = UpbitAPI(paper_trading=False)  # 공개 API는 인증 불필요
+        
+        # 현재가 조회
+        current_price = api.get_current_price('KRW-BTC')
+        
+        if current_price:
+            # 추가 시장 정보도 함께 조회
+            ticker_data = api._make_request('GET', '/v1/ticker', {'markets': 'KRW-BTC'})
+            if ticker_data and len(ticker_data) > 0:
+                ticker = ticker_data[0]
+                
+                response = {
+                    'success': True,
+                    'data': {
+                        'price': current_price,
+                        'formatted_price': f"₩ {current_price:,.0f}",
+                        'change_rate': ticker.get('signed_change_rate', 0) * 100,
+                        'change_price': ticker.get('signed_change_price', 0),
+                        'high_price': ticker.get('high_price', 0),
+                        'low_price': ticker.get('low_price', 0),
+                        'prev_closing_price': ticker.get('prev_closing_price', 0),
+                        'trade_volume': ticker.get('acc_trade_volume_24h', 0),
+                        'timestamp': datetime.now().isoformat()
+                    }
+                }
+            else:
+                response = {
+                    'success': True,
+                    'data': {
+                        'price': current_price,
+                        'formatted_price': f"₩ {current_price:,.0f}",
+                        'timestamp': datetime.now().isoformat()
+                    }
+                }
+        else:
+            response = {
+                'success': False,
+                'message': '현재가 조회 실패'
+            }
+            
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"현재가 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/market/chart_data')
+def api_chart_data():
+    """실시간 차트 데이터 조회 API"""
+    try:
+        from core.upbit_api import UpbitAPI
+        api = UpbitAPI(paper_trading=False)
+        
+        # 최근 24시간 5분봉 데이터 (288개)
+        candles = api.get_candles('KRW-BTC', minutes=5, count=288)
+        
+        if candles:
+            chart_data = []
+            for candle in candles:
+                chart_data.append({
+                    'time': candle['candle_date_time_kst'],
+                    'open': float(candle['opening_price']),
+                    'high': float(candle['high_price']),
+                    'low': float(candle['low_price']),
+                    'close': float(candle['trade_price']),
+                    'volume': float(candle['candle_acc_trade_volume'])
+                })
+            
+            # 시간순 정렬 (오래된 것부터)
+            chart_data.reverse()
+            
+            return jsonify({
+                'success': True,
+                'data': chart_data
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '차트 데이터 조회 실패'
+            })
+            
+    except Exception as e:
+        logger.error(f"차트 데이터 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/system/toggle', methods=['POST'])
 def api_toggle_system():
     """시스템 온/오프 토글"""
@@ -867,7 +965,7 @@ def api_voting_engine_analyze():
                     return None
                 else:
                     return str(obj)
-            
+
             response_data = {
                 'success': True,
                 'decision': {

@@ -3,6 +3,8 @@
 {% block title %}대시보드 - Bitcoin Auto Trading v2{% endblock %}
 
 {% block extra_head %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
     .metric-card {
         border: none;
@@ -248,10 +250,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h3 id="btc-price" class="text-warning mb-0">₩ 151,343,000</h3>
-                        <small class="text-muted">비트코인 (BTC)</small>
+                        <h3 id="btc-price" class="text-warning mb-0">₩ 로딩중...</h3>
+                        <small id="price-change" class="text-muted">비트코인 (BTC)</small>
                     </div>
-                    <div class="chart-mini">
+                    <div class="chart-mini" onclick="showRealtimeChart()" style="cursor: pointer;">
                         <i class="fas fa-chart-area me-2"></i>
                         실시간 차트
                     </div>
@@ -1665,5 +1667,196 @@
             if (alert.parentElement) alert.remove();
         }, 5000);
     }
+
+    // 실시간 비트코인 가격 업데이트
+    async function updateBitcoinPrice() {
+        try {
+            const response = await fetch('/api/market/current_price');
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+                const data = result.data;
+                
+                // 가격 업데이트
+                document.getElementById('btc-price').textContent = data.formatted_price;
+                
+                // 변동률 정보 업데이트
+                const changeElement = document.getElementById('price-change');
+                if (data.change_rate !== undefined) {
+                    const changeRate = data.change_rate.toFixed(2);
+                    const changePrice = Math.abs(data.change_price).toLocaleString();
+                    const isPositive = data.change_rate >= 0;
+                    
+                    changeElement.innerHTML = `
+                        비트코인 (BTC) 
+                        <span class="${isPositive ? 'text-success' : 'text-danger'}">
+                            ${isPositive ? '+' : ''}${changeRate}% (${isPositive ? '+' : '-'}₩${changePrice})
+                        </span>
+                    `;
+                } else {
+                    changeElement.textContent = '비트코인 (BTC)';
+                }
+            }
+        } catch (error) {
+            console.error('비트코인 가격 업데이트 실패:', error);
+            document.getElementById('btc-price').textContent = '₩ 조회 실패';
+        }
+    }
+
+    // 실시간 차트 모달 표시
+    async function showRealtimeChart() {
+        // 모달이 이미 존재하면 제거
+        const existingModal = document.getElementById('chartModal');
+        if (existingModal) existingModal.remove();
+        
+        // 모달 HTML 생성
+        const modalHtml = `
+            <div class="modal fade" id="chartModal" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-chart-line me-2"></i>
+                                비트코인 실시간 차트 (5분봉)
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="chartContainer" style="height: 500px;">
+                                <div class="d-flex justify-content-center align-items-center h-100">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">차트 로딩중...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 모달을 body에 추가
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Bootstrap 모달 표시
+        const modal = new bootstrap.Modal(document.getElementById('chartModal'));
+        modal.show();
+        
+        // 차트 데이터 로드 및 렌더링
+        await loadChart();
+    }
+
+    // 차트 데이터 로드 및 렌더링
+    async function loadChart() {
+        try {
+            const response = await fetch('/api/market/chart_data');
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+                renderChart(result.data);
+            } else {
+                document.getElementById('chartContainer').innerHTML = `
+                    <div class="alert alert-warning text-center">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        차트 데이터를 불러올 수 없습니다.
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('차트 데이터 로드 실패:', error);
+            document.getElementById('chartContainer').innerHTML = `
+                <div class="alert alert-danger text-center">
+                    <i class="fas fa-times-circle me-2"></i>
+                    차트 로드 중 오류가 발생했습니다.
+                </div>
+            `;
+        }
+    }
+
+    // Chart.js를 사용한 차트 렌더링
+    function renderChart(data) {
+        const ctx = document.createElement('canvas');
+        ctx.style.height = '500px';
+        document.getElementById('chartContainer').innerHTML = '';
+        document.getElementById('chartContainer').appendChild(ctx);
+        
+        // 데이터 포맷팅
+        const labels = data.map(item => {
+            const date = new Date(item.time);
+            return date.toLocaleDateString('ko-KR') + ' ' + date.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'});
+        });
+        
+        const prices = data.map(item => item.close);
+        const volumes = data.map(item => item.volume);
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '비트코인 가격',
+                    data: prices,
+                    borderColor: '#f39c12',
+                    backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                    tension: 0.1,
+                    pointRadius: 0,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: '시간'
+                        },
+                        ticks: {
+                            maxTicksLimit: 12
+                        }
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: '가격 (KRW)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return '₩' + value.toLocaleString();
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return '가격: ₩' + context.parsed.y.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 페이지 로드 시 가격 업데이트 및 정기적 업데이트 설정
+    document.addEventListener('DOMContentLoaded', function() {
+        // 즉시 가격 업데이트
+        updateBitcoinPrice();
+        
+        // 30초마다 가격 업데이트
+        setInterval(updateBitcoinPrice, 30000);
+    });
 </script>
 {% endblock %}
