@@ -46,7 +46,7 @@ class AutoTrader:
 
         # TradingEngine은 lazy import로 순환 참조 방지
         self._trading_engine = None
-        
+
         # VotingStrategyEngine - 새로운 투표 기반 전략
         self._voting_engine = None
 
@@ -117,7 +117,7 @@ class AutoTrader:
                 self.logger.error(f"TradingEngine 로드 실패: {e}")
                 return None
         return self._trading_engine
-    
+
     @property
     def voting_engine(self):
         """VotingStrategyEngine을 lazy import로 로드"""
@@ -125,12 +125,13 @@ class AutoTrader:
             try:
                 from core.voting_strategy_engine import VotingStrategyEngine
                 from core.upbit_api import UpbitAPI
-                
+
                 # UpbitAPI 인스턴스 생성 (설정에 따라)
                 upbit_api = UpbitAPI(
-                    paper_trading=config_manager.get_config('system.mode') == 'paper_trading'
+                    paper_trading=config_manager.get_config(
+                        'system.mode') == 'paper_trading'
                 )
-                
+
                 self._voting_engine = VotingStrategyEngine(upbit_api)
                 self.logger.info("VotingStrategyEngine 로드 완료")
             except Exception as e:
@@ -346,15 +347,18 @@ class AutoTrader:
                     if self.voting_engine:
                         voting_signal = self.voting_engine.get_trading_signal()
                         if voting_signal:
-                            self.logger.info(f"투표 결과: {voting_signal.action} (신뢰도: {voting_signal.confidence:.3f})")
+                            self.logger.info(
+                                f"투표 결과: {voting_signal.action} (신뢰도: {voting_signal.confidence:.3f})")
                             # TradingEngine을 통해 실제 거래 실행
                             if self.trading_engine:
-                                self.trading_engine.execute_signal(voting_signal)
+                                self.trading_engine.execute_signal(
+                                    voting_signal)
                         else:
                             self.logger.info("투표 결과: HOLD (거래 없음)")
-                    
+
                     # 3-1. 기존 시간별 전략 (병행 실행 - 추후 단계적 교체)
-                    legacy_strategies_enabled = config_manager.get_config('strategies.legacy_enabled', False)
+                    legacy_strategies_enabled = config_manager.get_config(
+                        'strategies.legacy_enabled', False)
                     if legacy_strategies_enabled:
                         self.logger.info("📊 기존 시간별 전략 실행 중...")
                         self.trading_engine.execute_hourly_strategies()

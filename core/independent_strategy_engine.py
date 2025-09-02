@@ -104,15 +104,33 @@ class IndependentStrategy(ABC):
     def _safe_get_candles(self, timeframe: str, period: int, count: int) -> Optional[List[Dict]]:
         """안전한 캔들 데이터 조회"""
         try:
-            if timeframe == "minutes":
-                return candle_collector.get_candles_cached("minutes", period, count)
-            elif timeframe == "hours":
-                return candle_collector.get_candles_cached("minutes", 60, count)
-            elif timeframe == "days":
-                return candle_collector.get_candles_cached("days", 1, count)
+            # 기존 캔들 수집기와 호환성을 위한 처리
+            if hasattr(candle_collector, 'get_candles_cached'):
+                if timeframe == "minutes":
+                    return candle_collector.get_candles_cached("minutes", period, count)
+                elif timeframe == "hours":
+                    return candle_collector.get_candles_cached("minutes", 60, count)
+                elif timeframe == "days":
+                    return candle_collector.get_candles_cached("days", 1, count)
             else:
-                self.logger.error(f"Unsupported timeframe: {timeframe}")
-                return None
+                # 대체 방법: UpbitAPI 직접 사용
+                self.logger.warning("캔들 수집기 호환성 문제로 UpbitAPI 직접 사용")
+                from core.upbit_api import UpbitAPI
+                
+                upbit_api = UpbitAPI(paper_trading=True)  # 안전한 모드로 호출
+                
+                if timeframe == "minutes":
+                    return upbit_api.get_candles(market="KRW-BTC", timeframe="minutes", 
+                                               interval=period, count=count)
+                elif timeframe == "hours":
+                    return upbit_api.get_candles(market="KRW-BTC", timeframe="minutes", 
+                                               interval=60, count=count)
+                elif timeframe == "days":
+                    return upbit_api.get_candles(market="KRW-BTC", timeframe="days", 
+                                               interval=1, count=count)
+            
+            self.logger.error(f"Unsupported timeframe: {timeframe}")
+            return None
         except Exception as e:
             self.logger.error(f"Failed to get candles: {e}")
             return None
@@ -345,11 +363,11 @@ class IndependentStrategyEngine:
     def _collect_market_data(self) -> Optional[Dict[str, Any]]:
         """시장 데이터 수집"""
         try:
-            # 다양한 시간대 캔들 데이터 수집
-            candles_1m = candle_collector.get_candles_cached("minutes", 1, 100)
-            candles_5m = candle_collector.get_candles_cached("minutes", 5, 100) 
-            candles_15m = candle_collector.get_candles_cached("minutes", 15, 100)
-            candles_1h = candle_collector.get_candles_cached("minutes", 60, 100)
+            # 다양한 시간대 캔들 데이터 수집 (호환성 개선)
+            candles_1m = self._safe_get_candles("minutes", 1, 100)
+            candles_5m = self._safe_get_candles("minutes", 5, 100) 
+            candles_15m = self._safe_get_candles("minutes", 15, 100)
+            candles_1h = self._safe_get_candles("hours", 60, 100)
             
             # 현재가 정보
             ticker = self.upbit_api._make_request('GET', '/v1/ticker', {'markets': 'KRW-BTC'})
