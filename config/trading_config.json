@@ -190,6 +190,52 @@
       }
     }
   },
+  "voting_strategy_engine": {
+    "enabled": true,
+    "min_confidence_threshold": 0.6,
+    "max_trade_amount": 100000,
+    "trade_amount_ratio": 0.3,
+    "record_all_decisions": true
+  },
+  "independent_strategies": {
+    "enabled": true,
+    "buy_threshold": 0.6,
+    "sell_threshold": -0.6,
+    "min_participation_rate": 0.7,
+    "strategy_weights": {
+      "rsi_momentum": 1.0,
+      "bollinger_squeeze": 1.0,
+      "support_resistance": 1.0
+    },
+    "strategies": {
+      "rsi_momentum": {
+        "rsi_period": 14,
+        "oversold": 30,
+        "overbought": 70,
+        "stoch_k_period": 14,
+        "stoch_d_period": 3,
+        "momentum_threshold": 0.02,
+        "volume_threshold": 1.5,
+        "enabled": true
+      },
+      "bollinger_squeeze": {
+        "bb_period": 20,
+        "bb_std": 2.0,
+        "squeeze_threshold": 0.01,
+        "macd_fast": 5,
+        "macd_slow": 13,
+        "macd_signal": 3,
+        "enabled": true
+      },
+      "support_resistance": {
+        "lookback_period": 20,
+        "touch_tolerance": 0.005,
+        "pattern_threshold": 0.3,
+        "min_touches": 2,
+        "enabled": true
+      }
+    }
+  },
   "position_management": {
     "max_total_exposure_percent": 80,
     "max_strategy_exposure_percent": 30,

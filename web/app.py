@@ -809,6 +809,161 @@ def api_emergency_stop():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/voting_engine/status')
+def api_voting_engine_status():
+    """투표 기반 전략 엔진 상태 API"""
+    try:
+        from core.auto_trader import auto_trader
+        
+        if auto_trader.voting_engine:
+            status = auto_trader.voting_engine.get_engine_status()
+            
+            return jsonify({
+                'success': True,
+                'status': status
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'VotingStrategyEngine이 초기화되지 않았습니다.'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"투표 엔진 상태 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/voting_engine/analyze', methods=['POST'])
+def api_voting_engine_analyze():
+    """투표 기반 전략 분석 실행 API"""
+    try:
+        from core.auto_trader import auto_trader
+        
+        if not auto_trader.voting_engine:
+            return jsonify({
+                'success': False,
+                'message': 'VotingStrategyEngine이 초기화되지 않았습니다.'
+            }), 500
+        
+        # 분석 실행
+        result = auto_trader.voting_engine.analyze()
+        
+        if result:
+            response_data = {
+                'success': True,
+                'decision': {
+                    'signal': result.decision.final_signal.value,
+                    'confidence': result.decision.confidence,
+                    'total_votes': result.decision.total_votes,
+                    'vote_distribution': result.decision.vote_distribution,
+                    'reasoning': result.decision.reasoning,
+                    'timestamp': result.execution_time.isoformat()
+                },
+                'strategies': [
+                    {
+                        'strategy_id': vote.strategy_id,
+                        'strategy_name': vote.strategy_name,
+                        'signal': vote.signal.value,
+                        'confidence': vote.confidence,
+                        'strength': vote.strength,
+                        'reasoning': vote.reasoning,
+                        'indicators': vote.indicators
+                    }
+                    for vote in result.decision.contributing_strategies
+                ],
+                'market_summary': result.market_data_summary
+            }
+            
+            return jsonify(response_data)
+        else:
+            return jsonify({
+                'success': False,
+                'message': '분석 결과를 생성할 수 없습니다.'
+            })
+            
+    except Exception as e:
+        logger.error(f"투표 엔진 분석 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/voting_engine/recent_decisions')
+def api_voting_engine_recent_decisions():
+    """최근 투표 결정 내역 API"""
+    try:
+        from core.auto_trader import auto_trader
+        
+        if not auto_trader.voting_engine:
+            return jsonify({
+                'success': False,
+                'message': 'VotingStrategyEngine이 초기화되지 않았습니다.'
+            }), 500
+        
+        hours = request.args.get('hours', 24, type=int)
+        decisions = auto_trader.voting_engine.get_recent_decisions(hours)
+        
+        return jsonify({
+            'success': True,
+            'decisions': decisions,
+            'total_count': len(decisions)
+        })
+        
+    except Exception as e:
+        logger.error(f"최근 결정 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/voting_engine/weights', methods=['POST'])
+def api_voting_engine_update_weights():
+    """전략 가중치 업데이트 API"""
+    try:
+        from core.auto_trader import auto_trader
+        
+        if not auto_trader.voting_engine:
+            return jsonify({
+                'success': False,
+                'message': 'VotingStrategyEngine이 초기화되지 않았습니다.'
+            }), 500
+        
+        data = request.get_json()
+        weights = data.get('weights', {})
+        
+        if not weights:
+            return jsonify({
+                'success': False,
+                'message': '가중치 데이터가 필요합니다.'
+            }), 400
+        
+        # 가중치 업데이트
+        auto_trader.voting_engine.update_strategy_weights(weights)
+        
+        # 설정 파일에도 저장
+        config_manager.update_config({
+            'independent_strategies.strategy_weights': weights
+        })
+        
+        return jsonify({
+            'success': True,
+            'message': '전략 가중치가 업데이트되었습니다.',
+            'weights': weights
+        })
+        
+    except Exception as e:
+        logger.error(f"가중치 업데이트 오류: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
 @app.route('/api/analysis/latest')
 def api_latest_analysis():
     """최근 분석 결과 조회 API (파일 기반)"""
