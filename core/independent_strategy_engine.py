@@ -112,25 +112,32 @@ class IndependentStrategy(ABC):
                     return candle_collector.get_candles_cached("minutes", 60, count)
                 elif timeframe == "days":
                     return candle_collector.get_candles_cached("days", 1, count)
-            else:
-                # 대체 방법: UpbitAPI 직접 사용
-                self.logger.warning("캔들 수집기 호환성 문제로 UpbitAPI 직접 사용")
-                from core.upbit_api import UpbitAPI
-                
-                upbit_api = UpbitAPI(paper_trading=True)  # 안전한 모드로 호출
-                
-                if timeframe == "minutes":
-                    return upbit_api.get_candles(market="KRW-BTC", timeframe="minutes", 
-                                               interval=period, count=count)
-                elif timeframe == "hours":
-                    return upbit_api.get_candles(market="KRW-BTC", timeframe="minutes", 
-                                               interval=60, count=count)
-                elif timeframe == "days":
-                    return upbit_api.get_candles(market="KRW-BTC", timeframe="days", 
-                                               interval=1, count=count)
             
-            self.logger.error(f"Unsupported timeframe: {timeframe}")
-            return None
+            # get_candles_cached 메서드가 있어도 데이터가 없는 경우 UpbitAPI 직접 사용
+            self.logger.info(f"캐시된 데이터 없음, UpbitAPI 직접 호출: {timeframe}={period}")
+            from core.upbit_api import UpbitAPI
+            
+            upbit_api = UpbitAPI(paper_trading=True)  # 안전한 모드로 호출
+            
+            if timeframe == "minutes":
+                candles = upbit_api.get_candles(market="KRW-BTC", timeframe="minutes", 
+                                           interval=period, count=count)
+            elif timeframe == "hours":
+                candles = upbit_api.get_candles(market="KRW-BTC", timeframe="minutes", 
+                                           interval=60, count=count)
+            elif timeframe == "days":
+                candles = upbit_api.get_candles(market="KRW-BTC", timeframe="days", 
+                                           interval=1, count=count)
+            else:
+                self.logger.error(f"지원하지 않는 timeframe: {timeframe}")
+                return None
+            
+            if candles and len(candles) > 0:
+                self.logger.debug(f"UpbitAPI에서 {len(candles)}개 데이터 수집 성공")
+                return candles
+            else:
+                self.logger.error(f"UpbitAPI에서도 데이터 수집 실패")
+                return None
         except Exception as e:
             self.logger.error(f"Failed to get candles: {e}")
             return None
@@ -360,6 +367,60 @@ class IndependentStrategyEngine:
             self.logger.error(f"Market analysis failed: {e}")
             return None
     
+    def _safe_get_candles(self, timeframe: str, period: int, count: int) -> Optional[List[Dict]]:
+        """안전한 캔들 데이터 조회 - IndependentStrategyEngine용"""
+        try:
+            # 1. 캔들 수집기의 get_candles_cached 메서드 우선 사용
+            try:
+                if hasattr(candle_collector, 'get_candles_cached'):
+                    self.logger.debug(f"캔들 데이터 수집 시도: {timeframe}={period}, count={count}")
+                    
+                    if timeframe == "minutes":
+                        candles = candle_collector.get_candles_cached("minutes", period, count)
+                    elif timeframe == "hours":
+                        candles = candle_collector.get_candles_cached("minutes", 60, count)
+                    elif timeframe == "days":
+                        candles = candle_collector.get_candles_cached("days", 1, count)
+                    else:
+                        self.logger.warning(f"지원하지 않는 timeframe: {timeframe}")
+                        candles = None
+                    
+                    if candles and len(candles) > 0:
+                        self.logger.debug(f"캐시된 데이터 {len(candles)}개 반환")
+                        return candles
+                    else:
+                        self.logger.info(f"캐시된 데이터 없음, UpbitAPI로 대체")
+                        
+            except Exception as cache_error:
+                self.logger.warning(f"캐시된 데이터 수집 실패: {cache_error}")
+            
+            # 2. 대체 방법: UpbitAPI 직접 사용
+            self.logger.info(f"UpbitAPI 직접 호출: {timeframe}={period}")
+            
+            if timeframe == "minutes":
+                candles = self.upbit_api.get_candles(market="KRW-BTC", timeframe="minutes", 
+                                           interval=period, count=count)
+            elif timeframe == "hours":
+                candles = self.upbit_api.get_candles(market="KRW-BTC", timeframe="minutes", 
+                                           interval=60, count=count)
+            elif timeframe == "days":
+                candles = self.upbit_api.get_candles(market="KRW-BTC", timeframe="days", 
+                                           interval=1, count=count)
+            else:
+                self.logger.error(f"지원하지 않는 timeframe: {timeframe}")
+                return None
+            
+            if candles and len(candles) > 0:
+                self.logger.debug(f"UpbitAPI에서 {len(candles)}개 데이터 수집 성공")
+                return candles
+            else:
+                self.logger.error(f"UpbitAPI에서도 데이터 수집 실패")
+                return None
+                    
+        except Exception as e:
+            self.logger.error(f"캔들 데이터 수집 완전 실패 ({timeframe}, {period}): {e}")
+            return None
+
     def _collect_market_data(self) -> Optional[Dict[str, Any]]:
         """시장 데이터 수집"""
         try:
