@@ -63,6 +63,13 @@ class StrategyExecutionTracker:
     def __init__(self, db_path: str = "data/strategy_executions.db"):
         self.db_path = db_path
         self.logger = logging.getLogger('StrategyExecutionTracker')
+        if not self.logger.handlers:
+            # 콘솔 핸들러 추가
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
+            self.logger.setLevel(logging.INFO)
         self._init_database()
 
     def _init_database(self):
@@ -177,8 +184,12 @@ class StrategyExecutionTracker:
     def record_execution(self, execution: StrategyExecution) -> bool:
         """전략 실행 기록 저장"""
         try:
+            self.logger.info(f"전략 실행 기록 저장 시작: {execution.strategy_tier} - {execution.signal_action}")
+            
             with sqlite3.connect(self.db_path) as conn:
                 data = execution.to_dict()
+                
+                self.logger.debug(f"저장할 데이터: {data}")
 
                 conn.execute('''
                     INSERT INTO strategy_executions 
@@ -195,14 +206,17 @@ class StrategyExecutionTracker:
                 ))
 
                 conn.commit()
+                self.logger.info(f"데이터베이스 저장 완료")
 
                 # 일일 성과 캐시 업데이트
                 self._update_daily_cache(execution)
 
+                self.logger.info(f"전략 실행 기록 저장 성공: {execution.strategy_tier} - {execution.signal_action}")
                 return True
 
         except Exception as e:
             self.logger.error(f"전략 실행 기록 저장 오류: {e}")
+            self.logger.error(f"실행 데이터: {execution}")
             return False
 
     def _update_daily_cache(self, execution: StrategyExecution):
