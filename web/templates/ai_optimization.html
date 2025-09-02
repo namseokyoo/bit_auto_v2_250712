@@ -1,0 +1,815 @@
+{% extends "base.html" %}
+
+{% block title %}AI 최적화 시스템 - Bitcoin Auto Trading v2{% endblock %}
+
+{% block extra_head %}
+<style>
+    .optimization-card {
+        border: none;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+        margin-bottom: 20px;
+    }
+
+    .optimization-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .health-score {
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+
+    .health-excellent {
+        color: #28a745;
+    }
+
+    .health-good {
+        color: #17a2b8;
+    }
+
+    .health-fair {
+        color: #ffc107;
+    }
+
+    .health-poor {
+        color: #dc3545;
+    }
+
+    .progress-custom {
+        height: 8px;
+        border-radius: 4px;
+    }
+
+    .btn-ai {
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        padding: 10px 25px;
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+
+    .btn-ai:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+
+    .status-badge {
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .status-idle {
+        background-color: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .status-running {
+        background-color: #fff3e0;
+        color: #f57c00;
+    }
+
+    .status-completed {
+        background-color: #e8f5e8;
+        color: #388e3c;
+    }
+
+    .status-error {
+        background-color: #ffebee;
+        color: #d32f2f;
+    }
+
+    .metric-item {
+        text-align: center;
+        padding: 15px;
+        border-radius: 8px;
+        background: #f8f9fa;
+        margin: 5px;
+    }
+
+    .optimization-log {
+        max-height: 300px;
+        overflow-y: auto;
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+    }
+
+    .spinner-ai {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .ai-icon {
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-size: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 헤더 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-robot ai-icon"></i> AI 최적화 시스템</h2>
+                    <p class="text-muted">인공지능 기반 자동 트레이딩 최적화 및 관리</p>
+                </div>
+                <div>
+                    <button id="refresh-btn" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-sync-alt"></i> 새로고침
+                    </button>
+                    <button id="optimize-now-btn" class="btn btn-ai">
+                        <i class="fas fa-magic"></i> 지금 최적화 실행
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 시스템 상태 카드 -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card optimization-card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-chart-line"></i> 시스템 건강도</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <div id="overall-score" class="health-score health-good">--</div>
+                            <small class="text-muted">전체 점수</small>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="row">
+                                <div class="col-6 col-md-3 metric-item">
+                                    <div class="h4 mb-1" id="performance-score">--</div>
+                                    <small>성과</small>
+                                </div>
+                                <div class="col-6 col-md-3 metric-item">
+                                    <div class="h4 mb-1" id="risk-score">--</div>
+                                    <small>리스크</small>
+                                </div>
+                                <div class="col-6 col-md-3 metric-item">
+                                    <div class="h4 mb-1" id="optimization-score">--</div>
+                                    <small>최적화</small>
+                                </div>
+                                <div class="col-6 col-md-3 metric-item">
+                                    <div class="h4 mb-1" id="stability-score">--</div>
+                                    <small>안정성</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card optimization-card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-cogs"></i> 최적화 상태</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <span class="status-badge" id="optimization-status">대기중</span>
+                    </div>
+                    <div class="mb-2">
+                        <small class="text-muted">모드:</small>
+                        <span id="optimization-mode" class="fw-bold">균형</span>
+                    </div>
+                    <div class="mb-2">
+                        <small class="text-muted">자동 실행:</small>
+                        <span id="auto-enabled" class="fw-bold">활성화</span>
+                    </div>
+                    <div class="mb-2">
+                        <small class="text-muted">다음 예정:</small>
+                        <div id="next-scheduled" class="fw-bold">계산중...</div>
+                    </div>
+                    <div class="mb-2">
+                        <small class="text-muted">성공률:</small>
+                        <span id="success-rate" class="fw-bold">--%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 제어 패널 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card optimization-card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-sliders-h"></i> 최적화 설정</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">최적화 모드</label>
+                            <select id="optimization-mode-select" class="form-select">
+                                <option value="conservative">보수적</option>
+                                <option value="balanced" selected>균형</option>
+                                <option value="aggressive">공격적</option>
+                                <option value="manual">수동</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">자동 실행 주기 (시간)</label>
+                            <input type="number" id="optimization-interval" class="form-control" value="6" min="1" max="24">
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="auto-optimization" checked>
+                                <label class="form-check-label" for="auto-optimization">
+                                    자동 최적화 활성화
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <button id="save-settings-btn" class="btn btn-primary">
+                                <i class="fas fa-save"></i> 설정 저장
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card optimization-card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-tools"></i> 개별 최적화 실행</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <button id="weight-optimization-btn" class="btn btn-outline-info w-100 mb-2">
+                                <i class="fas fa-balance-scale"></i><br>
+                                <small>가중치 최적화</small>
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button id="trading-optimization-btn" class="btn btn-outline-warning w-100 mb-2">
+                                <i class="fas fa-clock"></i><br>
+                                <small>거래 주기 최적화</small>
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button id="parameter-tuning-btn" class="btn btn-outline-success w-100">
+                                <i class="fas fa-wrench"></i><br>
+                                <small>파라미터 튜닝</small>
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button id="performance-analysis-btn" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-chart-bar"></i><br>
+                                <small>성과 분석</small>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 최적화 로그 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card optimization-card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history"></i> 최적화 실행 로그</h5>
+                    <button id="clear-log-btn" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-trash"></i> 로그 지우기
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="optimization-log" class="optimization-log">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-info-circle"></i> 최적화 실행 시 로그가 여기에 표시됩니다.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 최근 실행 이력 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card optimization-card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> 최근 최적화 이력</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>실행 시간</th>
+                                    <th>모드</th>
+                                    <th>개선율</th>
+                                    <th>주요 변경사항</th>
+                                    <th>상태</th>
+                                </tr>
+                            </thead>
+                            <tbody id="optimization-history">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">
+                                        <i class="fas fa-clock"></i> 최적화 이력이 없습니다.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 최적화 진행 모달 -->
+<div class="modal fade" id="optimizationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-robot ai-icon"></i> AI 최적화 실행 중
+                </h5>
+            </div>
+            <div class="modal-body text-center">
+                <div class="spinner-ai mx-auto mb-3"></div>
+                <h5 id="optimization-progress-text">최적화를 진행하고 있습니다...</h5>
+                <div id="optimization-progress-detail" class="text-muted">
+                    시스템 분석 및 최적화 작업을 수행 중입니다. 잠시만 기다려주세요.
+                </div>
+                <div class="progress mt-3">
+                    <div id="optimization-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                         style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+class AIOptimizationManager {
+    constructor() {
+        this.refreshInterval = 30000; // 30초마다 갱신
+        this.refreshTimer = null;
+        this.init();
+    }
+
+    init() {
+        this.bindEvents();
+        this.loadSystemStatus();
+        this.startAutoRefresh();
+    }
+
+    bindEvents() {
+        // 새로고침 버튼
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            this.loadSystemStatus();
+        });
+
+        // 전체 최적화 실행
+        document.getElementById('optimize-now-btn').addEventListener('click', () => {
+            this.executeOptimization();
+        });
+
+        // 설정 저장
+        document.getElementById('save-settings-btn').addEventListener('click', () => {
+            this.saveSettings();
+        });
+
+        // 개별 최적화 버튼들
+        document.getElementById('weight-optimization-btn').addEventListener('click', () => {
+            this.executeWeightOptimization();
+        });
+
+        document.getElementById('trading-optimization-btn').addEventListener('click', () => {
+            this.executeTradingOptimization();
+        });
+
+        document.getElementById('parameter-tuning-btn').addEventListener('click', () => {
+            this.executeParameterTuning();
+        });
+
+        document.getElementById('performance-analysis-btn').addEventListener('click', () => {
+            this.showPerformanceAnalysis();
+        });
+
+        // 로그 지우기
+        document.getElementById('clear-log-btn').addEventListener('click', () => {
+            this.clearLog();
+        });
+    }
+
+    async loadSystemStatus() {
+        try {
+            const response = await fetch('/api/ai_optimization/status');
+            const result = await response.json();
+
+            if (result.success) {
+                this.updateStatusDisplay(result.data);
+            }
+
+            // 최적화 이력도 함께 로드
+            await this.loadOptimizationHistory();
+
+        } catch (error) {
+            console.error('시스템 상태 로드 오류:', error);
+            this.addLog('error', '시스템 상태 로드 실패: ' + error.message);
+        }
+    }
+
+    updateStatusDisplay(data) {
+        // 시스템 건강도 업데이트
+        if (data.system_health) {
+            const health = data.system_health;
+            const overallScore = Math.round(health.overall_score);
+            
+            document.getElementById('overall-score').textContent = overallScore;
+            document.getElementById('performance-score').textContent = Math.round(health.performance_score);
+            document.getElementById('risk-score').textContent = Math.round(health.risk_score);
+            document.getElementById('optimization-score').textContent = Math.round(health.optimization_score);
+            document.getElementById('stability-score').textContent = Math.round(health.stability_score);
+
+            // 전체 점수에 따른 색상 변경
+            const scoreElement = document.getElementById('overall-score');
+            scoreElement.className = 'health-score';
+            if (overallScore >= 80) scoreElement.classList.add('health-excellent');
+            else if (overallScore >= 60) scoreElement.classList.add('health-good');
+            else if (overallScore >= 40) scoreElement.classList.add('health-fair');
+            else scoreElement.classList.add('health-poor');
+        }
+
+        // 최적화 상태 업데이트
+        const statusElement = document.getElementById('optimization-status');
+        statusElement.textContent = this.getStatusText(data.status);
+        statusElement.className = `status-badge status-${data.status}`;
+
+        document.getElementById('optimization-mode').textContent = this.getModeText(data.mode);
+        document.getElementById('auto-enabled').textContent = data.auto_enabled ? '활성화' : '비활성화';
+        
+        // 다음 예정 시간
+        if (data.next_scheduled) {
+            const nextTime = new Date(data.next_scheduled);
+            document.getElementById('next-scheduled').textContent = 
+                nextTime.toLocaleDateString('ko-KR') + ' ' + nextTime.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'});
+        } else {
+            document.getElementById('next-scheduled').textContent = '설정되지 않음';
+        }
+
+        // 성공률
+        if (data.statistics) {
+            document.getElementById('success-rate').textContent = 
+                Math.round(data.statistics.success_rate) + '%';
+        }
+
+        // 설정 폼 업데이트
+        document.getElementById('optimization-mode-select').value = data.mode;
+        document.getElementById('auto-optimization').checked = data.auto_enabled;
+    }
+
+    async loadOptimizationHistory() {
+        try {
+            const response = await fetch('/api/ai_optimization/history?limit=10');
+            const result = await response.json();
+
+            if (result.success) {
+                this.updateHistoryTable(result.data);
+            }
+        } catch (error) {
+            console.error('최적화 이력 로드 오류:', error);
+        }
+    }
+
+    updateHistoryTable(history) {
+        const tbody = document.getElementById('optimization-history');
+        
+        if (history.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        <i class="fas fa-clock"></i> 최적화 이력이 없습니다.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = history.map(item => {
+            const timestamp = new Date(item.timestamp).toLocaleString('ko-KR');
+            const improvement = item.expected_improvement || 0;
+            const status = item.status || 'completed';
+            
+            return `
+                <tr>
+                    <td>${timestamp}</td>
+                    <td>${this.getModeText(item.mode || 'balanced')}</td>
+                    <td><span class="badge bg-success">${improvement.toFixed(1)}%</span></td>
+                    <td>${item.action || '최적화 실행'}</td>
+                    <td><span class="status-badge status-${status}">${this.getStatusText(status)}</span></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    async executeOptimization() {
+        const mode = document.getElementById('optimization-mode-select').value;
+        
+        this.showOptimizationModal();
+        this.addLog('info', '전체 AI 최적화 시작...');
+
+        try {
+            this.updateOptimizationProgress(20, '시장 상황 분석 중...');
+            
+            const response = await fetch('/api/ai_optimization/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: mode })
+            });
+
+            this.updateOptimizationProgress(50, '최적화 전략 계산 중...');
+            
+            const result = await response.json();
+
+            this.updateOptimizationProgress(80, '최적화 적용 중...');
+
+            setTimeout(() => {
+                this.hideOptimizationModal();
+                
+                if (result.success) {
+                    const improvement = result.summary?.overall_improvement || 0;
+                    this.addLog('success', `전체 최적화 완료! 예상 개선율: ${improvement.toFixed(1)}%`);
+                    
+                    if (result.summary?.key_changes) {
+                        result.summary.key_changes.forEach(change => {
+                            this.addLog('info', '✓ ' + change);
+                        });
+                    }
+                } else {
+                    this.addLog('error', '최적화 실행 실패: ' + (result.message || result.error));
+                }
+
+                this.loadSystemStatus();
+            }, 1000);
+
+        } catch (error) {
+            this.hideOptimizationModal();
+            this.addLog('error', '최적화 실행 오류: ' + error.message);
+        }
+    }
+
+    async executeWeightOptimization() {
+        this.addLog('info', '가중치 최적화 시작...');
+        
+        try {
+            const response = await fetch('/api/ai_optimization/weight_optimization', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ method: 'performance_based', auto_apply: true })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.addLog('success', '가중치 최적화 완료!');
+                if (result.applied) {
+                    this.addLog('info', '✓ 새로운 가중치가 적용되었습니다.');
+                }
+            } else {
+                this.addLog('error', '가중치 최적화 실패: ' + result.message);
+            }
+        } catch (error) {
+            this.addLog('error', '가중치 최적화 오류: ' + error.message);
+        }
+    }
+
+    async executeTradingOptimization() {
+        this.addLog('info', '거래 주기 최적화 시작...');
+        
+        try {
+            const response = await fetch('/api/ai_optimization/trading_optimization', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const result = await response.json();
+
+            if (result.success && result.data.success) {
+                this.addLog('success', '거래 주기 최적화 완료!');
+                const appliedCount = result.data.applied_recommendations || 0;
+                if (appliedCount > 0) {
+                    this.addLog('info', `✓ ${appliedCount}개 파라미터가 최적화되었습니다.`);
+                }
+            } else {
+                this.addLog('warning', '거래 최적화: ' + (result.data?.message || '권장사항 없음'));
+            }
+        } catch (error) {
+            this.addLog('error', '거래 최적화 오류: ' + error.message);
+        }
+    }
+
+    async executeParameterTuning() {
+        this.addLog('info', 'AI 파라미터 튜닝 시작...');
+        
+        try {
+            const response = await fetch('/api/ai_optimization/parameter_tuning', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ objective: 'balance_risk_return' })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                if (result.data.success) {
+                    const totalOptimizations = result.data.total_optimizations || 0;
+                    this.addLog('success', `파라미터 튜닝 완료! ${totalOptimizations}개 전략 최적화`);
+                } else {
+                    this.addLog('warning', '파라미터 튜닝: ' + result.data.message);
+                }
+            } else {
+                this.addLog('error', '파라미터 튜닝 실패: ' + result.message);
+            }
+        } catch (error) {
+            this.addLog('error', '파라미터 튜닝 오류: ' + error.message);
+        }
+    }
+
+    async showPerformanceAnalysis() {
+        this.addLog('info', '성과 분석 시작...');
+        
+        try {
+            const response = await fetch('/api/ai_optimization/performance_analysis?days=30');
+            const result = await response.json();
+
+            if (result.success) {
+                const summary = result.data.portfolio_summary;
+                this.addLog('success', '성과 분석 완료!');
+                this.addLog('info', `📊 총 전략: ${summary.total_strategies}개`);
+                this.addLog('info', `📈 전체 승률: ${(summary.overall_win_rate * 100).toFixed(1)}%`);
+                this.addLog('info', `💰 총 손익: ${summary.total_pnl?.toLocaleString() || 0} KRW`);
+                this.addLog('info', `🎯 평균 AI 점수: ${summary.avg_ai_score?.toFixed(1) || 0}점`);
+            } else {
+                this.addLog('error', '성과 분석 실패: ' + result.message);
+            }
+        } catch (error) {
+            this.addLog('error', '성과 분석 오류: ' + error.message);
+        }
+    }
+
+    async saveSettings() {
+        const config = {
+            mode: document.getElementById('optimization-mode-select').value,
+            auto_enabled: document.getElementById('auto-optimization').checked,
+            interval_hours: parseInt(document.getElementById('optimization-interval').value)
+        };
+
+        try {
+            const response = await fetch('/api/ai_optimization/configure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.addLog('success', '설정이 저장되었습니다.');
+                this.loadSystemStatus();
+            } else {
+                this.addLog('error', '설정 저장 실패: ' + result.message);
+            }
+        } catch (error) {
+            this.addLog('error', '설정 저장 오류: ' + error.message);
+        }
+    }
+
+    showOptimizationModal() {
+        const modal = new bootstrap.Modal(document.getElementById('optimizationModal'));
+        modal.show();
+        this.updateOptimizationProgress(0, '최적화 시작...');
+    }
+
+    hideOptimizationModal() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('optimizationModal'));
+        if (modal) modal.hide();
+    }
+
+    updateOptimizationProgress(percentage, text) {
+        document.getElementById('optimization-progress-bar').style.width = percentage + '%';
+        document.getElementById('optimization-progress-detail').textContent = text;
+    }
+
+    addLog(type, message) {
+        const logContainer = document.getElementById('optimization-log');
+        const timestamp = new Date().toLocaleTimeString('ko-KR');
+        
+        const logEntry = document.createElement('div');
+        logEntry.className = 'mb-2';
+        
+        let icon, colorClass;
+        switch (type) {
+            case 'success':
+                icon = 'fas fa-check-circle';
+                colorClass = 'text-success';
+                break;
+            case 'error':
+                icon = 'fas fa-exclamation-circle';
+                colorClass = 'text-danger';
+                break;
+            case 'warning':
+                icon = 'fas fa-exclamation-triangle';
+                colorClass = 'text-warning';
+                break;
+            default:
+                icon = 'fas fa-info-circle';
+                colorClass = 'text-info';
+        }
+
+        logEntry.innerHTML = `
+            <small class="text-muted">${timestamp}</small>
+            <i class="${icon} ${colorClass} me-1"></i>
+            <span>${message}</span>
+        `;
+
+        logContainer.appendChild(logEntry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+
+        // 로그가 비어있던 상태라면 초기 메시지 제거
+        const emptyMessage = logContainer.querySelector('.text-center');
+        if (emptyMessage) emptyMessage.remove();
+    }
+
+    clearLog() {
+        const logContainer = document.getElementById('optimization-log');
+        logContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-info-circle"></i> 최적화 실행 시 로그가 여기에 표시됩니다.
+            </div>
+        `;
+    }
+
+    getStatusText(status) {
+        const statusMap = {
+            'idle': '대기중',
+            'running': '실행중',
+            'completed': '완료',
+            'error': '오류'
+        };
+        return statusMap[status] || status;
+    }
+
+    getModeText(mode) {
+        const modeMap = {
+            'conservative': '보수적',
+            'balanced': '균형',
+            'aggressive': '공격적',
+            'manual': '수동'
+        };
+        return modeMap[mode] || mode;
+    }
+
+    startAutoRefresh() {
+        this.refreshTimer = setInterval(() => {
+            this.loadSystemStatus();
+        }, this.refreshInterval);
+    }
+
+    stopAutoRefresh() {
+        if (this.refreshTimer) {
+            clearInterval(this.refreshTimer);
+            this.refreshTimer = null;
+        }
+    }
+}
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    new AIOptimizationManager();
+});
+</script>
+{% endblock %}

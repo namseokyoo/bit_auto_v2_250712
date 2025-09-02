@@ -63,7 +63,7 @@ class TuningResult:
     reasoning: str
     objective: TuningObjective
     timestamp: datetime
-    
+
     def to_dict(self) -> Dict:
         return {
             'strategy_id': self.strategy_id,
@@ -92,53 +92,55 @@ class AITuningRequest:
 
 class AIParameterTuner:
     """AI 기반 파라미터 튜너"""
-    
+
     def __init__(self):
         self.logger = logging.getLogger('AIParameterTuner')
-        
+
         # 튜닝 설정
         self.tuning_interval_hours = 24  # 24시간마다 실행
         self.min_confidence_for_application = 0.7
         self.max_parameter_change_ratio = 0.3  # 최대 30% 변경
-        
+
         # 튜닝 이력
         self.tuning_history: List[TuningResult] = []
         self.last_tuning_time = None
-        
+
         # 파라미터 정의
         self.parameter_definitions = self._define_tunable_parameters()
-        
+
         # 스레드 안전성
         self._lock = threading.Lock()
-        
+
         self.logger.info("AI 파라미터 튜너 초기화 완료")
-    
-    def tune_strategy_parameters(self, strategy_id: str, 
-                               objective: TuningObjective = TuningObjective.BALANCE_RISK_RETURN) -> List[TuningResult]:
+
+    def tune_strategy_parameters(self, strategy_id: str,
+                                 objective: TuningObjective = TuningObjective.BALANCE_RISK_RETURN) -> List[TuningResult]:
         """전략 파라미터 튜닝"""
-        
+
         try:
             self.logger.info(f"전략 파라미터 튜닝 시작: {strategy_id}")
-            
+
             # 1. 성과 데이터 수집
-            performance_data = ai_performance_analyzer.analyze_strategy_performance(strategy_id, 30)
+            performance_data = ai_performance_analyzer.analyze_strategy_performance(
+                strategy_id, 30)
             if not performance_data:
                 self.logger.warning(f"성과 데이터 없음: {strategy_id}")
                 return []
-            
+
             # 2. 시장 상황 분석
             market_analysis = adaptive_trading_optimizer.analyze_market_condition()
             market_condition = market_analysis.condition.value if market_analysis else "unknown"
-            
+
             # 3. 현재 파라미터 가져오기
             current_parameters = self._get_strategy_parameters(strategy_id)
             if not current_parameters:
                 self.logger.warning(f"현재 파라미터 없음: {strategy_id}")
                 return []
-            
+
             # 4. 파라미터 범위 정의
-            parameter_ranges = self._get_parameter_ranges(strategy_id, current_parameters)
-            
+            parameter_ranges = self._get_parameter_ranges(
+                strategy_id, current_parameters)
+
             # 5. AI 튜닝 요청 생성
             tuning_request = AITuningRequest(
                 strategy_id=strategy_id,
@@ -149,89 +151,97 @@ class AIParameterTuner:
                 objective=objective,
                 constraints=self._get_tuning_constraints(strategy_id)
             )
-            
+
             # 6. AI 기반 최적화 실행
             tuning_results = self._execute_ai_tuning(tuning_request)
-            
+
             # 7. 결과 검증 및 필터링
-            validated_results = self._validate_tuning_results(tuning_results, performance_data)
-            
+            validated_results = self._validate_tuning_results(
+                tuning_results, performance_data)
+
             # 8. 이력에 추가
             with self._lock:
                 self.tuning_history.extend(validated_results)
                 if len(self.tuning_history) > 100:
                     self.tuning_history = self.tuning_history[-100:]
-            
+
             self.logger.info(f"파라미터 튜닝 완료: {len(validated_results)}개 최적화")
             return validated_results
-            
+
         except Exception as e:
             self.logger.error(f"파라미터 튜닝 오류 ({strategy_id}): {e}")
             return []
-    
+
     def apply_tuning_results(self, tuning_results: List[TuningResult]) -> Dict[str, bool]:
         """튜닝 결과 적용"""
         application_results = {}
-        
+
         for result in tuning_results:
             try:
                 if result.confidence < self.min_confidence_for_application:
-                    self.logger.info(f"신뢰도 부족으로 {result.parameter_name} 적용 건너뜀")
+                    self.logger.info(
+                        f"신뢰도 부족으로 {result.parameter_name} 적용 건너뜀")
                     application_results[f"{result.strategy_id}.{result.parameter_name}"] = False
                     continue
-                
+
                 success = self._apply_parameter_change(result)
                 application_results[f"{result.strategy_id}.{result.parameter_name}"] = success
-                
+
                 if success:
-                    self.logger.info(f"파라미터 적용: {result.strategy_id}.{result.parameter_name} = {result.optimized_value}")
+                    self.logger.info(
+                        f"파라미터 적용: {result.strategy_id}.{result.parameter_name} = {result.optimized_value}")
                 else:
-                    self.logger.warning(f"파라미터 적용 실패: {result.strategy_id}.{result.parameter_name}")
-                
+                    self.logger.warning(
+                        f"파라미터 적용 실패: {result.strategy_id}.{result.parameter_name}")
+
             except Exception as e:
                 self.logger.error(f"튜닝 결과 적용 오류: {e}")
                 application_results[f"{result.strategy_id}.{result.parameter_name}"] = False
-        
+
         return application_results
-    
-    def auto_tune_all_strategies(self, 
-                                objective: TuningObjective = TuningObjective.BALANCE_RISK_RETURN) -> Dict[str, Any]:
+
+    def auto_tune_all_strategies(self,
+                                 objective: TuningObjective = TuningObjective.BALANCE_RISK_RETURN) -> Dict[str, Any]:
         """모든 전략 자동 튜닝"""
-        
+
         try:
             if not self._should_run_tuning():
                 return {'success': False, 'message': '튜닝 주기 미도달'}
-            
+
             self.logger.info("전체 전략 자동 튜닝 시작")
-            
+
             # 활성 전략 목록
             active_strategies = self._get_active_strategies()
             if not active_strategies:
                 return {'success': False, 'message': '활성 전략 없음'}
-            
+
             all_results = []
             strategy_results = {}
-            
+
             # 각 전략별 튜닝
             for strategy_id in active_strategies:
                 try:
-                    results = self.tune_strategy_parameters(strategy_id, objective)
+                    results = self.tune_strategy_parameters(
+                        strategy_id, objective)
                     all_results.extend(results)
                     strategy_results[strategy_id] = len(results)
-                    
+
                     # 결과 적용
                     if results:
-                        application_results = self.apply_tuning_results(results)
-                        applied_count = sum(1 for success in application_results.values() if success)
-                        self.logger.info(f"{strategy_id}: {applied_count}/{len(results)} 파라미터 적용")
-                    
+                        application_results = self.apply_tuning_results(
+                            results)
+                        applied_count = sum(
+                            1 for success in application_results.values() if success)
+                        self.logger.info(
+                            f"{strategy_id}: {applied_count}/{len(results)} 파라미터 적용")
+
                 except Exception as e:
                     self.logger.error(f"전략 튜닝 오류 ({strategy_id}): {e}")
                     strategy_results[strategy_id] = 0
-            
+
             # 튜닝 시간 업데이트
             self.last_tuning_time = datetime.now()
-            
+
             return {
                 'success': True,
                 'total_optimizations': len(all_results),
@@ -247,39 +257,40 @@ class AIParameterTuner:
                     for r in sorted(all_results, key=lambda x: x.improvement, reverse=True)[:5]
                 ]
             }
-            
+
         except Exception as e:
             self.logger.error(f"자동 튜닝 오류: {e}")
             return {'success': False, 'message': f'자동 튜닝 오류: {str(e)}'}
-    
+
     def _execute_ai_tuning(self, request: AITuningRequest) -> List[TuningResult]:
         """AI 기반 튜닝 실행"""
-        
+
         try:
             # AI 프롬프트 생성
             prompt = self._generate_tuning_prompt(request)
-            
+
             # DeepSeek AI 호출
             response = deepseek_client.analyze_market(prompt)
-            
+
             if not response or response.get('is_mock', False):
                 self.logger.warning("AI 응답 없음 또는 모의 응답, 기본 최적화 사용")
                 return self._fallback_optimization(request)
-            
+
             # AI 응답 파싱
-            tuning_results = self._parse_ai_response(response['analysis'], request)
-            
+            tuning_results = self._parse_ai_response(
+                response['analysis'], request)
+
             return tuning_results
-            
+
         except Exception as e:
             self.logger.error(f"AI 튜닝 실행 오류: {e}")
             return self._fallback_optimization(request)
-    
+
     def _generate_tuning_prompt(self, request: AITuningRequest) -> str:
         """AI 튜닝 프롬프트 생성"""
-        
+
         performance = request.performance_data
-        
+
         prompt = f"""
 전략 파라미터 최적화 분석을 요청합니다.
 
@@ -333,20 +344,21 @@ class AIParameterTuner:
     "overall_confidence": 전체신뢰도(0-1)
 }}
 """
-        
+
         return prompt
-    
+
     def _format_parameter_ranges(self, parameter_ranges: Dict[str, ParameterRange]) -> str:
         """파라미터 범위 포맷팅"""
         formatted = []
         for name, range_info in parameter_ranges.items():
-            formatted.append(f"- {name}: {range_info.min_value} ~ {range_info.max_value} (현재: {range_info.current_value})")
-        
+            formatted.append(
+                f"- {name}: {range_info.min_value} ~ {range_info.max_value} (현재: {range_info.current_value})")
+
         return "\n".join(formatted)
-    
+
     def _parse_ai_response(self, ai_response: str, request: AITuningRequest) -> List[TuningResult]:
         """AI 응답 파싱"""
-        
+
         try:
             # JSON 응답 파싱 시도
             if isinstance(ai_response, str):
@@ -360,21 +372,22 @@ class AIParameterTuner:
                     raise ValueError("JSON 형식 찾을 수 없음")
             else:
                 response_data = ai_response
-            
+
             tuning_results = []
-            
+
             for rec in response_data.get('recommendations', []):
                 try:
                     # 파라미터 변경 검증
                     if not self._validate_parameter_change(
-                        request.strategy_id, 
-                        rec['parameter'], 
-                        rec['current_value'], 
+                        request.strategy_id,
+                        rec['parameter'],
+                        rec['current_value'],
                         rec['recommended_value']
                     ):
-                        self.logger.warning(f"유효하지 않은 파라미터 변경: {rec['parameter']}")
+                        self.logger.warning(
+                            f"유효하지 않은 파라미터 변경: {rec['parameter']}")
                         continue
-                    
+
                     result = TuningResult(
                         strategy_id=request.strategy_id,
                         parameter_name=rec['parameter'],
@@ -386,34 +399,34 @@ class AIParameterTuner:
                         objective=request.objective,
                         timestamp=datetime.now()
                     )
-                    
+
                     tuning_results.append(result)
-                    
+
                 except Exception as e:
                     self.logger.error(f"권장사항 파싱 오류: {e}")
                     continue
-            
+
             return tuning_results
-            
+
         except Exception as e:
             self.logger.error(f"AI 응답 파싱 오류: {e}")
             return self._fallback_optimization(request)
-    
+
     def _fallback_optimization(self, request: AITuningRequest) -> List[TuningResult]:
         """대체 최적화 (AI 실패 시)"""
-        
+
         results = []
         performance = request.performance_data
-        
+
         try:
             # 간단한 휴리스틱 기반 최적화
-            
+
             # 1. 승률이 낮으면 임계값 조정
             if performance.win_rate < 0.4:
                 for param_name in ['rsi_oversold', 'rsi_overbought', 'bollinger_std']:
                     if param_name in request.current_parameters:
                         current_value = request.current_parameters[param_name]
-                        
+
                         # 보수적으로 조정
                         if param_name == 'rsi_oversold':
                             new_value = min(current_value + 5, 35)
@@ -423,7 +436,7 @@ class AIParameterTuner:
                             new_value = min(current_value + 0.2, 2.5)
                         else:
                             continue
-                        
+
                         if new_value != current_value:
                             result = TuningResult(
                                 strategy_id=request.strategy_id,
@@ -437,14 +450,14 @@ class AIParameterTuner:
                                 timestamp=datetime.now()
                             )
                             results.append(result)
-            
+
             # 2. 높은 변동성 시 민감도 감소
             if request.market_condition in ['high_volatility', 'bear_market']:
                 for param_name in ['period', 'sensitivity']:
                     if param_name in request.current_parameters:
                         current_value = request.current_parameters[param_name]
                         new_value = int(current_value * 1.2)  # 20% 증가
-                        
+
                         if new_value != current_value:
                             result = TuningResult(
                                 strategy_id=request.strategy_id,
@@ -458,116 +471,124 @@ class AIParameterTuner:
                                 timestamp=datetime.now()
                             )
                             results.append(result)
-            
+
         except Exception as e:
             self.logger.error(f"대체 최적화 오류: {e}")
-        
+
         return results
-    
-    def _validate_parameter_change(self, strategy_id: str, parameter_name: str, 
-                                 current_value: Any, new_value: Any) -> bool:
+
+    def _validate_parameter_change(self, strategy_id: str, parameter_name: str,
+                                   current_value: Any, new_value: Any) -> bool:
         """파라미터 변경 검증"""
-        
+
         try:
             # 타입 검증
             if type(current_value) != type(new_value):
                 return False
-            
+
             # 숫자형 파라미터 검증
             if isinstance(current_value, (int, float)):
-                change_ratio = abs((new_value - current_value) / current_value) if current_value != 0 else 0
+                change_ratio = abs((new_value - current_value) /
+                                   current_value) if current_value != 0 else 0
                 if change_ratio > self.max_parameter_change_ratio:
-                    self.logger.warning(f"파라미터 변경 비율 초과: {parameter_name} ({change_ratio:.1%})")
+                    self.logger.warning(
+                        f"파라미터 변경 비율 초과: {parameter_name} ({change_ratio:.1%})")
                     return False
-            
+
             # 파라미터별 범위 검증
             param_ranges = self.parameter_definitions.get(strategy_id, {})
             if parameter_name in param_ranges:
                 range_info = param_ranges[parameter_name]
                 if not (range_info.min_value <= new_value <= range_info.max_value):
-                    self.logger.warning(f"파라미터 범위 초과: {parameter_name} = {new_value}")
+                    self.logger.warning(
+                        f"파라미터 범위 초과: {parameter_name} = {new_value}")
                     return False
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"파라미터 검증 오류: {e}")
             return False
-    
-    def _validate_tuning_results(self, tuning_results: List[TuningResult], 
-                               performance_data: AdvancedPerformanceMetrics) -> List[TuningResult]:
+
+    def _validate_tuning_results(self, tuning_results: List[TuningResult],
+                                 performance_data: AdvancedPerformanceMetrics) -> List[TuningResult]:
         """튜닝 결과 검증"""
-        
+
         validated_results = []
-        
+
         for result in tuning_results:
             # 신뢰도 검증
             if result.confidence < 0.5:
                 self.logger.info(f"낮은 신뢰도로 제외: {result.parameter_name}")
                 continue
-            
+
             # 개선 효과 검증
             if result.improvement < 1.0:
                 self.logger.info(f"낮은 개선 효과로 제외: {result.parameter_name}")
                 continue
-            
+
             # 성과 기반 신뢰도 조정
             if performance_data.total_trades < 20:
                 result.confidence *= 0.8  # 데이터 부족으로 신뢰도 감소
-            
+
             if performance_data.ai_optimization_score < 30:
                 result.confidence *= 0.9  # 낮은 성과로 신뢰도 감소
-            
+
             validated_results.append(result)
-        
+
         return validated_results
-    
+
     def _apply_parameter_change(self, result: TuningResult) -> bool:
         """파라미터 변경 적용"""
-        
+
         try:
             # 설정 경로 생성
             config_path = f"independent_strategies.strategies.{result.strategy_id}.{result.parameter_name}"
-            
+
             # 설정 업데이트
-            success = config_manager.update_config(config_path, result.optimized_value)
-            
+            success = config_manager.update_config(
+                config_path, result.optimized_value)
+
             if success:
-                self.logger.info(f"파라미터 업데이트: {config_path} = {result.optimized_value}")
-            
+                self.logger.info(
+                    f"파라미터 업데이트: {config_path} = {result.optimized_value}")
+
             return success
-            
+
         except Exception as e:
             self.logger.error(f"파라미터 적용 오류: {e}")
             return False
-    
+
     def _should_run_tuning(self) -> bool:
         """튜닝 실행 여부 판단"""
         if self.last_tuning_time is None:
             return True
-        
-        hours_since_last = (datetime.now() - self.last_tuning_time).total_seconds() / 3600
+
+        hours_since_last = (
+            datetime.now() - self.last_tuning_time).total_seconds() / 3600
         return hours_since_last >= self.tuning_interval_hours
-    
+
     def _get_strategy_parameters(self, strategy_id: str) -> Dict[str, Any]:
         """전략 파라미터 가져오기"""
         try:
-            strategy_config = config_manager.get_config(f'independent_strategies.strategies.{strategy_id}', {})
-            
+            strategy_config = config_manager.get_config(
+                f'independent_strategies.strategies.{strategy_id}', {})
+
             # enabled 제외하고 파라미터만 추출
-            parameters = {k: v for k, v in strategy_config.items() if k != 'enabled'}
-            
+            parameters = {k: v for k, v in strategy_config.items()
+                          if k != 'enabled'}
+
             return parameters
-            
+
         except Exception as e:
             self.logger.error(f"전략 파라미터 조회 오류: {e}")
             return {}
-    
+
     def _get_parameter_ranges(self, strategy_id: str, current_parameters: Dict[str, Any]) -> Dict[str, ParameterRange]:
         """파라미터 범위 정의"""
-        
+
         ranges = {}
-        
+
         # 기본 범위 정의
         default_ranges = {
             'period': (5, 50, 1, ParameterType.TECHNICAL_INDICATOR),
@@ -580,11 +601,11 @@ class AIParameterTuner:
             'slow_ema': (20, 50, 1, ParameterType.TECHNICAL_INDICATOR),
             'volume_threshold': (1.0, 3.0, 0.1, ParameterType.THRESHOLD),
         }
-        
+
         for param_name, current_value in current_parameters.items():
             if param_name in default_ranges:
                 min_val, max_val, step, param_type = default_ranges[param_name]
-                
+
                 ranges[param_name] = ParameterRange(
                     min_value=min_val,
                     max_value=max_val,
@@ -593,9 +614,9 @@ class AIParameterTuner:
                     parameter_type=param_type,
                     description=f"{param_name} 파라미터"
                 )
-        
+
         return ranges
-    
+
     def _get_tuning_constraints(self, strategy_id: str) -> Dict[str, Any]:
         """튜닝 제약 조건"""
         return {
@@ -603,38 +624,43 @@ class AIParameterTuner:
             'min_confidence': self.min_confidence_for_application,
             'strategy_enabled': True
         }
-    
+
     def _define_tunable_parameters(self) -> Dict[str, Dict[str, ParameterRange]]:
         """튜닝 가능한 파라미터 정의"""
         # 전략별 파라미터 정의는 추후 확장
         return {}
-    
+
     def _get_active_strategies(self) -> List[str]:
         """활성화된 전략 목록"""
         try:
-            strategy_config = config_manager.get_config('independent_strategies.strategies', {})
-            return [strategy_id for strategy_id, config in strategy_config.items() 
-                   if config.get('enabled', True)]
+            strategy_config = config_manager.get_config(
+                'independent_strategies.strategies', {})
+            return [strategy_id for strategy_id, config in strategy_config.items()
+                    if config.get('enabled', True)]
         except Exception as e:
             self.logger.error(f"활성 전략 조회 오류: {e}")
             return []
-    
+
     def get_tuning_summary(self) -> Dict[str, Any]:
         """튜닝 요약 정보"""
         try:
-            recent_results = self.tuning_history[-20:] if self.tuning_history else []
-            
+            recent_results = self.tuning_history[-20:
+                                                 ] if self.tuning_history else []
+
             # 전략별 튜닝 횟수
             strategy_counts = {}
             for result in recent_results:
-                strategy_counts[result.strategy_id] = strategy_counts.get(result.strategy_id, 0) + 1
-            
+                strategy_counts[result.strategy_id] = strategy_counts.get(
+                    result.strategy_id, 0) + 1
+
             # 평균 개선율
-            avg_improvement = np.mean([r.improvement for r in recent_results]) if recent_results else 0
-            
+            avg_improvement = np.mean(
+                [r.improvement for r in recent_results]) if recent_results else 0
+
             # 최고 성과 튜닝
-            best_tuning = max(recent_results, key=lambda x: x.improvement) if recent_results else None
-            
+            best_tuning = max(
+                recent_results, key=lambda x: x.improvement) if recent_results else None
+
             return {
                 'total_tuning_sessions': len(self.tuning_history),
                 'recent_tuning_count': len(recent_results),
@@ -646,10 +672,10 @@ class AIParameterTuner:
                     'parameter': best_tuning.parameter_name,
                     'improvement': best_tuning.improvement
                 } if best_tuning else None,
-                'next_tuning_due': (self.last_tuning_time + timedelta(hours=self.tuning_interval_hours)).isoformat() 
-                                   if self.last_tuning_time else datetime.now().isoformat()
+                'next_tuning_due': (self.last_tuning_time + timedelta(hours=self.tuning_interval_hours)).isoformat()
+                if self.last_tuning_time else datetime.now().isoformat()
             }
-            
+
         except Exception as e:
             self.logger.error(f"튜닝 요약 생성 오류: {e}")
             return {}
