@@ -1071,6 +1071,32 @@ def api_trading_activity():
     """통합 거래 활동 API - 전략 계산 결과와 실제 거래를 통합"""
     try:
         from core.strategy_execution_tracker import execution_tracker
+        # KST 변환 헬퍼
+        from datetime import datetime
+        import pytz
+        kst_tz = pytz.timezone('Asia/Seoul')
+
+        def _to_kst(ts):
+            if not ts:
+                return ts
+            # ts가 datetime이면 그대로 처리, 아니면 ISO 문자열 파싱
+            if isinstance(ts, datetime):
+                dt = ts
+            else:
+                try:
+                    dt = datetime.fromisoformat(str(ts).replace('Z', '+00:00'))
+                except Exception:
+                    return str(ts)
+            # naive인 경우 UTC로 가정 후 KST로 변환
+            if dt.tzinfo is None:
+                try:
+                    dt = pytz.utc.localize(dt)
+                except Exception:
+                    pass
+            try:
+                return dt.astimezone(kst_tz).isoformat()
+            except Exception:
+                return str(ts)
 
         # 파라미터
         days = request.args.get('days', 7, type=int)
@@ -1097,7 +1123,7 @@ def api_trading_activity():
         for exec_data in executions:
             activity = {
                 'type': 'strategy_execution',
-                'timestamp': exec_data.get('execution_time'),
+                'timestamp': _to_kst(exec_data.get('execution_time')),
                 'strategy_tier': exec_data.get('strategy_tier'),
                 'strategy_id': exec_data.get('strategy_id'),
                 'action': exec_data.get('signal_action'),
@@ -1123,7 +1149,7 @@ def api_trading_activity():
             if not any(a.get('trade_id') == trade.get('id') for a in activities):
                 activity = {
                     'type': 'manual_trade',
-                    'timestamp': trade.get('timestamp'),
+                    'timestamp': _to_kst(trade.get('timestamp')),
                     'strategy_tier': 'manual',
                     'strategy_id': 'manual_trade',
                     'action': trade.get('action'),
