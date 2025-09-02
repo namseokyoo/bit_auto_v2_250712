@@ -1,52 +1,390 @@
 {% extends "base.html" %}
 
-{% block title %}거래 내역 - Bitcoin Auto Trading v2{% endblock %}
+{% block title %}거래 활동 - Bitcoin Auto Trading v2{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="fas fa-exchange-alt"></i> 거래 내역</h1>
+    <h1><i class="fas fa-chart-line"></i> 전략 & 거래 활동</h1>
     <div class="text-muted">
-        총 {{ trades|length }}개 거래
+        <span id="activity-count">로딩 중...</span>
+    </div>
+</div>
+
+<!-- 통계 카드 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="h4 mb-0" id="total-executions">-</div>
+                        <div class="small">전략 실행</div>
+                    </div>
+                    <i class="fas fa-brain fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="h4 mb-0" id="total-trades">-</div>
+                        <div class="small">실제 거래</div>
+                    </div>
+                    <i class="fas fa-exchange-alt fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="h4 mb-0" id="execution-rate">-%</div>
+                        <div class="small">실행률</div>
+                    </div>
+                    <i class="fas fa-percentage fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="h4 mb-0" id="buy-signals">-</div>
+                        <div class="small">매수 신호</div>
+                    </div>
+                    <i class="fas fa-arrow-up fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- 필터링 -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="GET" class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label">전략</label>
-                <select name="strategy_id" class="form-select">
-                    <option value="">전체</option>
-                    {% for strategy in strategies %}
-                        <option value="{{ strategy }}" {{ 'selected' if current_strategy == strategy else '' }}>
-                            {{ strategy }}
-                        </option>
-                    {% endfor %}
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">기간</label>
+                <select id="days-filter" class="form-select">
+                    <option value="1">최근 1일</option>
+                    <option value="3">최근 3일</option>
+                    <option value="7" selected>최근 1주일</option>
+                    <option value="30">최근 1개월</option>
                 </select>
             </div>
-            <div class="col-md-4">
-                <label class="form-label">상태</label>
-                <select name="status" class="form-select">
+            <div class="col-md-3">
+                <label class="form-label">전략 계층</label>
+                <select id="tier-filter" class="form-select">
                     <option value="">전체</option>
-                    <option value="open" {{ 'selected' if current_status == 'open' else '' }}>진행중</option>
-                    <option value="closed" {{ 'selected' if current_status == 'closed' else '' }}>완료</option>
+                    <option value="scalping">스캘핑</option>
+                    <option value="trend">트렌드</option>
+                    <option value="macro">매크로</option>
+                    <option value="manual">수동</option>
                 </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <label class="form-label">액션</label>
+                <select id="action-filter" class="form-select">
+                    <option value="">전체</option>
+                    <option value="buy">매수</option>
+                    <option value="sell">매도</option>
+                    <option value="hold">홀드</option>
+                </select>
+            </div>
+            <div class="col-md-3">
                 <label class="form-label">&nbsp;</label>
                 <div>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="button" class="btn btn-primary" onclick="loadActivities()">
                         <i class="fas fa-search"></i> 검색
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="resetFilters()">
+                        <i class="fas fa-undo"></i> 초기화
                     </button>
                 </div>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 
-<!-- 거래 내역 테이블 -->
+<!-- 활동 내역 테이블 -->
 <div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class="fas fa-list"></i> 활동 내역
+            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="loadActivities()">
+                <i class="fas fa-sync-alt"></i> 새로고침
+            </button>
+        </h5>
+    </div>
+    <div class="card-body">
+        <div id="loading-indicator" class="text-center py-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">로딩 중...</span>
+            </div>
+        </div>
+        <div id="activities-table" style="display: none;">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>시간</th>
+                            <th>타입</th>
+                            <th>전략</th>
+                            <th>액션</th>
+                            <th>신뢰도</th>
+                            <th>실행됨</th>
+                            <th>수익/손실</th>
+                            <th>상세</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activities-tbody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="no-data" class="text-center py-4" style="display: none;">
+            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+            <p class="text-muted">표시할 활동이 없습니다.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentData = [];
+
+// 페이지 로드 시 초기 데이터 로드
+document.addEventListener('DOMContentLoaded', function() {
+    loadActivities();
+    
+    // 필터 변경 시 자동 로드
+    document.getElementById('days-filter').addEventListener('change', loadActivities);
+    document.getElementById('tier-filter').addEventListener('change', loadActivities);
+    document.getElementById('action-filter').addEventListener('change', loadActivities);
+});
+
+async function loadActivities() {
+    const loadingEl = document.getElementById('loading-indicator');
+    const tableEl = document.getElementById('activities-table');
+    const noDataEl = document.getElementById('no-data');
+    
+    // 로딩 표시
+    loadingEl.style.display = 'block';
+    tableEl.style.display = 'none';
+    noDataEl.style.display = 'none';
+    
+    try {
+        // 필터 값 가져오기
+        const days = document.getElementById('days-filter').value;
+        const tier = document.getElementById('tier-filter').value;
+        const action = document.getElementById('action-filter').value;
+        
+        // API 호출
+        const params = new URLSearchParams();
+        params.append('days', days);
+        if (tier) params.append('strategy_tier', tier);
+        if (action) params.append('action', action);
+        params.append('limit', '100');
+        
+        const response = await fetch(`/api/trading_activity?${params}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            currentData = data;
+            updateStatistics(data.statistics);
+            renderActivities(data.activities);
+            
+            // 총 개수 업데이트
+            document.getElementById('activity-count').textContent = 
+                `총 ${data.activities.length}개 활동`;
+            
+        } else {
+            throw new Error(data.error || '데이터 로드 실패');
+        }
+        
+    } catch (error) {
+        console.error('활동 데이터 로드 오류:', error);
+        noDataEl.innerHTML = `
+            <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+            <p class="text-danger">데이터 로드 중 오류가 발생했습니다: ${error.message}</p>
+        `;
+        noDataEl.style.display = 'block';
+    } finally {
+        loadingEl.style.display = 'none';
+    }
+}
+
+function updateStatistics(stats) {
+    document.getElementById('total-executions').textContent = stats.total_executions;
+    document.getElementById('total-trades').textContent = stats.total_trades;
+    document.getElementById('execution-rate').textContent = `${stats.execution_rate.toFixed(1)}%`;
+    document.getElementById('buy-signals').textContent = stats.signal_distribution.buy;
+}
+
+function renderActivities(activities) {
+    const tbody = document.getElementById('activities-tbody');
+    const tableEl = document.getElementById('activities-table');
+    const noDataEl = document.getElementById('no-data');
+    
+    if (activities.length === 0) {
+        noDataEl.style.display = 'block';
+        return;
+    }
+    
+    tbody.innerHTML = '';
+    
+    activities.forEach(activity => {
+        const row = document.createElement('tr');
+        
+        // 타임스탬프 포맷
+        const timestamp = new Date(activity.timestamp).toLocaleString('ko-KR');
+        
+        // 타입 배지
+        const typeBadge = activity.type === 'strategy_execution' ? 
+            '<span class="badge bg-primary">전략</span>' : 
+            '<span class="badge bg-success">수동</span>';
+        
+        // 액션 배지
+        let actionBadge = '';
+        if (activity.action === 'buy') {
+            actionBadge = '<span class="badge bg-success"><i class="fas fa-arrow-up"></i> 매수</span>';
+        } else if (activity.action === 'sell') {
+            actionBadge = '<span class="badge bg-danger"><i class="fas fa-arrow-down"></i> 매도</span>';
+        } else {
+            actionBadge = '<span class="badge bg-secondary"><i class="fas fa-pause"></i> 홀드</span>';
+        }
+        
+        // 실행 여부
+        const executedBadge = activity.trade_executed ? 
+            '<span class="badge bg-success">실행됨</span>' : 
+            '<span class="badge bg-secondary">미실행</span>';
+        
+        // 수익/손실 표시
+        const pnl = activity.pnl || 0;
+        const pnlClass = pnl > 0 ? 'text-success' : pnl < 0 ? 'text-danger' : 'text-muted';
+        const pnlText = pnl !== 0 ? `₩${pnl.toLocaleString()}` : '-';
+        
+        row.innerHTML = `
+            <td>${timestamp}</td>
+            <td>${typeBadge}</td>
+            <td>
+                <div class="fw-bold">${activity.strategy_tier}</div>
+                <small class="text-muted">${activity.strategy_id}</small>
+            </td>
+            <td>${actionBadge}</td>
+            <td>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar" role="progressbar" 
+                         style="width: ${activity.confidence}%"
+                         title="${activity.confidence}%">
+                        ${activity.confidence}%
+                    </div>
+                </div>
+            </td>
+            <td>${executedBadge}</td>
+            <td class="${pnlClass} fw-bold">${pnlText}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" 
+                        onclick="showActivityDetail('${btoa(JSON.stringify(activity))}')">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+    
+    tableEl.style.display = 'block';
+}
+
+function showActivityDetail(encodedData) {
+    const activity = JSON.parse(atob(encodedData));
+    
+    let detailContent = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>기본 정보</h6>
+                <p><strong>시간:</strong> ${new Date(activity.timestamp).toLocaleString('ko-KR')}</p>
+                <p><strong>전략:</strong> ${activity.strategy_tier} - ${activity.strategy_id}</p>
+                <p><strong>액션:</strong> ${activity.action}</p>
+                <p><strong>신뢰도:</strong> ${activity.confidence}%</p>
+                ${activity.strength ? `<p><strong>강도:</strong> ${activity.strength}</p>` : ''}
+            </div>
+            <div class="col-md-6">
+                <h6>실행 결과</h6>
+                <p><strong>거래 실행:</strong> ${activity.trade_executed ? '예' : '아니오'}</p>
+                ${activity.trade_id ? `<p><strong>거래 ID:</strong> ${activity.trade_id}</p>` : ''}
+                ${activity.pnl ? `<p><strong>수익/손실:</strong> ₩${activity.pnl.toLocaleString()}</p>` : ''}
+                ${activity.price ? `<p><strong>가격:</strong> ₩${activity.price.toLocaleString()}</p>` : ''}
+                ${activity.amount ? `<p><strong>수량:</strong> ${activity.amount}</p>` : ''}
+            </div>
+        </div>
+    `;
+    
+    if (activity.reasoning) {
+        detailContent += `
+            <div class="mt-3">
+                <h6>판단 근거</h6>
+                <p class="text-muted">${activity.reasoning}</p>
+            </div>
+        `;
+    }
+    
+    if (activity.indicators && activity.indicators !== '{}') {
+        detailContent += `
+            <div class="mt-3">
+                <h6>기술 지표</h6>
+                <pre class="bg-light p-2 rounded">${JSON.stringify(JSON.parse(activity.indicators), null, 2)}</pre>
+            </div>
+        `;
+    }
+    
+    // 모달 표시 (Bootstrap 모달 사용)
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">활동 상세 정보</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    ${detailContent}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+    
+    // 모달 닫힐 때 DOM에서 제거
+    modal.addEventListener('hidden.bs.modal', () => {
+        document.body.removeChild(modal);
+    });
+}
+
+function resetFilters() {
+    document.getElementById('days-filter').value = '7';
+    document.getElementById('tier-filter').value = '';
+    document.getElementById('action-filter').value = '';
+    loadActivities();
+}
+</script>
+
+<!-- 거래 내역 테이블 -->
+<div class="card" style="display: none;">
     <div class="card-body">
         {% if trades %}
             <div class="table-responsive">

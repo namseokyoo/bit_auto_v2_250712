@@ -862,7 +862,8 @@ def api_auto_trading_status():
         try:
             if not enhanced_status.get('next_execution'):
                 trading_cfg = config_manager.get_trading_config()
-                interval_minutes = trading_cfg.get('trade_interval_minutes', 10)
+                interval_minutes = trading_cfg.get(
+                    'trade_interval_minutes', 10)
 
                 now = now_kst()
                 base = now.replace(second=0, microsecond=0)
@@ -873,7 +874,8 @@ def api_auto_trading_status():
                     next_time = base + timedelta(minutes=interval_minutes)
                 else:
                     remainder = now.minute % interval_minutes
-                    add_minutes = interval_minutes if remainder == 0 else (interval_minutes - remainder)
+                    add_minutes = interval_minutes if remainder == 0 else (
+                        interval_minutes - remainder)
                     next_time = base + timedelta(minutes=add_minutes)
 
                 enhanced_status['next_execution'] = next_time.isoformat()
@@ -1062,6 +1064,124 @@ def api_trades():
     except Exception as e:
         logger.error(f"거래 내역 API 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/trading_activity')
+def api_trading_activity():
+    """통합 거래 활동 API - 전략 계산 결과와 실제 거래를 통합"""
+    try:
+        from core.strategy_execution_tracker import execution_tracker
+        
+        # 파라미터
+        days = request.args.get('days', 7, type=int)
+        limit = request.args.get('limit', 100, type=int)
+        strategy_tier = request.args.get('strategy_tier')
+        action_filter = request.args.get('action')  # 'buy', 'sell', 'hold'
+        
+        # 전략 실행 이력 조회
+        hours = days * 24
+        executions = execution_tracker.get_execution_history(
+            strategy_tier=strategy_tier,
+            hours=hours,
+            limit=limit
+        )
+        
+        # 실제 거래 내역 조회
+        start_date = datetime.now() - timedelta(days=days)
+        actual_trades = db.get_trades(start_date=start_date)
+        
+        # 통합 활동 리스트 생성
+        activities = []
+        
+        # 전략 실행 결과 추가
+        for exec_data in executions:
+            activity = {
+                'type': 'strategy_execution',
+                'timestamp': exec_data.get('execution_time'),
+                'strategy_tier': exec_data.get('strategy_tier'),
+                'strategy_id': exec_data.get('strategy_id'),
+                'action': exec_data.get('signal_action'),
+                'confidence': exec_data.get('confidence'),
+                'strength': exec_data.get('strength', 0),
+                'reasoning': exec_data.get('reasoning', ''),
+                'market_regime': exec_data.get('market_regime', ''),
+                'trade_executed': exec_data.get('trade_executed', False),
+                'trade_id': exec_data.get('trade_id'),
+                'pnl': exec_data.get('pnl', 0),
+                'indicators': exec_data.get('indicators', '{}')
+            }
+            
+            # 액션 필터 적용
+            if action_filter and activity['action'] != action_filter:
+                continue
+                
+            activities.append(activity)
+        
+        # 실제 거래 추가 (전략과 연결되지 않은 수동 거래 등)
+        for trade in actual_trades:
+            # 이미 전략 실행에서 연결된 거래는 제외
+            if not any(a.get('trade_id') == trade.get('id') for a in activities):
+                activity = {
+                    'type': 'manual_trade',
+                    'timestamp': trade.get('timestamp'),
+                    'strategy_tier': 'manual',
+                    'strategy_id': 'manual_trade',
+                    'action': trade.get('action'),
+                    'confidence': 100,  # 수동 거래는 100% 확신
+                    'strength': 100,
+                    'reasoning': f"수동 거래: {trade.get('note', '')}",
+                    'market_regime': 'unknown',
+                    'trade_executed': True,
+                    'trade_id': trade.get('id'),
+                    'pnl': trade.get('pnl', 0),
+                    'price': trade.get('price'),
+                    'amount': trade.get('amount'),
+                    'fee': trade.get('fee', 0)
+                }
+                activities.append(activity)
+        
+        # 시간순 정렬 (최신 순)
+        activities.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        
+        # 제한 적용
+        activities = activities[:limit]
+        
+        # 통계 계산
+        total_executions = len([a for a in activities if a['type'] == 'strategy_execution'])
+        total_trades = len([a for a in activities if a['trade_executed']])
+        execution_rate = (total_trades / max(1, total_executions)) * 100
+        
+        buy_signals = len([a for a in activities if a['action'] == 'buy'])
+        sell_signals = len([a for a in activities if a['action'] == 'sell'])
+        hold_signals = len([a for a in activities if a['action'] == 'hold'])
+        
+        return jsonify({
+            'success': True,
+            'activities': activities,
+            'statistics': {
+                'total_activities': len(activities),
+                'total_executions': total_executions,
+                'total_trades': total_trades,
+                'execution_rate': execution_rate,
+                'signal_distribution': {
+                    'buy': buy_signals,
+                    'sell': sell_signals,
+                    'hold': hold_signals
+                }
+            },
+            'filters': {
+                'days': days,
+                'strategy_tier': strategy_tier,
+                'action_filter': action_filter
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"거래 활동 API 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @app.route('/api/performance/summary')
