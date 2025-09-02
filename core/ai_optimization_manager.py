@@ -201,9 +201,25 @@ class AIOptimizationManager:
 
             self.last_optimization_time = now_kst()
 
+            # 9. 실행 이력에 추가
+            optimization_task = OptimizationTask(
+                task_id=f"full_optimization_{int(now_kst().timestamp())}",
+                task_type="full_optimization",
+                priority=1,
+                scheduled_time=now_kst(),
+                status=OptimizationStatus.COMPLETED,
+                progress=100.0,
+                result=optimization_summary
+            )
+
             with self._lock:
                 self.current_status = OptimizationStatus.COMPLETED
                 self.system_health = post_health_metrics
+                self.execution_history.append(optimization_task)
+                
+                # 이력 크기 제한 (최대 50개)
+                if len(self.execution_history) > 50:
+                    self.execution_history = self.execution_history[-50:]
 
             self.logger.info(
                 f"전체 최적화 완료: {optimization_summary.get('overall_improvement', 0):.1f}% 개선")
@@ -219,13 +235,29 @@ class AIOptimizationManager:
         except Exception as e:
             self.logger.error(f"전체 최적화 오류: {e}")
 
+            # 실패한 경우에도 이력에 추가
+            error_task = OptimizationTask(
+                task_id=f"full_optimization_error_{int(now_kst().timestamp())}",
+                task_type="full_optimization",
+                priority=1,
+                scheduled_time=now_kst(),
+                status=OptimizationStatus.ERROR,
+                progress=0.0,
+                error_message=str(e)
+            )
+
             with self._lock:
                 self.current_status = OptimizationStatus.ERROR
+                self.execution_history.append(error_task)
+                
+                # 이력 크기 제한 (최대 50개)
+                if len(self.execution_history) > 50:
+                    self.execution_history = self.execution_history[-50:]
 
             return {
                 'success': False,
                 'error': str(e),
-                'execution_time': datetime.now().isoformat()
+                'execution_time': now_kst().isoformat()
             }
 
     def get_optimization_status(self) -> Dict[str, Any]:

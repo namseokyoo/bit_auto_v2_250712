@@ -478,15 +478,15 @@
             document.getElementById('optimization-mode').textContent = this.getModeText(data.mode);
             document.getElementById('auto-enabled').textContent = data.auto_enabled ? '활성화' : '비활성화';
 
-                    // 다음 예정 시간 (KST 기준)
-        if (data.next_scheduled) {
-            const nextTime = new Date(data.next_scheduled);
-            // 서버에서 이미 KST로 전송되므로 직접 사용
-            document.getElementById('next-scheduled').textContent =
-                nextTime.toLocaleDateString('ko-KR') + ' ' + nextTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-        } else {
-            document.getElementById('next-scheduled').textContent = '설정되지 않음';
-        }
+            // 다음 예정 시간 (KST 기준)
+            if (data.next_scheduled) {
+                const nextTime = new Date(data.next_scheduled);
+                // 서버에서 이미 KST로 전송되므로 직접 사용
+                document.getElementById('next-scheduled').textContent =
+                    nextTime.toLocaleDateString('ko-KR') + ' ' + nextTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            } else {
+                document.getElementById('next-scheduled').textContent = '설정되지 않음';
+            }
 
             // 성공률
             if (data.statistics) {
@@ -528,7 +528,7 @@
 
                     tbody.innerHTML = history.map(item => {
             // KST 시간으로 변환하여 표시
-            const timestamp = new Date(item.timestamp);
+            const timestamp = new Date(item.scheduled_time);
             const kstTimestamp = timestamp.toLocaleString('ko-KR', {
                 timeZone: 'Asia/Seoul',
                 year: 'numeric',
@@ -537,15 +537,27 @@
                 hour: '2-digit',
                 minute: '2-digit'
             });
-            const improvement = item.expected_improvement || 0;
+            
+            // 개선율 계산 - result에서 overall_improvement 가져오기
+            const improvement = item.result?.overall_improvement || 0;
             const status = item.status || 'completed';
+            
+            // 주요 변경사항 추출
+            const keyChanges = item.result?.key_changes || [];
+            const mainAction = keyChanges.length > 0 ? keyChanges[0] : '전체 최적화 실행';
+            
+            // 개선율에 따른 배지 색상
+            let badgeClass = 'bg-secondary';
+            if (improvement > 10) badgeClass = 'bg-success';
+            else if (improvement > 5) badgeClass = 'bg-info';
+            else if (improvement > 0) badgeClass = 'bg-warning text-dark';
             
             return `
                 <tr>
                     <td>${kstTimestamp}</td>
-                    <td>${this.getModeText(item.mode || 'balanced')}</td>
-                    <td><span class="badge bg-success">${improvement.toFixed(1)}%</span></td>
-                    <td>${item.action || '최적화 실행'}</td>
+                    <td>${this.getModeText('balanced')}</td>
+                    <td><span class="badge ${badgeClass}">${improvement.toFixed(1)}%</span></td>
+                    <td>${mainAction}</td>
                     <td><span class="status-badge status-${status}">${this.getStatusText(status)}</span></td>
                 </tr>
             `;
@@ -740,17 +752,17 @@
             document.getElementById('optimization-progress-detail').textContent = text;
         }
 
-            addLog(type, message) {
-        const logContainer = document.getElementById('optimization-log');
-        const timestamp = new Date().toLocaleTimeString('ko-KR', {
-            timeZone: 'Asia/Seoul',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
-        
-        const logEntry = document.createElement('div');
-        logEntry.className = 'mb-2';
+        addLog(type, message) {
+            const logContainer = document.getElementById('optimization-log');
+            const timestamp = new Date().toLocaleTimeString('ko-KR', {
+                timeZone: 'Asia/Seoul',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+
+            const logEntry = document.createElement('div');
+            logEntry.className = 'mb-2';
 
             let icon, colorClass;
             switch (type) {
