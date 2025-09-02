@@ -852,29 +852,45 @@ def api_voting_engine_analyze():
         result = auto_trader.voting_engine.analyze()
 
         if result:
+            # JSON 직렬화 안전 변환
+            def safe_serialize(obj):
+                """JSON 직렬화 안전 변환"""
+                if isinstance(obj, dict):
+                    return {k: safe_serialize(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [safe_serialize(item) for item in obj]
+                elif isinstance(obj, bool):
+                    return bool(obj)
+                elif isinstance(obj, (int, float, str)):
+                    return obj
+                elif obj is None:
+                    return None
+                else:
+                    return str(obj)
+            
             response_data = {
                 'success': True,
                 'decision': {
                     'signal': result.decision.final_signal.value,
-                    'confidence': result.decision.confidence,
-                    'total_votes': result.decision.total_votes,
-                    'vote_distribution': result.decision.vote_distribution,
-                    'reasoning': result.decision.reasoning,
+                    'confidence': float(result.decision.confidence),
+                    'total_votes': int(result.decision.total_votes),
+                    'vote_distribution': safe_serialize(result.decision.vote_distribution),
+                    'reasoning': str(result.decision.reasoning),
                     'timestamp': result.execution_time.isoformat()
                 },
                 'strategies': [
                     {
-                        'strategy_id': vote.strategy_id,
-                        'strategy_name': vote.strategy_name,
+                        'strategy_id': str(vote.strategy_id),
+                        'strategy_name': str(vote.strategy_name),
                         'signal': vote.signal.value,
-                        'confidence': vote.confidence,
-                        'strength': vote.strength,
-                        'reasoning': vote.reasoning,
-                        'indicators': vote.indicators
+                        'confidence': float(vote.confidence),
+                        'strength': float(vote.strength),
+                        'reasoning': str(vote.reasoning),
+                        'indicators': safe_serialize(vote.indicators)
                     }
                     for vote in result.decision.contributing_strategies
                 ],
-                'market_summary': result.market_data_summary
+                'market_summary': safe_serialize(result.market_data_summary)
             }
 
             return jsonify(response_data)

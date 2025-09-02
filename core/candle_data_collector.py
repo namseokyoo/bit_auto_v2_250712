@@ -414,12 +414,12 @@ class CandleDataCollector:
     def get_candles_cached(self, timeframe_type: str, interval: int, count: int = 100) -> Optional[List[Dict]]:
         """
         VotingStrategyEngine 호환성을 위한 캐시된 캔들 데이터 조회
-        
+
         Args:
             timeframe_type: "minutes" 또는 "days"
             interval: 시간 간격 (1, 5, 15, 60, 1440)
             count: 개수
-            
+
         Returns:
             Upbit API 형식과 호환되는 캔들 데이터 리스트
         """
@@ -427,26 +427,27 @@ class CandleDataCollector:
             # 시간대 매핑
             timeframe_map = {
                 ("minutes", 1): "1m",
-                ("minutes", 5): "5m", 
+                ("minutes", 5): "5m",
                 ("minutes", 15): "15m",
                 ("minutes", 60): "1h",
                 ("days", 1): "1d"
             }
-            
+
             timeframe = timeframe_map.get((timeframe_type, interval))
             if not timeframe:
-                self.logger.warning(f"지원하지 않는 시간대: {timeframe_type}={interval}")
+                self.logger.warning(
+                    f"지원하지 않는 시간대: {timeframe_type}={interval}")
                 # 대체로 UpbitAPI 직접 호출
                 return self.api.get_candles("KRW-BTC", minutes=interval if timeframe_type == "minutes" else None, count=count)
-            
+
             # 저장된 데이터 조회
             candles = self.get_candles(timeframe, count)
-            
+
             if not candles:
                 self.logger.info(f"저장된 {timeframe} 데이터가 없음, UpbitAPI로 대체")
                 # 저장된 데이터가 없으면 UpbitAPI 직접 호출
                 return self.api.get_candles("KRW-BTC", minutes=interval if timeframe_type == "minutes" else None, count=count)
-            
+
             # Upbit API 형식으로 변환
             result = []
             for candle in candles:
@@ -459,10 +460,10 @@ class CandleDataCollector:
                     'candle_acc_trade_volume': candle.volume,
                     'market': candle.market
                 })
-            
+
             self.logger.debug(f"{timeframe} 캐시된 데이터 {len(result)}개 반환")
             return result
-            
+
         except Exception as e:
             self.logger.error(f"캐시된 캔들 데이터 조회 오류: {e}")
             # 오류 시 UpbitAPI 직접 호출로 대체
