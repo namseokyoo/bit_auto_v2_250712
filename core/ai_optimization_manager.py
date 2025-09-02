@@ -13,13 +13,19 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
 import json
+import pytz
 
 from config.config_manager import config_manager
 from core.ai_performance_analyzer import ai_performance_analyzer
 from core.dynamic_weight_optimizer import dynamic_weight_optimizer
 from core.adaptive_trading_optimizer import adaptive_trading_optimizer
 from core.ai_parameter_tuner import ai_parameter_tuner
-from core.utils import now_kst
+
+
+def now_kst():
+    """KST(한국 표준시) 현재 시간 반환"""
+    kst = pytz.timezone('Asia/Seoul')
+    return datetime.now(kst)
 
 
 class OptimizationMode(Enum):
