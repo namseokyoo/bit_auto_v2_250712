@@ -14,6 +14,10 @@ from core.independent_strategy_engine import (
 from core.independent_strategies import (
     RSIMomentumStrategy, BollingerBandStrategy, SupportResistanceStrategy
 )
+from core.phase2_strategies import (
+    EMACrossoverStrategy, MACDStrategy, StochasticStrategy, 
+    WilliamsRStrategy, CCIStrategy, VolumeSurgeStrategy, PriceActionStrategy
+)
 from core.upbit_api import UpbitAPI
 from core.signal_manager import TradingSignal
 from core.strategy_execution_tracker import execution_tracker, StrategyExecution
@@ -65,15 +69,25 @@ class VotingStrategyEngine:
     def _register_strategies(self):
         """전략들 등록"""
         strategies = [
+            # Phase 1 기본 전략들
             (RSIMomentumStrategy(), 1.0),
             (BollingerBandStrategy(), 1.0),
-            (SupportResistanceStrategy(), 1.0)
+            (SupportResistanceStrategy(), 1.0),
+            
+            # Phase 2 추가 전략들
+            (EMACrossoverStrategy(), 1.0),
+            (MACDStrategy(), 1.0),
+            (StochasticStrategy(), 1.0),
+            (WilliamsRStrategy(), 1.0),
+            (CCIStrategy(), 1.0),
+            (VolumeSurgeStrategy(), 1.0),
+            (PriceActionStrategy(), 1.0)
         ]
         
         for strategy, weight in strategies:
             self.engine.register_strategy(strategy, weight)
             
-        self.logger.info(f"{len(strategies)}개 전략 등록 완료")
+        self.logger.info(f"🎯 총 {len(strategies)}개 전략 등록 완료 (Phase 1: 3개 + Phase 2: 7개)")
     
     def _load_config(self):
         """설정 로드"""
