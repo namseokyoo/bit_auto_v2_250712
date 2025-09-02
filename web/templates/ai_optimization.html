@@ -110,8 +110,13 @@
     }
 
     @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
     }
 
     .ai-icon {
@@ -233,7 +238,8 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">자동 실행 주기 (시간)</label>
-                            <input type="number" id="optimization-interval" class="form-control" value="6" min="1" max="24">
+                            <input type="number" id="optimization-interval" class="form-control" value="6" min="1"
+                                max="24">
                         </div>
                     </div>
                     <div class="row mt-3">
@@ -364,8 +370,8 @@
                     시스템 분석 및 최적화 작업을 수행 중입니다. 잠시만 기다려주세요.
                 </div>
                 <div class="progress mt-3">
-                    <div id="optimization-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
-                         style="width: 0%"></div>
+                    <div id="optimization-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                        style="width: 0%"></div>
                 </div>
             </div>
         </div>
@@ -373,160 +379,170 @@
 </div>
 
 <script>
-class AIOptimizationManager {
-    constructor() {
-        this.refreshInterval = 30000; // 30초마다 갱신
-        this.refreshTimer = null;
-        this.init();
-    }
+    class AIOptimizationManager {
+        constructor() {
+            this.refreshInterval = 30000; // 30초마다 갱신
+            this.refreshTimer = null;
+            this.init();
+        }
 
-    init() {
-        this.bindEvents();
-        this.loadSystemStatus();
-        this.startAutoRefresh();
-    }
-
-    bindEvents() {
-        // 새로고침 버튼
-        document.getElementById('refresh-btn').addEventListener('click', () => {
+        init() {
+            this.bindEvents();
             this.loadSystemStatus();
-        });
+            this.startAutoRefresh();
+        }
 
-        // 전체 최적화 실행
-        document.getElementById('optimize-now-btn').addEventListener('click', () => {
-            this.executeOptimization();
-        });
+        bindEvents() {
+            // 새로고침 버튼
+            document.getElementById('refresh-btn').addEventListener('click', () => {
+                this.loadSystemStatus();
+            });
 
-        // 설정 저장
-        document.getElementById('save-settings-btn').addEventListener('click', () => {
-            this.saveSettings();
-        });
+            // 전체 최적화 실행
+            document.getElementById('optimize-now-btn').addEventListener('click', () => {
+                this.executeOptimization();
+            });
 
-        // 개별 최적화 버튼들
-        document.getElementById('weight-optimization-btn').addEventListener('click', () => {
-            this.executeWeightOptimization();
-        });
+            // 설정 저장
+            document.getElementById('save-settings-btn').addEventListener('click', () => {
+                this.saveSettings();
+            });
 
-        document.getElementById('trading-optimization-btn').addEventListener('click', () => {
-            this.executeTradingOptimization();
-        });
+            // 개별 최적화 버튼들
+            document.getElementById('weight-optimization-btn').addEventListener('click', () => {
+                this.executeWeightOptimization();
+            });
 
-        document.getElementById('parameter-tuning-btn').addEventListener('click', () => {
-            this.executeParameterTuning();
-        });
+            document.getElementById('trading-optimization-btn').addEventListener('click', () => {
+                this.executeTradingOptimization();
+            });
 
-        document.getElementById('performance-analysis-btn').addEventListener('click', () => {
-            this.showPerformanceAnalysis();
-        });
+            document.getElementById('parameter-tuning-btn').addEventListener('click', () => {
+                this.executeParameterTuning();
+            });
 
-        // 로그 지우기
-        document.getElementById('clear-log-btn').addEventListener('click', () => {
-            this.clearLog();
-        });
-    }
+            document.getElementById('performance-analysis-btn').addEventListener('click', () => {
+                this.showPerformanceAnalysis();
+            });
 
-    async loadSystemStatus() {
-        try {
-            const response = await fetch('/api/ai_optimization/status');
-            const result = await response.json();
+            // 로그 지우기
+            document.getElementById('clear-log-btn').addEventListener('click', () => {
+                this.clearLog();
+            });
+        }
 
-            if (result.success) {
-                this.updateStatusDisplay(result.data);
+        async loadSystemStatus() {
+            try {
+                const response = await fetch('/api/ai_optimization/status');
+                const result = await response.json();
+
+                if (result.success) {
+                    this.updateStatusDisplay(result.data);
+                }
+
+                // 최적화 이력도 함께 로드
+                await this.loadOptimizationHistory();
+
+            } catch (error) {
+                console.error('시스템 상태 로드 오류:', error);
+                this.addLog('error', '시스템 상태 로드 실패: ' + error.message);
+            }
+        }
+
+        updateStatusDisplay(data) {
+            // 시스템 건강도 업데이트
+            if (data.system_health) {
+                const health = data.system_health;
+                const overallScore = Math.round(health.overall_score);
+
+                document.getElementById('overall-score').textContent = overallScore;
+                document.getElementById('performance-score').textContent = Math.round(health.performance_score);
+                document.getElementById('risk-score').textContent = Math.round(health.risk_score);
+                document.getElementById('optimization-score').textContent = Math.round(health.optimization_score);
+                document.getElementById('stability-score').textContent = Math.round(health.stability_score);
+
+                // 전체 점수에 따른 색상 변경
+                const scoreElement = document.getElementById('overall-score');
+                scoreElement.className = 'health-score';
+                if (overallScore >= 80) scoreElement.classList.add('health-excellent');
+                else if (overallScore >= 60) scoreElement.classList.add('health-good');
+                else if (overallScore >= 40) scoreElement.classList.add('health-fair');
+                else scoreElement.classList.add('health-poor');
             }
 
-            // 최적화 이력도 함께 로드
-            await this.loadOptimizationHistory();
+            // 최적화 상태 업데이트
+            const statusElement = document.getElementById('optimization-status');
+            statusElement.textContent = this.getStatusText(data.status);
+            statusElement.className = `status-badge status-${data.status}`;
 
-        } catch (error) {
-            console.error('시스템 상태 로드 오류:', error);
-            this.addLog('error', '시스템 상태 로드 실패: ' + error.message);
-        }
-    }
+            document.getElementById('optimization-mode').textContent = this.getModeText(data.mode);
+            document.getElementById('auto-enabled').textContent = data.auto_enabled ? '활성화' : '비활성화';
 
-    updateStatusDisplay(data) {
-        // 시스템 건강도 업데이트
-        if (data.system_health) {
-            const health = data.system_health;
-            const overallScore = Math.round(health.overall_score);
-            
-            document.getElementById('overall-score').textContent = overallScore;
-            document.getElementById('performance-score').textContent = Math.round(health.performance_score);
-            document.getElementById('risk-score').textContent = Math.round(health.risk_score);
-            document.getElementById('optimization-score').textContent = Math.round(health.optimization_score);
-            document.getElementById('stability-score').textContent = Math.round(health.stability_score);
-
-            // 전체 점수에 따른 색상 변경
-            const scoreElement = document.getElementById('overall-score');
-            scoreElement.className = 'health-score';
-            if (overallScore >= 80) scoreElement.classList.add('health-excellent');
-            else if (overallScore >= 60) scoreElement.classList.add('health-good');
-            else if (overallScore >= 40) scoreElement.classList.add('health-fair');
-            else scoreElement.classList.add('health-poor');
-        }
-
-        // 최적화 상태 업데이트
-        const statusElement = document.getElementById('optimization-status');
-        statusElement.textContent = this.getStatusText(data.status);
-        statusElement.className = `status-badge status-${data.status}`;
-
-        document.getElementById('optimization-mode').textContent = this.getModeText(data.mode);
-        document.getElementById('auto-enabled').textContent = data.auto_enabled ? '활성화' : '비활성화';
-        
-        // 다음 예정 시간
+                    // 다음 예정 시간 (KST 기준)
         if (data.next_scheduled) {
             const nextTime = new Date(data.next_scheduled);
-            document.getElementById('next-scheduled').textContent = 
-                nextTime.toLocaleDateString('ko-KR') + ' ' + nextTime.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'});
+            // 서버에서 이미 KST로 전송되므로 직접 사용
+            document.getElementById('next-scheduled').textContent =
+                nextTime.toLocaleDateString('ko-KR') + ' ' + nextTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
         } else {
             document.getElementById('next-scheduled').textContent = '설정되지 않음';
         }
 
-        // 성공률
-        if (data.statistics) {
-            document.getElementById('success-rate').textContent = 
-                Math.round(data.statistics.success_rate) + '%';
-        }
-
-        // 설정 폼 업데이트
-        document.getElementById('optimization-mode-select').value = data.mode;
-        document.getElementById('auto-optimization').checked = data.auto_enabled;
-    }
-
-    async loadOptimizationHistory() {
-        try {
-            const response = await fetch('/api/ai_optimization/history?limit=10');
-            const result = await response.json();
-
-            if (result.success) {
-                this.updateHistoryTable(result.data);
+            // 성공률
+            if (data.statistics) {
+                document.getElementById('success-rate').textContent =
+                    Math.round(data.statistics.success_rate) + '%';
             }
-        } catch (error) {
-            console.error('최적화 이력 로드 오류:', error);
-        }
-    }
 
-    updateHistoryTable(history) {
-        const tbody = document.getElementById('optimization-history');
-        
-        if (history.length === 0) {
-            tbody.innerHTML = `
+            // 설정 폼 업데이트
+            document.getElementById('optimization-mode-select').value = data.mode;
+            document.getElementById('auto-optimization').checked = data.auto_enabled;
+        }
+
+        async loadOptimizationHistory() {
+            try {
+                const response = await fetch('/api/ai_optimization/history?limit=10');
+                const result = await response.json();
+
+                if (result.success) {
+                    this.updateHistoryTable(result.data);
+                }
+            } catch (error) {
+                console.error('최적화 이력 로드 오류:', error);
+            }
+        }
+
+        updateHistoryTable(history) {
+            const tbody = document.getElementById('optimization-history');
+
+            if (history.length === 0) {
+                tbody.innerHTML = `
                 <tr>
                     <td colspan="5" class="text-center text-muted">
                         <i class="fas fa-clock"></i> 최적화 이력이 없습니다.
                     </td>
                 </tr>
             `;
-            return;
-        }
+                return;
+            }
 
-        tbody.innerHTML = history.map(item => {
-            const timestamp = new Date(item.timestamp).toLocaleString('ko-KR');
+                    tbody.innerHTML = history.map(item => {
+            // KST 시간으로 변환하여 표시
+            const timestamp = new Date(item.timestamp);
+            const kstTimestamp = timestamp.toLocaleString('ko-KR', {
+                timeZone: 'Asia/Seoul',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
             const improvement = item.expected_improvement || 0;
             const status = item.status || 'completed';
             
             return `
                 <tr>
-                    <td>${timestamp}</td>
+                    <td>${kstTimestamp}</td>
                     <td>${this.getModeText(item.mode || 'balanced')}</td>
                     <td><span class="badge bg-success">${improvement.toFixed(1)}%</span></td>
                     <td>${item.action || '최적화 실행'}</td>
@@ -534,282 +550,287 @@ class AIOptimizationManager {
                 </tr>
             `;
         }).join('');
-    }
+        }
 
-    async executeOptimization() {
-        const mode = document.getElementById('optimization-mode-select').value;
-        
-        this.showOptimizationModal();
-        this.addLog('info', '전체 AI 최적화 시작...');
+        async executeOptimization() {
+            const mode = document.getElementById('optimization-mode-select').value;
 
-        try {
-            this.updateOptimizationProgress(20, '시장 상황 분석 중...');
-            
-            const response = await fetch('/api/ai_optimization/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: mode })
-            });
+            this.showOptimizationModal();
+            this.addLog('info', '전체 AI 최적화 시작...');
 
-            this.updateOptimizationProgress(50, '최적화 전략 계산 중...');
-            
-            const result = await response.json();
+            try {
+                this.updateOptimizationProgress(20, '시장 상황 분석 중...');
 
-            this.updateOptimizationProgress(80, '최적화 적용 중...');
+                const response = await fetch('/api/ai_optimization/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode })
+                });
 
-            setTimeout(() => {
+                this.updateOptimizationProgress(50, '최적화 전략 계산 중...');
+
+                const result = await response.json();
+
+                this.updateOptimizationProgress(80, '최적화 적용 중...');
+
+                setTimeout(() => {
+                    this.hideOptimizationModal();
+
+                    if (result.success) {
+                        const improvement = result.summary?.overall_improvement || 0;
+                        this.addLog('success', `전체 최적화 완료! 예상 개선율: ${improvement.toFixed(1)}%`);
+
+                        if (result.summary?.key_changes) {
+                            result.summary.key_changes.forEach(change => {
+                                this.addLog('info', '✓ ' + change);
+                            });
+                        }
+                    } else {
+                        this.addLog('error', '최적화 실행 실패: ' + (result.message || result.error));
+                    }
+
+                    this.loadSystemStatus();
+                }, 1000);
+
+            } catch (error) {
                 this.hideOptimizationModal();
-                
+                this.addLog('error', '최적화 실행 오류: ' + error.message);
+            }
+        }
+
+        async executeWeightOptimization() {
+            this.addLog('info', '가중치 최적화 시작...');
+
+            try {
+                const response = await fetch('/api/ai_optimization/weight_optimization', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ method: 'performance_based', auto_apply: true })
+                });
+
+                const result = await response.json();
+
                 if (result.success) {
-                    const improvement = result.summary?.overall_improvement || 0;
-                    this.addLog('success', `전체 최적화 완료! 예상 개선율: ${improvement.toFixed(1)}%`);
-                    
-                    if (result.summary?.key_changes) {
-                        result.summary.key_changes.forEach(change => {
-                            this.addLog('info', '✓ ' + change);
-                        });
+                    this.addLog('success', '가중치 최적화 완료!');
+                    if (result.applied) {
+                        this.addLog('info', '✓ 새로운 가중치가 적용되었습니다.');
                     }
                 } else {
-                    this.addLog('error', '최적화 실행 실패: ' + (result.message || result.error));
+                    this.addLog('error', '가중치 최적화 실패: ' + result.message);
                 }
-
-                this.loadSystemStatus();
-            }, 1000);
-
-        } catch (error) {
-            this.hideOptimizationModal();
-            this.addLog('error', '최적화 실행 오류: ' + error.message);
-        }
-    }
-
-    async executeWeightOptimization() {
-        this.addLog('info', '가중치 최적화 시작...');
-        
-        try {
-            const response = await fetch('/api/ai_optimization/weight_optimization', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ method: 'performance_based', auto_apply: true })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                this.addLog('success', '가중치 최적화 완료!');
-                if (result.applied) {
-                    this.addLog('info', '✓ 새로운 가중치가 적용되었습니다.');
-                }
-            } else {
-                this.addLog('error', '가중치 최적화 실패: ' + result.message);
+            } catch (error) {
+                this.addLog('error', '가중치 최적화 오류: ' + error.message);
             }
-        } catch (error) {
-            this.addLog('error', '가중치 최적화 오류: ' + error.message);
         }
-    }
 
-    async executeTradingOptimization() {
-        this.addLog('info', '거래 주기 최적화 시작...');
-        
-        try {
-            const response = await fetch('/api/ai_optimization/trading_optimization', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
+        async executeTradingOptimization() {
+            this.addLog('info', '거래 주기 최적화 시작...');
 
-            const result = await response.json();
+            try {
+                const response = await fetch('/api/ai_optimization/trading_optimization', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
 
-            if (result.success && result.data.success) {
-                this.addLog('success', '거래 주기 최적화 완료!');
-                const appliedCount = result.data.applied_recommendations || 0;
-                if (appliedCount > 0) {
-                    this.addLog('info', `✓ ${appliedCount}개 파라미터가 최적화되었습니다.`);
-                }
-            } else {
-                this.addLog('warning', '거래 최적화: ' + (result.data?.message || '권장사항 없음'));
-            }
-        } catch (error) {
-            this.addLog('error', '거래 최적화 오류: ' + error.message);
-        }
-    }
+                const result = await response.json();
 
-    async executeParameterTuning() {
-        this.addLog('info', 'AI 파라미터 튜닝 시작...');
-        
-        try {
-            const response = await fetch('/api/ai_optimization/parameter_tuning', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ objective: 'balance_risk_return' })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                if (result.data.success) {
-                    const totalOptimizations = result.data.total_optimizations || 0;
-                    this.addLog('success', `파라미터 튜닝 완료! ${totalOptimizations}개 전략 최적화`);
+                if (result.success && result.data.success) {
+                    this.addLog('success', '거래 주기 최적화 완료!');
+                    const appliedCount = result.data.applied_recommendations || 0;
+                    if (appliedCount > 0) {
+                        this.addLog('info', `✓ ${appliedCount}개 파라미터가 최적화되었습니다.`);
+                    }
                 } else {
-                    this.addLog('warning', '파라미터 튜닝: ' + result.data.message);
+                    this.addLog('warning', '거래 최적화: ' + (result.data?.message || '권장사항 없음'));
                 }
-            } else {
-                this.addLog('error', '파라미터 튜닝 실패: ' + result.message);
+            } catch (error) {
+                this.addLog('error', '거래 최적화 오류: ' + error.message);
             }
-        } catch (error) {
-            this.addLog('error', '파라미터 튜닝 오류: ' + error.message);
         }
-    }
 
-    async showPerformanceAnalysis() {
-        this.addLog('info', '성과 분석 시작...');
-        
-        try {
-            const response = await fetch('/api/ai_optimization/performance_analysis?days=30');
-            const result = await response.json();
+        async executeParameterTuning() {
+            this.addLog('info', 'AI 파라미터 튜닝 시작...');
 
-            if (result.success) {
-                const summary = result.data.portfolio_summary;
-                this.addLog('success', '성과 분석 완료!');
-                this.addLog('info', `📊 총 전략: ${summary.total_strategies}개`);
-                this.addLog('info', `📈 전체 승률: ${(summary.overall_win_rate * 100).toFixed(1)}%`);
-                this.addLog('info', `💰 총 손익: ${summary.total_pnl?.toLocaleString() || 0} KRW`);
-                this.addLog('info', `🎯 평균 AI 점수: ${summary.avg_ai_score?.toFixed(1) || 0}점`);
-            } else {
-                this.addLog('error', '성과 분석 실패: ' + result.message);
+            try {
+                const response = await fetch('/api/ai_optimization/parameter_tuning', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ objective: 'balance_risk_return' })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    if (result.data.success) {
+                        const totalOptimizations = result.data.total_optimizations || 0;
+                        this.addLog('success', `파라미터 튜닝 완료! ${totalOptimizations}개 전략 최적화`);
+                    } else {
+                        this.addLog('warning', '파라미터 튜닝: ' + result.data.message);
+                    }
+                } else {
+                    this.addLog('error', '파라미터 튜닝 실패: ' + result.message);
+                }
+            } catch (error) {
+                this.addLog('error', '파라미터 튜닝 오류: ' + error.message);
             }
-        } catch (error) {
-            this.addLog('error', '성과 분석 오류: ' + error.message);
         }
-    }
 
-    async saveSettings() {
-        const config = {
-            mode: document.getElementById('optimization-mode-select').value,
-            auto_enabled: document.getElementById('auto-optimization').checked,
-            interval_hours: parseInt(document.getElementById('optimization-interval').value)
-        };
+        async showPerformanceAnalysis() {
+            this.addLog('info', '성과 분석 시작...');
 
-        try {
-            const response = await fetch('/api/ai_optimization/configure', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
+            try {
+                const response = await fetch('/api/ai_optimization/performance_analysis?days=30');
+                const result = await response.json();
 
-            const result = await response.json();
-
-            if (result.success) {
-                this.addLog('success', '설정이 저장되었습니다.');
-                this.loadSystemStatus();
-            } else {
-                this.addLog('error', '설정 저장 실패: ' + result.message);
+                if (result.success) {
+                    const summary = result.data.portfolio_summary;
+                    this.addLog('success', '성과 분석 완료!');
+                    this.addLog('info', `📊 총 전략: ${summary.total_strategies}개`);
+                    this.addLog('info', `📈 전체 승률: ${(summary.overall_win_rate * 100).toFixed(1)}%`);
+                    this.addLog('info', `💰 총 손익: ${summary.total_pnl?.toLocaleString() || 0} KRW`);
+                    this.addLog('info', `🎯 평균 AI 점수: ${summary.avg_ai_score?.toFixed(1) || 0}점`);
+                } else {
+                    this.addLog('error', '성과 분석 실패: ' + result.message);
+                }
+            } catch (error) {
+                this.addLog('error', '성과 분석 오류: ' + error.message);
             }
-        } catch (error) {
-            this.addLog('error', '설정 저장 오류: ' + error.message);
         }
-    }
 
-    showOptimizationModal() {
-        const modal = new bootstrap.Modal(document.getElementById('optimizationModal'));
-        modal.show();
-        this.updateOptimizationProgress(0, '최적화 시작...');
-    }
+        async saveSettings() {
+            const config = {
+                mode: document.getElementById('optimization-mode-select').value,
+                auto_enabled: document.getElementById('auto-optimization').checked,
+                interval_hours: parseInt(document.getElementById('optimization-interval').value)
+            };
 
-    hideOptimizationModal() {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('optimizationModal'));
-        if (modal) modal.hide();
-    }
+            try {
+                const response = await fetch('/api/ai_optimization/configure', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
 
-    updateOptimizationProgress(percentage, text) {
-        document.getElementById('optimization-progress-bar').style.width = percentage + '%';
-        document.getElementById('optimization-progress-detail').textContent = text;
-    }
+                const result = await response.json();
 
-    addLog(type, message) {
+                if (result.success) {
+                    this.addLog('success', '설정이 저장되었습니다.');
+                    this.loadSystemStatus();
+                } else {
+                    this.addLog('error', '설정 저장 실패: ' + result.message);
+                }
+            } catch (error) {
+                this.addLog('error', '설정 저장 오류: ' + error.message);
+            }
+        }
+
+        showOptimizationModal() {
+            const modal = new bootstrap.Modal(document.getElementById('optimizationModal'));
+            modal.show();
+            this.updateOptimizationProgress(0, '최적화 시작...');
+        }
+
+        hideOptimizationModal() {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('optimizationModal'));
+            if (modal) modal.hide();
+        }
+
+        updateOptimizationProgress(percentage, text) {
+            document.getElementById('optimization-progress-bar').style.width = percentage + '%';
+            document.getElementById('optimization-progress-detail').textContent = text;
+        }
+
+            addLog(type, message) {
         const logContainer = document.getElementById('optimization-log');
-        const timestamp = new Date().toLocaleTimeString('ko-KR');
+        const timestamp = new Date().toLocaleTimeString('ko-KR', {
+            timeZone: 'Asia/Seoul',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
         
         const logEntry = document.createElement('div');
         logEntry.className = 'mb-2';
-        
-        let icon, colorClass;
-        switch (type) {
-            case 'success':
-                icon = 'fas fa-check-circle';
-                colorClass = 'text-success';
-                break;
-            case 'error':
-                icon = 'fas fa-exclamation-circle';
-                colorClass = 'text-danger';
-                break;
-            case 'warning':
-                icon = 'fas fa-exclamation-triangle';
-                colorClass = 'text-warning';
-                break;
-            default:
-                icon = 'fas fa-info-circle';
-                colorClass = 'text-info';
-        }
 
-        logEntry.innerHTML = `
+            let icon, colorClass;
+            switch (type) {
+                case 'success':
+                    icon = 'fas fa-check-circle';
+                    colorClass = 'text-success';
+                    break;
+                case 'error':
+                    icon = 'fas fa-exclamation-circle';
+                    colorClass = 'text-danger';
+                    break;
+                case 'warning':
+                    icon = 'fas fa-exclamation-triangle';
+                    colorClass = 'text-warning';
+                    break;
+                default:
+                    icon = 'fas fa-info-circle';
+                    colorClass = 'text-info';
+            }
+
+            logEntry.innerHTML = `
             <small class="text-muted">${timestamp}</small>
             <i class="${icon} ${colorClass} me-1"></i>
             <span>${message}</span>
         `;
 
-        logContainer.appendChild(logEntry);
-        logContainer.scrollTop = logContainer.scrollHeight;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
 
-        // 로그가 비어있던 상태라면 초기 메시지 제거
-        const emptyMessage = logContainer.querySelector('.text-center');
-        if (emptyMessage) emptyMessage.remove();
-    }
+            // 로그가 비어있던 상태라면 초기 메시지 제거
+            const emptyMessage = logContainer.querySelector('.text-center');
+            if (emptyMessage) emptyMessage.remove();
+        }
 
-    clearLog() {
-        const logContainer = document.getElementById('optimization-log');
-        logContainer.innerHTML = `
+        clearLog() {
+            const logContainer = document.getElementById('optimization-log');
+            logContainer.innerHTML = `
             <div class="text-center text-muted">
                 <i class="fas fa-info-circle"></i> 최적화 실행 시 로그가 여기에 표시됩니다.
             </div>
         `;
-    }
+        }
 
-    getStatusText(status) {
-        const statusMap = {
-            'idle': '대기중',
-            'running': '실행중',
-            'completed': '완료',
-            'error': '오류'
-        };
-        return statusMap[status] || status;
-    }
+        getStatusText(status) {
+            const statusMap = {
+                'idle': '대기중',
+                'running': '실행중',
+                'completed': '완료',
+                'error': '오류'
+            };
+            return statusMap[status] || status;
+        }
 
-    getModeText(mode) {
-        const modeMap = {
-            'conservative': '보수적',
-            'balanced': '균형',
-            'aggressive': '공격적',
-            'manual': '수동'
-        };
-        return modeMap[mode] || mode;
-    }
+        getModeText(mode) {
+            const modeMap = {
+                'conservative': '보수적',
+                'balanced': '균형',
+                'aggressive': '공격적',
+                'manual': '수동'
+            };
+            return modeMap[mode] || mode;
+        }
 
-    startAutoRefresh() {
-        this.refreshTimer = setInterval(() => {
-            this.loadSystemStatus();
-        }, this.refreshInterval);
-    }
+        startAutoRefresh() {
+            this.refreshTimer = setInterval(() => {
+                this.loadSystemStatus();
+            }, this.refreshInterval);
+        }
 
-    stopAutoRefresh() {
-        if (this.refreshTimer) {
-            clearInterval(this.refreshTimer);
-            this.refreshTimer = null;
+        stopAutoRefresh() {
+            if (this.refreshTimer) {
+                clearInterval(this.refreshTimer);
+                this.refreshTimer = null;
+            }
         }
     }
-}
 
-// 페이지 로드 시 초기화
-document.addEventListener('DOMContentLoaded', function() {
-    new AIOptimizationManager();
-});
+    // 페이지 로드 시 초기화
+    document.addEventListener('DOMContentLoaded', function () {
+        new AIOptimizationManager();
+    });
 </script>
 {% endblock %}

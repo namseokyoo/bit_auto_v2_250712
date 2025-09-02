@@ -19,6 +19,7 @@ from core.ai_performance_analyzer import ai_performance_analyzer
 from core.dynamic_weight_optimizer import dynamic_weight_optimizer
 from core.adaptive_trading_optimizer import adaptive_trading_optimizer
 from core.ai_parameter_tuner import ai_parameter_tuner
+from core.utils import now_kst
 
 
 class OptimizationMode(Enum):
@@ -192,7 +193,7 @@ class AIOptimizationManager:
             if optimization_summary.get('overall_improvement', 0) > 0:
                 self.successful_optimizations += 1
 
-            self.last_optimization_time = datetime.now()
+            self.last_optimization_time = now_kst()
 
             with self._lock:
                 self.current_status = OptimizationStatus.COMPLETED
@@ -204,7 +205,7 @@ class AIOptimizationManager:
             return {
                 'success': True,
                 'mode': self.optimization_mode.value,
-                'execution_time': datetime.now().isoformat(),
+                'execution_time': now_kst().isoformat(),
                 'summary': optimization_summary,
                 'detailed_results': optimization_results
             }
@@ -301,7 +302,7 @@ class AIOptimizationManager:
             return True
 
         hours_since_last = (
-            datetime.now() - self.last_optimization_time).total_seconds() / 3600
+            now_kst() - self.last_optimization_time).total_seconds() / 3600
         return hours_since_last >= self.optimization_interval
 
     def _get_next_optimization_time(self) -> datetime:
@@ -310,7 +311,7 @@ class AIOptimizationManager:
         if self.last_optimization_time:
             return self.last_optimization_time + timedelta(hours=self.optimization_interval)
         else:
-            return datetime.now() + timedelta(hours=self.optimization_interval)
+            return now_kst() + timedelta(hours=self.optimization_interval)
 
     def _evaluate_system_health(self) -> SystemHealthMetrics:
         """시스템 건강도 평가"""
@@ -362,7 +363,7 @@ class AIOptimizationManager:
                 risk_score=risk_score,
                 optimization_score=optimization_score,
                 stability_score=stability_score,
-                last_updated=datetime.now()
+                last_updated=now_kst()
             )
 
         except Exception as e:
@@ -373,7 +374,7 @@ class AIOptimizationManager:
                 risk_score=50.0,
                 optimization_score=50.0,
                 stability_score=50.0,
-                last_updated=datetime.now()
+                last_updated=now_kst()
             )
 
     def _should_run_weight_optimization(self, health_metrics: SystemHealthMetrics) -> bool:
