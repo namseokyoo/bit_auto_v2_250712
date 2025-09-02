@@ -700,46 +700,36 @@ def api_current_price():
         from core.upbit_api import UpbitAPI
         api = UpbitAPI(paper_trading=False)  # 공개 API는 인증 불필요
         
-        # 현재가 조회
-        current_price = api.get_current_price('KRW-BTC')
+        # 직접 ticker API 호출로 현재가 조회
+        ticker_data = api._make_request('GET', '/v1/ticker', {'markets': 'KRW-BTC'})
         
-        if current_price:
-            # 추가 시장 정보도 함께 조회
-            ticker_data = api._make_request('GET', '/v1/ticker', {'markets': 'KRW-BTC'})
-            if ticker_data and len(ticker_data) > 0:
-                ticker = ticker_data[0]
-                
-                response = {
-                    'success': True,
-                    'data': {
-                        'price': current_price,
-                        'formatted_price': f"₩ {current_price:,.0f}",
-                        'change_rate': ticker.get('signed_change_rate', 0) * 100,
-                        'change_price': ticker.get('signed_change_price', 0),
-                        'high_price': ticker.get('high_price', 0),
-                        'low_price': ticker.get('low_price', 0),
-                        'prev_closing_price': ticker.get('prev_closing_price', 0),
-                        'trade_volume': ticker.get('acc_trade_volume_24h', 0),
-                        'timestamp': datetime.now().isoformat()
-                    }
-                }
-            else:
-                response = {
-                    'success': True,
-                    'data': {
-                        'price': current_price,
-                        'formatted_price': f"₩ {current_price:,.0f}",
-                        'timestamp': datetime.now().isoformat()
-                    }
-                }
-        else:
-            response = {
+        if not ticker_data or len(ticker_data) == 0:
+            return jsonify({
                 'success': False,
-                'message': '현재가 조회 실패'
-            }
-            
-        return jsonify(response)
+                'message': 'ticker 데이터 조회 실패'
+            })
         
+        ticker = ticker_data[0]
+        current_price = float(ticker['trade_price'])
+
+        # 시장 정보 생성
+        response = {
+            'success': True,
+            'data': {
+                'price': current_price,
+                'formatted_price': f"₩ {current_price:,.0f}",
+                'change_rate': ticker.get('signed_change_rate', 0) * 100,
+                'change_price': ticker.get('signed_change_price', 0),
+                'high_price': float(ticker.get('high_price', 0)),
+                'low_price': float(ticker.get('low_price', 0)),
+                'prev_closing_price': float(ticker.get('prev_closing_price', 0)),
+                'trade_volume': float(ticker.get('acc_trade_volume_24h', 0)),
+                'timestamp': datetime.now().isoformat()
+            }
+        }
+
+        return jsonify(response)
+
     except Exception as e:
         logger.error(f"현재가 조회 오류: {e}")
         return jsonify({
@@ -754,10 +744,10 @@ def api_chart_data():
     try:
         from core.upbit_api import UpbitAPI
         api = UpbitAPI(paper_trading=False)
-        
+
         # 최근 24시간 5분봉 데이터 (288개)
         candles = api.get_candles('KRW-BTC', minutes=5, count=288)
-        
+
         if candles:
             chart_data = []
             for candle in candles:
@@ -769,10 +759,10 @@ def api_chart_data():
                     'close': float(candle['trade_price']),
                     'volume': float(candle['candle_acc_trade_volume'])
                 })
-            
+
             # 시간순 정렬 (오래된 것부터)
             chart_data.reverse()
-            
+
             return jsonify({
                 'success': True,
                 'data': chart_data
@@ -782,7 +772,7 @@ def api_chart_data():
                 'success': False,
                 'message': '차트 데이터 조회 실패'
             })
-            
+
     except Exception as e:
         logger.error(f"차트 데이터 조회 오류: {e}")
         return jsonify({

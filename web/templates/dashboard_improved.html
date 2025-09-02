@@ -1673,20 +1673,20 @@
         try {
             const response = await fetch('/api/market/current_price');
             const result = await response.json();
-            
+
             if (result.success && result.data) {
                 const data = result.data;
-                
+
                 // 가격 업데이트
                 document.getElementById('btc-price').textContent = data.formatted_price;
-                
+
                 // 변동률 정보 업데이트
                 const changeElement = document.getElementById('price-change');
                 if (data.change_rate !== undefined) {
                     const changeRate = data.change_rate.toFixed(2);
                     const changePrice = Math.abs(data.change_price).toLocaleString();
                     const isPositive = data.change_rate >= 0;
-                    
+
                     changeElement.innerHTML = `
                         비트코인 (BTC) 
                         <span class="${isPositive ? 'text-success' : 'text-danger'}">
@@ -1708,7 +1708,7 @@
         // 모달이 이미 존재하면 제거
         const existingModal = document.getElementById('chartModal');
         if (existingModal) existingModal.remove();
-        
+
         // 모달 HTML 생성
         const modalHtml = `
             <div class="modal fade" id="chartModal" tabindex="-1">
@@ -1734,14 +1734,14 @@
                 </div>
             </div>
         `;
-        
+
         // 모달을 body에 추가
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
+
         // Bootstrap 모달 표시
         const modal = new bootstrap.Modal(document.getElementById('chartModal'));
         modal.show();
-        
+
         // 차트 데이터 로드 및 렌더링
         await loadChart();
     }
@@ -1751,7 +1751,7 @@
         try {
             const response = await fetch('/api/market/chart_data');
             const result = await response.json();
-            
+
             if (result.success && result.data) {
                 renderChart(result.data);
             } else {
@@ -1779,16 +1779,16 @@
         ctx.style.height = '500px';
         document.getElementById('chartContainer').innerHTML = '';
         document.getElementById('chartContainer').appendChild(ctx);
-        
+
         // 데이터 포맷팅
         const labels = data.map(item => {
             const date = new Date(item.time);
-            return date.toLocaleDateString('ko-KR') + ' ' + date.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'});
+            return date.toLocaleDateString('ko-KR') + ' ' + date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
         });
-        
+
         const prices = data.map(item => item.close);
         const volumes = data.map(item => item.volume);
-        
+
         new Chart(ctx, {
             type: 'line',
             data: {
@@ -1828,7 +1828,7 @@
                             text: '가격 (KRW)'
                         },
                         ticks: {
-                            callback: function(value) {
+                            callback: function (value) {
                                 return '₩' + value.toLocaleString();
                             }
                         }
@@ -1840,7 +1840,7 @@
                     },
                     tooltip: {
                         callbacks: {
-                            label: function(context) {
+                            label: function (context) {
                                 return '가격: ₩' + context.parsed.y.toLocaleString();
                             }
                         }
@@ -1851,10 +1851,10 @@
     }
 
     // 페이지 로드 시 가격 업데이트 및 정기적 업데이트 설정
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // 즉시 가격 업데이트
         updateBitcoinPrice();
-        
+
         // 30초마다 가격 업데이트
         setInterval(updateBitcoinPrice, 30000);
     });
