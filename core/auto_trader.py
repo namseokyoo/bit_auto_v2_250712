@@ -214,8 +214,12 @@ class AutoTrader:
         jobs = schedule.get_jobs()
         if jobs:
             next_run = min(job.next_run for job in jobs if job.next_run)
+            # schedule 라이브러리는 naive datetime을 반환하므로 KST로 변환
+            if next_run.tzinfo is None:
+                # 로컬 시간(KST)으로 가정하고 timezone 정보 추가
+                next_run = self.kst.localize(next_run)
             self.state.next_execution_time = next_run
-            self.logger.debug(f"다음 실행 시간: {next_run}")
+            self.logger.debug(f"다음 실행 시간 (KST): {next_run}")
 
     def start(self):
         """자동거래 시작"""
