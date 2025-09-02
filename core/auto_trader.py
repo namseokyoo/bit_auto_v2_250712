@@ -214,12 +214,29 @@ class AutoTrader:
         jobs = schedule.get_jobs()
         if jobs:
             next_run = min(job.next_run for job in jobs if job.next_run)
-            # schedule 라이브러리는 naive datetime을 반환하므로 KST로 변환
+            self.logger.debug(f"schedule.next_run 원본: {next_run}")
+            
+            # schedule 라이브러리는 시스템 로컬 시간 기준의 naive datetime을 반환
+            # 서버가 UTC에서 실행 중이라면 UTC로 해석하고 KST로 변환 필요
             if next_run.tzinfo is None:
-                # 로컬 시간(KST)으로 가정하고 timezone 정보 추가
-                next_run = self.kst.localize(next_run)
+                try:
+                    # 시스템 시간대 확인 후 KST로 변환
+                    import time
+                    system_tz_offset = time.timezone  # 초 단위
+                    
+                    # 시스템이 UTC라면 next_run을 UTC로 해석하고 KST로 변환
+                    if abs(system_tz_offset) < 3600:  # UTC 근처 (1시간 이내)
+                        next_run = pytz.utc.localize(next_run).astimezone(self.kst)
+                    else:
+                        # 다른 시간대라면 로컬 시간으로 가정
+                        next_run = self.kst.localize(next_run)
+                        
+                except Exception as e:
+                    self.logger.warning(f"시간대 변환 오류: {e}, 로컬 시간으로 가정")
+                    next_run = self.kst.localize(next_run)
+                    
             self.state.next_execution_time = next_run
-            self.logger.debug(f"다음 실행 시간 (KST): {next_run}")
+            self.logger.debug(f"다음 실행 시간 (최종 KST): {next_run}")
 
     def start(self):
         """자동거래 시작"""
