@@ -698,24 +698,25 @@ def api_current_price():
     """실시간 비트코인 현재가격 조회 API"""
     try:
         import requests
-        
+
         # Upbit API 직접 호출
-        response = requests.get('https://api.upbit.com/v1/ticker?markets=KRW-BTC', timeout=10)
-        
+        response = requests.get(
+            'https://api.upbit.com/v1/ticker?markets=KRW-BTC', timeout=10)
+
         if response.status_code != 200:
             return jsonify({
                 'success': False,
                 'message': f'Upbit API 호출 실패: {response.status_code}'
             })
-        
+
         ticker_data = response.json()
-        
+
         if not ticker_data or len(ticker_data) == 0:
             return jsonify({
                 'success': False,
                 'message': 'ticker 데이터가 비어있음'
             })
-        
+
         ticker = ticker_data[0]
         current_price = float(ticker['trade_price'])
 
@@ -734,9 +735,9 @@ def api_current_price():
                 'timestamp': datetime.now().isoformat()
             }
         }
-            
+
         return jsonify(response_data)
-        
+
     except Exception as e:
         logger.error(f"현재가 조회 오류: {e}")
         return jsonify({
@@ -750,16 +751,17 @@ def api_chart_data():
     """실시간 차트 데이터 조회 API"""
     try:
         import requests
-        
+
         # 최근 24시간 5분봉 데이터 (288개) 직접 호출
-        response = requests.get('https://api.upbit.com/v1/candles/minutes/5?market=KRW-BTC&count=288', timeout=15)
-        
+        response = requests.get(
+            'https://api.upbit.com/v1/candles/minutes/5?market=KRW-BTC&count=288', timeout=15)
+
         if response.status_code != 200:
             return jsonify({
                 'success': False,
                 'message': f'Upbit 캔들 API 호출 실패: {response.status_code}'
             })
-        
+
         candles = response.json()
 
         if candles:
@@ -789,6 +791,273 @@ def api_chart_data():
 
     except Exception as e:
         logger.error(f"차트 데이터 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# =============================================================================
+# AI 최적화 시스템 API 엔드포인트
+# =============================================================================
+
+@app.route('/api/ai_optimization/status')
+def api_ai_optimization_status():
+    """AI 최적화 시스템 상태 조회 API"""
+    try:
+        from core.ai_optimization_manager import ai_optimization_manager
+        
+        status = ai_optimization_manager.get_optimization_status()
+        
+        return jsonify({
+            'success': True,
+            'data': status
+        })
+        
+    except Exception as e:
+        logger.error(f"AI 최적화 상태 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai_optimization/execute', methods=['POST'])
+def api_ai_optimization_execute():
+    """AI 최적화 실행 API"""
+    try:
+        from core.ai_optimization_manager import ai_optimization_manager, OptimizationMode
+        
+        request_data = request.get_json() or {}
+        mode = request_data.get('mode', 'balanced')
+        
+        # 모드 검증
+        if mode not in [m.value for m in OptimizationMode]:
+            return jsonify({
+                'success': False,
+                'message': f'유효하지 않은 모드: {mode}'
+            }), 400
+        
+        optimization_mode = OptimizationMode(mode)
+        result = ai_optimization_manager.execute_full_optimization(optimization_mode)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"AI 최적화 실행 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai_optimization/configure', methods=['POST'])
+def api_ai_optimization_configure():
+    """AI 최적화 설정 API"""
+    try:
+        from core.ai_optimization_manager import ai_optimization_manager
+        
+        config_data = request.get_json() or {}
+        
+        success = ai_optimization_manager.configure_optimization(config_data)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '설정이 업데이트되었습니다'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '설정 업데이트 실패'
+            }), 400
+        
+    except Exception as e:
+        logger.error(f"AI 최적화 설정 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai_optimization/history')
+def api_ai_optimization_history():
+    """AI 최적화 이력 조회 API"""
+    try:
+        from core.ai_optimization_manager import ai_optimization_manager
+        
+        limit = request.args.get('limit', 10, type=int)
+        history = ai_optimization_manager.get_optimization_history(limit)
+        
+        return jsonify({
+            'success': True,
+            'data': history
+        })
+        
+    except Exception as e:
+        logger.error(f"AI 최적화 이력 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai_optimization/performance_analysis')
+def api_ai_performance_analysis():
+    """AI 성과 분석 API"""
+    try:
+        from core.ai_performance_analyzer import ai_performance_analyzer
+        
+        days = request.args.get('days', 30, type=int)
+        
+        # 포트폴리오 성과 요약
+        portfolio_summary = ai_performance_analyzer.get_portfolio_performance_summary(days)
+        
+        # 활성 전략 목록
+        active_strategies = config_manager.get_config('independent_strategies.strategies', {})
+        strategy_metrics = {}
+        
+        for strategy_id, config in active_strategies.items():
+            if config.get('enabled', True):
+                metrics = ai_performance_analyzer.analyze_strategy_performance(strategy_id, days)
+                if metrics:
+                    strategy_metrics[strategy_id] = metrics.to_dict()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'portfolio_summary': portfolio_summary,
+                'strategy_metrics': strategy_metrics,
+                'analysis_period': days
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"AI 성과 분석 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai_optimization/weight_optimization', methods=['POST'])
+def api_weight_optimization():
+    """가중치 최적화 API"""
+    try:
+        from core.dynamic_weight_optimizer import dynamic_weight_optimizer, WeightAdjustmentStrategy
+        
+        request_data = request.get_json() or {}
+        method = request_data.get('method', 'performance_based')
+        
+        # 방법 검증
+        if method not in [s.value for s in WeightAdjustmentStrategy]:
+            return jsonify({
+                'success': False,
+                'message': f'유효하지 않은 최적화 방법: {method}'
+            }), 400
+        
+        strategy = WeightAdjustmentStrategy(method)
+        result = dynamic_weight_optimizer.optimize_portfolio_weights(strategy)
+        
+        if result:
+            # 자동 적용 여부 확인
+            auto_apply = request_data.get('auto_apply', False)
+            if auto_apply:
+                applied = dynamic_weight_optimizer.apply_weight_adjustments(result)
+                return jsonify({
+                    'success': True,
+                    'data': result.to_dict() if hasattr(result, 'to_dict') else result,
+                    'applied': applied
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'data': result.to_dict() if hasattr(result, 'to_dict') else result
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '가중치 최적화 결과 없음'
+            })
+        
+    except Exception as e:
+        logger.error(f"가중치 최적화 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai_optimization/trading_optimization', methods=['POST'])
+def api_trading_optimization():
+    """거래 최적화 API"""
+    try:
+        from core.adaptive_trading_optimizer import adaptive_trading_optimizer
+        
+        result = adaptive_trading_optimizer.auto_optimize()
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        logger.error(f"거래 최적화 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ai_optimization/parameter_tuning', methods=['POST'])
+def api_parameter_tuning():
+    """파라미터 튜닝 API"""
+    try:
+        from core.ai_parameter_tuner import ai_parameter_tuner, TuningObjective
+        
+        request_data = request.get_json() or {}
+        objective = request_data.get('objective', 'balance_risk_return')
+        strategy_id = request_data.get('strategy_id')
+        
+        # 목표 검증
+        if objective not in [obj.value for obj in TuningObjective]:
+            return jsonify({
+                'success': False,
+                'message': f'유효하지 않은 튜닝 목표: {objective}'
+            }), 400
+        
+        tuning_objective = TuningObjective(objective)
+        
+        if strategy_id:
+            # 특정 전략 튜닝
+            results = ai_parameter_tuner.tune_strategy_parameters(strategy_id, tuning_objective)
+            
+            # 자동 적용 여부 확인
+            auto_apply = request_data.get('auto_apply', False)
+            if auto_apply and results:
+                application_results = ai_parameter_tuner.apply_tuning_results(results)
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'tuning_results': [r.to_dict() for r in results],
+                        'application_results': application_results
+                    }
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'data': [r.to_dict() for r in results]
+                })
+        else:
+            # 전체 전략 튜닝
+            result = ai_parameter_tuner.auto_tune_all_strategies(tuning_objective)
+            return jsonify({
+                'success': True,
+                'data': result
+            })
+        
+    except Exception as e:
+        logger.error(f"파라미터 튜닝 오류: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

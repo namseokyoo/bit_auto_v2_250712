@@ -57,6 +57,15 @@ class AutoTrader:
         # 설정 변경 콜백 등록
         self._setup_config_callbacks()
 
+        # AI 최적화 관리자 초기화
+        try:
+            from core.ai_optimization_manager import ai_optimization_manager
+            self.ai_optimization_manager = ai_optimization_manager
+            self.logger.info("AI 최적화 관리자 연결 완료")
+        except Exception as e:
+            self.logger.error(f"AI 최적화 관리자 초기화 오류: {e}")
+            self.ai_optimization_manager = None
+
         self.logger.info("AutoTrader 초기화 완료")
 
     def _setup_logger(self) -> logging.Logger:
@@ -227,6 +236,11 @@ class AutoTrader:
             self.data_scheduler.start()
             self.logger.info("5분 캔들 데이터 수집 시작됨")
 
+            # AI 최적화 스케줄러 시작
+            if self.ai_optimization_manager:
+                self.ai_optimization_manager.start_optimization_scheduler()
+                self.logger.info("AI 최적화 스케줄러 시작됨")
+
             # 스케줄 설정
             self._setup_schedule()
 
@@ -265,6 +279,11 @@ class AutoTrader:
         # 5분 캔들 데이터 수집 중지
         self.data_scheduler.stop()
         self.logger.info("5분 캔들 데이터 수집 중지됨")
+
+        # AI 최적화 스케줄러 중지
+        if self.ai_optimization_manager:
+            self.ai_optimization_manager.stop_optimization_scheduler()
+            self.logger.info("AI 최적화 스케줄러 중지됨")
 
         # 스케줄 클리어
         schedule.clear()
