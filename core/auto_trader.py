@@ -395,7 +395,34 @@ class AutoTrader:
                             if analysis_result:
                                 signal = analysis_result.decision.final_signal.value
                                 confidence = analysis_result.decision.confidence
-                                self.logger.info(f"투표 분석 완료: {signal.upper()} (신뢰도: {confidence:.3f}) - 기록 저장됨")
+                                self.logger.info(f"투표 분석 완료: {signal.upper()} (신뢰도: {confidence:.3f})")
+                                
+                                # 확실히 기록되도록 직접 기록 저장
+                                try:
+                                    from core.strategy_execution_tracker import execution_tracker, StrategyExecution
+                                    execution = StrategyExecution(
+                                        strategy_tier="voting",
+                                        strategy_id="auto_trader_voting",
+                                        execution_time=datetime.now(self.kst),
+                                        signal_action=signal,
+                                        confidence=confidence,
+                                        strength=confidence,
+                                        reasoning=analysis_result.decision.reasoning,
+                                        market_regime="unknown",
+                                        indicators={
+                                            'total_votes': analysis_result.decision.total_votes,
+                                            'vote_distribution': analysis_result.decision.vote_distribution
+                                        },
+                                        trade_executed=False,
+                                        trade_id=None,
+                                        pnl=0.0
+                                    )
+                                    execution_tracker.record_execution(execution)
+                                    self.logger.info("AutoTrader에서 직접 실행 기록 저장 완료")
+                                except Exception as record_error:
+                                    self.logger.error(f"실행 기록 저장 오류: {record_error}")
+                                    import traceback
+                                    self.logger.error(f"기록 저장 스택 트레이스: {traceback.format_exc()}")
                                 
                                 # 거래 조건 확인 및 신호 생성
                                 if self.voting_engine.should_execute_trade(analysis_result):
