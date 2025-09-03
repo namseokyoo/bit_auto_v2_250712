@@ -79,7 +79,15 @@ class StrategyExecutionTracker:
     """전략 실행 추적기"""
 
     def __init__(self, db_path: str = "data/strategy_executions.db"):
-        self.db_path = db_path
+        # 프로젝트 루트 기준 절대 경로로 DB 경로 고정 (웹/서비스 프로세스 간 경로 불일치 방지)
+        try:
+            base_dir = Path(__file__).resolve().parents[1]  # .../core/ -> 프로젝트 루트
+        except Exception:
+            base_dir = Path.cwd()
+
+        provided_path = Path(db_path)
+        resolved_path = provided_path if provided_path.is_absolute() else (base_dir / provided_path)
+        self.db_path = str(resolved_path)
         self.logger = logging.getLogger('StrategyExecutionTracker')
         if not self.logger.handlers:
             # 콘솔 핸들러 추가
