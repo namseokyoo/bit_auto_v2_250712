@@ -387,7 +387,10 @@ class AutoTrader:
                     self.logger.info("🗳️ 투표 기반 전략 실행 중...")
                     if self.voting_engine:
                         try:
+                            self.logger.debug("VotingEngine.get_trading_signal() 호출 시작")
                             voting_signal = self.voting_engine.get_trading_signal()
+                            self.logger.debug(f"VotingEngine.get_trading_signal() 완료, 결과: {voting_signal is not None}")
+                            
                             if voting_signal:
                                 self.logger.info(
                                     f"투표 결과: {voting_signal.action} (신뢰도: {voting_signal.confidence:.3f})")
@@ -396,9 +399,12 @@ class AutoTrader:
                                     self.trading_engine.execute_signal(
                                         voting_signal)
                             else:
-                                self.logger.info("투표 결과: HOLD (신뢰도 부족 또는 HOLD 신호)")
+                                self.logger.info(
+                                    "투표 결과: HOLD (신뢰도 부족 또는 HOLD 신호) - 분석 기록은 저장됨")
                         except Exception as ve:
                             self.logger.error(f"투표 엔진 실행 오류: {ve}")
+                            import traceback
+                            self.logger.error(f"스택 트레이스: {traceback.format_exc()}")
                     else:
                         self.logger.warning("VotingEngine을 사용할 수 없습니다.")
 
@@ -600,12 +606,12 @@ class AutoTrader:
             'failed_executions': self.state.failed_executions,
             'success_rate': (self.state.successful_executions / max(1, self.state.total_executions)) * 100
         }
-    
+
     def debug_schedule(self) -> Dict[str, Any]:
         """스케줄 디버그 정보 반환"""
         jobs = schedule.get_jobs()
         trading_config = config_manager.get_trading_config()
-        
+
         return {
             'config_interval_minutes': trading_config.get('trade_interval_minutes', 10),
             'total_jobs': len(jobs),
