@@ -386,15 +386,15 @@ class StrategyExecutionTracker:
         """전략 실행 이력 조회"""
         try:
             with sqlite3.connect(self.db_path) as conn:
-                start_time = (datetime.now() -
-                              timedelta(hours=hours)).isoformat()
+                # 시간 필터는 SQLite datetime()으로 비교하여 TZ 포함 ISO도 정확히 처리
+                start_time = (datetime.now() - timedelta(hours=hours)).isoformat()
 
                 query = '''
                     SELECT execution_time, strategy_tier, strategy_id, signal_action,
                            confidence, strength, reasoning, market_regime, indicators,
                            trade_executed, trade_id, pnl, execution_duration
                     FROM strategy_executions
-                    WHERE execution_time >= ?
+                    WHERE datetime(execution_time) >= datetime(?)
                 '''
                 params = [start_time]
 
@@ -406,7 +406,7 @@ class StrategyExecutionTracker:
                     query += ' AND strategy_id = ?'
                     params.append(strategy_id)
 
-                query += ' ORDER BY execution_time DESC LIMIT ?'
+                query += ' ORDER BY datetime(execution_time) DESC LIMIT ?'
                 params.append(limit)
 
                 cursor = conn.execute(query, params)
