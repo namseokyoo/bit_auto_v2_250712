@@ -387,20 +387,31 @@ class AutoTrader:
                     self.logger.info("🗳️ 투표 기반 전략 실행 중...")
                     if self.voting_engine:
                         try:
-                            self.logger.debug("VotingEngine.get_trading_signal() 호출 시작")
-                            voting_signal = self.voting_engine.get_trading_signal()
-                            self.logger.debug(f"VotingEngine.get_trading_signal() 완료, 결과: {voting_signal is not None}")
+                            # 먼저 분석 실행 (항상 기록 저장)
+                            self.logger.debug("VotingEngine.analyze() 호출 시작")
+                            analysis_result = self.voting_engine.analyze()
+                            self.logger.debug(f"VotingEngine.analyze() 완료, 결과: {analysis_result is not None}")
                             
-                            if voting_signal:
-                                self.logger.info(
-                                    f"투표 결과: {voting_signal.action} (신뢰도: {voting_signal.confidence:.3f})")
-                                # TradingEngine을 통해 실제 거래 실행
-                                if self.trading_engine:
-                                    self.trading_engine.execute_signal(
-                                        voting_signal)
+                            if analysis_result:
+                                signal = analysis_result.decision.final_signal.value
+                                confidence = analysis_result.decision.confidence
+                                self.logger.info(f"투표 분석 완료: {signal.upper()} (신뢰도: {confidence:.3f}) - 기록 저장됨")
+                                
+                                # 거래 조건 확인 및 신호 생성
+                                if self.voting_engine.should_execute_trade(analysis_result):
+                                    voting_signal = self.voting_engine.get_trading_signal()
+                                    if voting_signal:
+                                        self.logger.info(f"거래 신호 생성: {voting_signal.action}")
+                                        # TradingEngine을 통해 실제 거래 실행
+                                        if self.trading_engine:
+                                            self.trading_engine.execute_signal(voting_signal)
+                                    else:
+                                        self.logger.warning("거래 신호 생성 실패")
+                                else:
+                                    self.logger.info("거래 조건 미충족 - HOLD 유지")
                             else:
-                                self.logger.info(
-                                    "투표 결과: HOLD (신뢰도 부족 또는 HOLD 신호) - 분석 기록은 저장됨")
+                                self.logger.warning("투표 분석 결과가 없습니다")
+                                
                         except Exception as ve:
                             self.logger.error(f"투표 엔진 실행 오류: {ve}")
                             import traceback
