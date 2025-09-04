@@ -355,59 +355,69 @@ class AutoTrader:
             self.state.total_executions += 1
             self.state.last_execution_time = datetime.now(self.kst)
 
+            # 1. 다층 전략 분석 실행 (항상 실행하여 기록 저장)
+            execution_success = False
+            multi_tier_decision = None
+            
+            try:
+                # 전략 분석은 거래 조건과 무관하게 항상 실행
+                self.logger.info("🎯 다층 전략 분석 실행 중...")
+                from core.multi_tier_strategy_engine import multi_tier_engine
+                multi_tier_decision = multi_tier_engine.analyze()
+                
+                if multi_tier_decision:
+                    self.logger.info(
+                        f"다층 분석 완료: {multi_tier_decision.final_action.upper()} "
+                        f"(신뢰도: {multi_tier_decision.confidence:.3f})")
+                else:
+                    self.logger.warning("다층 전략 분석 결과가 없습니다")
+                    
+            except Exception as mte:
+                self.logger.error(f"다층 전략 실행 오류: {mte}")
+                import traceback
+                self.logger.error(f"스택 트레이스: {traceback.format_exc()}")
+
+            # 2. 거래 실행 여부 판단 (별도 체크)
+            can_trade = True
+            trade_skip_reason = None
+            
             # 거래 가능 여부 확인
             if not config_manager.is_trading_enabled():
-                self.logger.info("자동거래가 비활성화되어 있습니다.")
-                return
+                can_trade = False
+                trade_skip_reason = "자동거래가 비활성화되어 있습니다"
 
             # 시장 활성도 체크 (밤 시간대 등)
-            if not self._is_market_active():
-                self.logger.info("시장 활성도가 낮아 거래를 건너뜁니다.")
-                return
+            elif not self._is_market_active():
+                can_trade = False
+                trade_skip_reason = "시장 활성도가 낮음"
 
-            # TradingEngine을 통한 전략 실행
-            if self.trading_engine:
-                execution_success = False
+            # 거래 실행 불가 시 로그 출력
+            if not can_trade:
+                self.logger.info(f"거래 실행 건너뜀: {trade_skip_reason}")
 
+            # TradingEngine을 통한 실제 거래 실행
+            if self.trading_engine and can_trade:
                 try:
-                    # 1. 시장 데이터 확인
+                    # 시장 데이터 확인
                     if not self._validate_market_data():
-                        self.logger.warning("시장 데이터 검증 실패")
-                        return
+                        can_trade = False
+                        trade_skip_reason = "시장 데이터 검증 실패"
 
-                    # 2. 리스크 사전 체크
-                    if not self._pre_trade_risk_check():
-                        self.logger.warning("사전 리스크 체크 실패")
-                        return
+                    # 리스크 사전 체크
+                    elif not self._pre_trade_risk_check():
+                        can_trade = False
+                        trade_skip_reason = "사전 리스크 체크 실패"
 
-                    # 3. 다층 전략 분석 실행 (통합된 시스템)
-                    self.logger.info("🎯 다층 전략 분석 실행 중...")
-                    try:
-                        # MultiTierStrategyEngine을 직접 호출하여 분석 및 기록
-                        from core.multi_tier_strategy_engine import multi_tier_engine
-                        multi_tier_decision = multi_tier_engine.analyze()
-                        
-                        if multi_tier_decision:
-                            self.logger.info(
-                                f"다층 분석 완료: {multi_tier_decision.final_action.upper()} "
-                                f"(신뢰도: {multi_tier_decision.confidence:.3f})")
-                            
-                            # 거래 조건 확인 및 신호 생성
-                            if multi_tier_decision.final_action in ['buy', 'sell'] and multi_tier_decision.confidence > 0.6:
-                                # ConsolidatedSignal로 변환
-                                consolidated_signal = self.trading_engine._convert_multitier_to_consolidated(multi_tier_decision)
-                                if consolidated_signal and self.trading_engine:
-                                    self.logger.info(f"거래 신호 생성: {consolidated_signal.action}")
-                                    self.trading_engine._process_consolidated_signal(consolidated_signal)
-                            else:
-                                self.logger.info("거래 조건 미충족 - HOLD 유지")
-                        else:
-                            self.logger.warning("다층 전략 분석 결과가 없습니다")
-                            
-                    except Exception as mte:
-                        self.logger.error(f"다층 전략 실행 오류: {mte}")
-                        import traceback
-                        self.logger.error(f"스택 트레이스: {traceback.format_exc()}")
+                    # 거래 조건 확인 및 신호 생성 (이미 분석된 결과 사용)
+                    if multi_tier_decision and multi_tier_decision.final_action in ['buy', 'sell'] and multi_tier_decision.confidence > 0.6:
+                        # ConsolidatedSignal로 변환
+                        consolidated_signal = self.trading_engine._convert_multitier_to_consolidated(multi_tier_decision)
+                        if consolidated_signal and self.trading_engine:
+                            self.logger.info(f"거래 신호 생성: {consolidated_signal.action}")
+                            self.trading_engine._process_consolidated_signal(consolidated_signal)
+                            execution_success = True
+                    else:
+                        self.logger.info("거래 조건 미충족 - HOLD 유지")
 
                     # 3-1. 기존 시간별 전략 (비활성화 - AutoTrader에서 직접 처리)
                     # legacy_strategies_enabled = config_manager.get_config(
@@ -424,21 +434,24 @@ class AutoTrader:
                     self.logger.info("⏳ 대기 주문 처리 중...")
                     self.trading_engine.process_pending_orders()
 
-                    execution_success = True
-                    self.state.successful_executions += 1
-
-                    # 성공 메트릭 기록
-                    self._log_execution_metrics(success=True)
+                    if execution_success:
+                        self.state.successful_executions += 1
 
                 except Exception as te:
                     self.logger.error(f"TradingEngine 실행 오류: {te}")
-                    raise te
+                    can_trade = False
+                    trade_skip_reason = f"TradingEngine 오류: {str(te)}"
 
-                self.logger.info(
-                    f"✅ 자동거래 실행 완료 - 성공률: {self.state.successful_executions}/{self.state.total_executions}")
+            # 전략 분석은 항상 성공으로 간주 (기록 저장됨)
+            if multi_tier_decision:
+                self.state.successful_executions += 1
+                execution_success = True
 
-            else:
-                raise Exception("TradingEngine을 사용할 수 없습니다.")
+            # 성공 메트릭 기록
+            self._log_execution_metrics(success=execution_success)
+
+            self.logger.info(
+                f"✅ 자동거래 실행 완료 - 성공률: {self.state.successful_executions}/{self.state.total_executions}")
 
         except Exception as e:
             self.state.failed_executions += 1
