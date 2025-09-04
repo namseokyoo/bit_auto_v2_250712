@@ -15,7 +15,7 @@ from core.independent_strategies import (
     RSIMomentumStrategy, BollingerBandStrategy, SupportResistanceStrategy
 )
 from core.phase2_strategies import (
-    EMACrossoverStrategy, MACDStrategy, StochasticStrategy, 
+    EMACrossoverStrategy, MACDStrategy, StochasticStrategy,
     WilliamsRStrategy, CCIStrategy, VolumeSurgeStrategy, PriceActionStrategy
 )
 from core.upbit_api import UpbitAPI
@@ -30,12 +30,12 @@ class VotingResult:
     decision: VotingDecision
     execution_time: datetime
     market_data_summary: Dict[str, Any]
-    
+
     def to_trading_signal(self, price: float, amount: float) -> Optional[TradingSignal]:
         """TradingSignal로 변환"""
         if self.decision.final_signal == StrategySignal.HOLD:
             return None
-            
+
         return TradingSignal(
             strategy_id="voting_engine",
             action=self.decision.final_signal.value,
@@ -50,22 +50,22 @@ class VotingResult:
 
 class VotingStrategyEngine:
     """투표 기반 전략 엔진"""
-    
+
     def __init__(self, upbit_api: UpbitAPI):
         self.upbit_api = upbit_api
         self.logger = logging.getLogger('VotingStrategyEngine')
-        
+
         # 독립 전략 엔진 초기화
         self.engine = IndependentStrategyEngine(upbit_api)
-        
+
         # 전략 등록
         self._register_strategies()
-        
+
         # 설정 로드
         self._load_config()
-        
+
         self.logger.info("VotingStrategyEngine 초기화 완료")
-    
+
     def _register_strategies(self):
         """전략들 등록"""
         strategies = [
@@ -73,7 +73,7 @@ class VotingStrategyEngine:
             (RSIMomentumStrategy(), 1.0),
             (BollingerBandStrategy(), 1.0),
             (SupportResistanceStrategy(), 1.0),
-            
+
             # Phase 2 추가 전략들
             (EMACrossoverStrategy(), 1.0),
             (MACDStrategy(), 1.0),
@@ -83,12 +83,13 @@ class VotingStrategyEngine:
             (VolumeSurgeStrategy(), 1.0),
             (PriceActionStrategy(), 1.0)
         ]
-        
+
         for strategy, weight in strategies:
             self.engine.register_strategy(strategy, weight)
-            
-        self.logger.info(f"🎯 총 {len(strategies)}개 전략 등록 완료 (Phase 1: 3개 + Phase 2: 7개)")
-    
+
+        self.logger.info(
+            f"🎯 총 {len(strategies)}개 전략 등록 완료 (Phase 1: 3개 + Phase 2: 7개)")
+
     def _load_config(self):
         """설정 로드"""
         try:
@@ -109,49 +110,49 @@ class VotingStrategyEngine:
                 'trade_amount_ratio': 0.3,
                 'record_all_decisions': True
             }
-    
+
     def analyze(self) -> Optional[VotingResult]:
         """시장 분석 및 투표 결과"""
         if not self.config.get('enabled', True):
             self.logger.info("VotingStrategyEngine 비활성화됨")
             return None
-        
+
         try:
             # 독립 전략 엔진으로 분석
             decision = self.engine.analyze_market()
-            
+
             if not decision:
                 self.logger.warning("투표 결정 생성 실패")
                 return None
-            
+
             # 결과 생성
             result = VotingResult(
                 decision=decision,
                 execution_time=datetime.now(),
                 market_data_summary=self._get_market_summary()
             )
-            
+
             # 실행 기록 저장
             if self.config.get('record_all_decisions', True):
                 self._record_execution(result)
-            
+
             # 로그 출력
             self.logger.info(
                 f"투표 결과: {decision.final_signal.value.upper()} "
                 f"(신뢰도: {decision.confidence:.3f}, 투표수: {decision.total_votes})"
             )
-            
+
             return result
-            
+
         except Exception as e:
             self.logger.error(f"분석 오류: {e}")
             return None
-    
+
     def should_execute_trade(self, result: VotingResult) -> bool:
         """거래 실행 여부 판단"""
         if not result or result.decision.final_signal == StrategySignal.HOLD:
             return False
-        
+
         # 최소 신뢰도 확인
         min_confidence = self.config.get('min_confidence_threshold', 0.5)
         if result.decision.confidence < min_confidence:
@@ -159,74 +160,79 @@ class VotingStrategyEngine:
                 f"신뢰도 부족으로 거래 보류 ({result.decision.confidence:.3f} < {min_confidence})"
             )
             return False
-        
+
         return True
-    
+
     def calculate_trade_amount(self, result: VotingResult) -> int:
         """거래 금액 계산"""
         try:
             base_amount = self.config.get('max_trade_amount', 100000)
             ratio = self.config.get('trade_amount_ratio', 0.3)
-            
+
             # 신뢰도에 따른 조정
             confidence_multiplier = result.decision.confidence
-            
+
             # 참여 전략 수에 따른 조정
-            participation_multiplier = min(1.0, result.decision.total_votes / 3)
-            
+            participation_multiplier = min(
+                1.0, result.decision.total_votes / 3)
+
             calculated_amount = int(
                 base_amount * ratio * confidence_multiplier * participation_multiplier
             )
-            
-            return max(10000, min(calculated_amount, base_amount))  # 최소 1만원, 최대 설정값
-            
+
+            # 최소 1만원, 최대 설정값
+            return max(10000, min(calculated_amount, base_amount))
+
         except Exception as e:
             self.logger.error(f"거래 금액 계산 오류: {e}")
             return 50000  # 기본값
-    
+
     def get_trading_signal(self) -> Optional[TradingSignal]:
         """거래 신호 생성 (항상 실행 기록 저장)"""
         try:
             # 항상 분석 수행 및 기록 저장
             result = self.analyze()
-            
+
             if not result:
                 self.logger.warning("투표 분석 결과가 없습니다")
                 return None
-            
+
             # 거래 실행 여부와 관계없이 분석은 완료되었음
             # (analyze()에서 이미 _record_execution 호출됨)
-            
+
             # 거래 신호 생성 여부 판단
             if not self.should_execute_trade(result):
-                self.logger.info(f"거래 조건 미충족 - 신호: {result.decision.final_signal.value}, 신뢰도: {result.decision.confidence:.3f}")
+                self.logger.info(
+                    f"거래 조건 미충족 - 신호: {result.decision.final_signal.value}, 신뢰도: {result.decision.confidence:.3f}")
                 return None
-            
+
             # 현재가 조회
-            ticker = self.upbit_api._make_request('GET', '/v1/ticker', {'markets': 'KRW-BTC'})
+            ticker = self.upbit_api._make_request(
+                'GET', '/v1/ticker', {'markets': 'KRW-BTC'})
             current_price = float(ticker[0]['trade_price']) if ticker else 0
-            
+
             if current_price <= 0:
                 self.logger.error("현재가 조회 실패")
                 return None
-            
+
             # 거래 금액 계산
             trade_amount = self.calculate_trade_amount(result)
-            
+
             # TradingSignal 생성
-            self.logger.info(f"거래 신호 생성: {result.decision.final_signal.value} (신뢰도: {result.decision.confidence:.3f})")
+            self.logger.info(
+                f"거래 신호 생성: {result.decision.final_signal.value} (신뢰도: {result.decision.confidence:.3f})")
             return result.to_trading_signal(current_price, trade_amount)
-            
+
         except Exception as e:
             self.logger.error(f"거래 신호 생성 오류: {e}")
             return None
-    
+
     def _record_execution(self, result: VotingResult):
         """실행 기록 저장"""
         try:
             # 전략별 기여도 계산
             tier_contributions = {}
-            
+
             for vote in result.decision.contributing_strategies:
                 tier_contributions[vote.strategy_id] = {
                     'signal': vote.signal.value,
@@ -234,7 +240,7 @@ class VotingStrategyEngine:
                     'strength': vote.strength,
                     'reasoning': vote.reasoning
                 }
-            
+
             # StrategyExecution 생성
             execution = StrategyExecution(
                 strategy_tier="voting",
@@ -254,19 +260,20 @@ class VotingStrategyEngine:
                 trade_id=None,
                 pnl=0.0
             )
-            
+
             # 저장
             execution_tracker.record_execution(execution)
-            
+
         except Exception as e:
             self.logger.error(f"실행 기록 저장 오류: {e}")
-    
+
     def _get_market_summary(self) -> Dict[str, Any]:
         """시장 데이터 요약"""
         try:
             # 현재가 정보
-            ticker = self.upbit_api._make_request('GET', '/v1/ticker', {'markets': 'KRW-BTC'})
-            
+            ticker = self.upbit_api._make_request(
+                'GET', '/v1/ticker', {'markets': 'KRW-BTC'})
+
             if ticker:
                 current_data = ticker[0]
                 return {
@@ -275,18 +282,18 @@ class VotingStrategyEngine:
                     'volume': float(current_data['acc_trade_volume_24h']),
                     'timestamp': datetime.now().isoformat()
                 }
-            
+
             return {}
-            
+
         except Exception as e:
             self.logger.error(f"시장 요약 생성 오류: {e}")
             return {}
-    
+
     def get_engine_status(self) -> Dict[str, Any]:
         """엔진 상태 정보"""
         try:
             strategy_summary = self.engine.get_strategy_summary()
-            
+
             return {
                 'engine_type': 'VotingStrategyEngine',
                 'enabled': self.config.get('enabled', True),
@@ -296,7 +303,7 @@ class VotingStrategyEngine:
                 'config': self.config,
                 'last_updated': datetime.now().isoformat()
             }
-            
+
         except Exception as e:
             self.logger.error(f"상태 조회 오류: {e}")
             return {
@@ -304,18 +311,19 @@ class VotingStrategyEngine:
                 'enabled': False,
                 'error': str(e)
             }
-    
+
     def update_strategy_weights(self, weights: Dict[str, float]):
         """전략 가중치 업데이트"""
         try:
             for strategy_id, weight in weights.items():
-                self.engine.voting_manager.set_strategy_weight(strategy_id, weight)
-            
+                self.engine.voting_manager.set_strategy_weight(
+                    strategy_id, weight)
+
             self.logger.info(f"전략 가중치 업데이트 완료: {weights}")
-            
+
         except Exception as e:
             self.logger.error(f"가중치 업데이트 오류: {e}")
-    
+
     def get_recent_decisions(self, hours: int = 24) -> List[Dict[str, Any]]:
         """최근 결정 내역 조회"""
         try:
@@ -323,7 +331,7 @@ class VotingStrategyEngine:
                 strategy_tier="voting",
                 hours=hours
             )
-            
+
             return [
                 {
                     'timestamp': exec_data.get('execution_time'),
@@ -336,7 +344,7 @@ class VotingStrategyEngine:
                 }
                 for exec_data in executions
             ]
-            
+
         except Exception as e:
             self.logger.error(f"최근 결정 조회 오류: {e}")
             return []
@@ -345,11 +353,12 @@ class VotingStrategyEngine:
 # 전역 인스턴스 (필요시 사용)
 voting_engine = None
 
+
 def get_voting_engine(upbit_api: UpbitAPI = None) -> VotingStrategyEngine:
     """VotingStrategyEngine 인스턴스 반환"""
     global voting_engine
-    
+
     if voting_engine is None and upbit_api is not None:
         voting_engine = VotingStrategyEngine(upbit_api)
-    
+
     return voting_engine

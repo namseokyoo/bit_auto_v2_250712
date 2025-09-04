@@ -81,12 +81,14 @@ class StrategyExecutionTracker:
     def __init__(self, db_path: str = "data/strategy_executions.db"):
         # 프로젝트 루트 기준 절대 경로로 DB 경로 고정 (웹/서비스 프로세스 간 경로 불일치 방지)
         try:
-            base_dir = Path(__file__).resolve().parents[1]  # .../core/ -> 프로젝트 루트
+            base_dir = Path(__file__).resolve(
+            ).parents[1]  # .../core/ -> 프로젝트 루트
         except Exception:
             base_dir = Path.cwd()
 
         provided_path = Path(db_path)
-        resolved_path = provided_path if provided_path.is_absolute() else (base_dir / provided_path)
+        resolved_path = provided_path if provided_path.is_absolute() else (base_dir /
+                                                                           provided_path)
         self.db_path = str(resolved_path)
         self.logger = logging.getLogger('StrategyExecutionTracker')
         if not self.logger.handlers:
@@ -387,7 +389,8 @@ class StrategyExecutionTracker:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 # 시간 필터는 SQLite datetime()으로 비교하여 TZ 포함 ISO도 정확히 처리
-                start_time = (datetime.now() - timedelta(hours=hours)).isoformat()
+                start_time = (datetime.now() -
+                              timedelta(hours=hours)).isoformat()
 
                 query = '''
                     SELECT execution_time, strategy_tier, strategy_id, signal_action,
