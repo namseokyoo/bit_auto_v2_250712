@@ -118,6 +118,12 @@ class VotingStrategyEngine:
             return None
 
         try:
+            # 0) 레짐 기반 동적 가중치 적용 (가용 시)
+            try:
+                self._apply_regime_based_weights()
+            except Exception as e:
+                self.logger.error(f"레짐 가중치 적용 오류: {e}")
+
             # 독립 전략 엔진으로 분석
             decision = self.engine.analyze_market()
 
@@ -250,11 +256,12 @@ class VotingStrategyEngine:
                 confidence=result.decision.confidence,
                 strength=result.decision.confidence,  # 투표 기반이므로 신뢰도와 동일
                 reasoning=result.decision.reasoning,
-                market_regime="unknown",  # 추후 확장
+                market_regime=getattr(self, "_last_market_regime", "unknown"),
                 indicators={
                     'vote_distribution': result.decision.vote_distribution,
                     'tier_contributions': tier_contributions,
-                    'total_votes': result.decision.total_votes
+                    'total_votes': result.decision.total_votes,
+                    'market_regime': getattr(self, "_last_market_regime", "unknown")
                 },
                 trade_executed=False,  # 실제 거래 여부는 나중에 업데이트
                 trade_id=None,
@@ -288,6 +295,70 @@ class VotingStrategyEngine:
         except Exception as e:
             self.logger.error(f"시장 요약 생성 오류: {e}")
             return {}
+
+    # -----------------------------
+    # Regime-based dynamic weighting
+    # -----------------------------
+    def _detect_market_regime(self) -> str:
+        """간단한 레짐 탐지 (상승/하락/횡보) - 현재가 변화율 기준"""
+        try:
+            summary = self._get_market_summary() or {}
+            change_rate = summary.get('change_rate')
+            if change_rate is None:
+                return 'sideways'
+
+            # 임계값: ±1% (단기)
+            if change_rate >= 0.01:
+                return 'bullish'
+            if change_rate <= -0.01:
+                return 'bearish'
+            return 'sideways'
+        except Exception:
+            return 'sideways'
+
+    def _apply_regime_based_weights(self) -> None:
+        """레짐에 따라 전략 가중치 동적 조정 (설정 없으면 기본 매핑 사용)"""
+        regime = self._detect_market_regime()
+        self._last_market_regime = regime
+
+        # 설정에서 레짐 가중치 로드 (없으면 기본)
+        cfg = config_manager.get_config('voting_strategy_engine.regime_weights') or {}
+
+        default_map = {
+            'bullish': {
+                'ema_crossover': 1.5,
+                'macd_signal': 1.3,
+                'rsi_momentum': 1.2,
+                'support_resistance': 0.9,
+                'price_action': 0.9
+            },
+            'bearish': {
+                'ema_crossover': 1.2,
+                'macd_signal': 1.4,
+                'rsi_momentum': 1.1,
+                'support_resistance': 1.1,
+                'price_action': 1.0
+            },
+            'sideways': {
+                'bollinger_squeeze': 1.4,
+                'stochastic_oscillator': 1.2,
+                'price_action': 1.2,
+                'ema_crossover': 0.8,
+                'macd_signal': 0.9
+            }
+        }
+
+        regime_weights = cfg.get(regime, {}) or default_map.get(regime, {})
+
+        # 기존 기본 가중치(IndependentStrategyEngine 로드) 위에 멀티플라이어 적용
+        # IndependentStrategyEngine은 strategy_weights를 1.0로 초기화했을 수 있음.
+        # 여기서는 곱셈 방식으로 적용하기 위해 현재 가중치를 읽을 수 없으므로
+        # 멀티플라이어를 절대 가중치로 해석(없으면 1.0) → 실무에서는 기준가중치*멀티플라이어 권장
+        for strategy_id, weight in regime_weights.items():
+            try:
+                self.engine.voting_manager.set_strategy_weight(strategy_id, float(weight))
+            except Exception as e:
+                self.logger.error(f"가중치 적용 실패: {strategy_id}={weight} ({e})")
 
     def get_engine_status(self) -> Dict[str, Any]:
         """엔진 상태 정보"""
