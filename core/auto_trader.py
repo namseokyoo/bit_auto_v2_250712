@@ -251,15 +251,15 @@ class AutoTrader:
                 self.logger.error("초기화 실패로 시작할 수 없습니다.")
                 return False
 
-        self.state.running = True
-        self.state.last_started_at = time.time()
+            self.state.running = True
+            self.state.last_started_at = time.time()
 
-         # 5분 캔들 데이터 수집 시작
-         self.data_scheduler.start()
-          self.logger.info("5분 캔들 데이터 수집 시작됨")
+            # 5분 캔들 데이터 수집 시작
+            self.data_scheduler.start()
+            self.logger.info("5분 캔들 데이터 수집 시작됨")
 
-           # AI 최적화 스케줄러 시작
-           if self.ai_optimization_manager:
+            # AI 최적화 스케줄러 시작
+            if self.ai_optimization_manager:
                 self.ai_optimization_manager.start_optimization_scheduler()
                 self.logger.info("AI 최적화 스케줄러 시작됨")
 
@@ -267,21 +267,18 @@ class AutoTrader:
             self._setup_schedule()
 
             # 메인 루프 스레드 시작
-            self._thread = threading.Thread(
-                target=self._main_loop, daemon=True)
-        self._thread.start()
+            self._thread = threading.Thread(target=self._main_loop, daemon=True)
+            self._thread.start()
 
-         # 스케줄러 스레드 시작
-         self._schedule_thread = threading.Thread(
-              target=self._schedule_loop, daemon=True)
-          self._schedule_thread.start()
+            # 스케줄러 스레드 시작
+            self._schedule_thread = threading.Thread(target=self._schedule_loop, daemon=True)
+            self._schedule_thread.start()
 
-           self.logger.info("🤖 자동거래 시작됨")
+            self.logger.info("🤖 자동거래 시작됨")
             self.logger.info(f"다음 실행: {self.state.next_execution_time}")
 
             # 시작 로그 기록
-            db.insert_log('INFO', 'AutoTrader', '자동거래 시작',
-                          f'시작 시간: {datetime.now(self.kst)}')
+            db.insert_log('INFO', 'AutoTrader', '자동거래 시작', f'시작 시간: {datetime.now(self.kst)}')
 
             return True
 
