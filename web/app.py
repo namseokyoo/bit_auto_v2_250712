@@ -1677,6 +1677,18 @@ def api_trading_activity():
 
         # 전략 실행 결과 추가
         for exec_data in executions:
+            # indicators를 details로 파싱
+            indicators_raw = exec_data.get('indicators', '{}')
+            details = {}
+            
+            try:
+                if isinstance(indicators_raw, str):
+                    details = json.loads(indicators_raw)
+                elif isinstance(indicators_raw, dict):
+                    details = indicators_raw
+            except (json.JSONDecodeError, TypeError):
+                details = {}
+
             activity = {
                 'type': 'strategy_execution',
                 'timestamp': _to_kst(exec_data.get('execution_time')),
@@ -1690,7 +1702,8 @@ def api_trading_activity():
                 'trade_executed': exec_data.get('trade_executed', False),
                 'trade_id': exec_data.get('trade_id'),
                 'pnl': exec_data.get('pnl', 0),
-                'indicators': exec_data.get('indicators', '{}')
+                'details': details,  # indicators를 details로 변환
+                'indicators': indicators_raw  # 원본도 유지 (호환성)
             }
 
             # 액션 필터 적용
