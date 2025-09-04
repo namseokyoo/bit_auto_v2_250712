@@ -251,15 +251,15 @@ class AutoTrader:
                 self.logger.error("초기화 실패로 시작할 수 없습니다.")
                 return False
 
-            self.state.running = True
-            self.state.last_started_at = time.time()
+        self.state.running = True
+        self.state.last_started_at = time.time()
 
-            # 5분 캔들 데이터 수집 시작
-            self.data_scheduler.start()
-            self.logger.info("5분 캔들 데이터 수집 시작됨")
+         # 5분 캔들 데이터 수집 시작
+         self.data_scheduler.start()
+          self.logger.info("5분 캔들 데이터 수집 시작됨")
 
-            # AI 최적화 스케줄러 시작
-            if self.ai_optimization_manager:
+           # AI 최적화 스케줄러 시작
+           if self.ai_optimization_manager:
                 self.ai_optimization_manager.start_optimization_scheduler()
                 self.logger.info("AI 최적화 스케줄러 시작됨")
 
@@ -269,14 +269,14 @@ class AutoTrader:
             # 메인 루프 스레드 시작
             self._thread = threading.Thread(
                 target=self._main_loop, daemon=True)
-            self._thread.start()
+        self._thread.start()
 
-            # 스케줄러 스레드 시작
-            self._schedule_thread = threading.Thread(
-                target=self._schedule_loop, daemon=True)
-            self._schedule_thread.start()
+         # 스케줄러 스레드 시작
+         self._schedule_thread = threading.Thread(
+              target=self._schedule_loop, daemon=True)
+          self._schedule_thread.start()
 
-            self.logger.info("🤖 자동거래 시작됨")
+           self.logger.info("🤖 자동거래 시작됨")
             self.logger.info(f"다음 실행: {self.state.next_execution_time}")
 
             # 시작 로그 기록
@@ -383,84 +383,41 @@ class AutoTrader:
                         self.logger.warning("사전 리스크 체크 실패")
                         return
 
-                    # 3. 투표 기반 전략 실행 (새로운 시스템)
-                    self.logger.info("🗳️ 투표 기반 전략 실행 중...")
-                    if self.voting_engine:
-                        try:
-                            # 먼저 분석 실행 (항상 기록 저장)
-                            self.logger.debug("VotingEngine.analyze() 호출 시작")
-                            analysis_result = self.voting_engine.analyze()
-                            self.logger.debug(
-                                f"VotingEngine.analyze() 완료, 결과: {analysis_result is not None}")
-
-                            if analysis_result:
-                                signal = analysis_result.decision.final_signal.value
-                                confidence = analysis_result.decision.confidence
-                                self.logger.info(
-                                    f"투표 분석 완료: {signal.upper()} (신뢰도: {confidence:.3f})")
-
-                                # 확실히 기록되도록 직접 기록 저장
-                                try:
-                                    from core.strategy_execution_tracker import execution_tracker, StrategyExecution
-                                    execution = StrategyExecution(
-                                        strategy_tier="voting",
-                                        strategy_id="auto_trader_voting",
-                                        execution_time=datetime.now(self.kst),
-                                        signal_action=signal,
-                                        confidence=confidence,
-                                        strength=confidence,
-                                        reasoning=analysis_result.decision.reasoning,
-                                        market_regime="unknown",
-                                        indicators={
-                                            'total_votes': analysis_result.decision.total_votes,
-                                            'vote_distribution': analysis_result.decision.vote_distribution
-                                        },
-                                        trade_executed=False,
-                                        trade_id=None,
-                                        pnl=0.0
-                                    )
-                                    execution_tracker.record_execution(
-                                        execution)
-                                    self.logger.info(
-                                        "AutoTrader에서 직접 실행 기록 저장 완료")
-                                except Exception as record_error:
-                                    self.logger.error(
-                                        f"실행 기록 저장 오류: {record_error}")
-                                    import traceback
-                                    self.logger.error(
-                                        f"기록 저장 스택 트레이스: {traceback.format_exc()}")
-
-                                # 거래 조건 확인 및 신호 생성
-                                if self.voting_engine.should_execute_trade(analysis_result):
-                                    voting_signal = self.voting_engine.get_trading_signal()
-                                    if voting_signal:
-                                        self.logger.info(
-                                            f"거래 신호 생성: {voting_signal.action}")
-                                        # TradingEngine을 통해 실제 거래 실행
-                                        if self.trading_engine:
-                                            self.trading_engine.execute_signal(
-                                                voting_signal)
-                                    else:
-                                        self.logger.warning("거래 신호 생성 실패")
-                                else:
-                                    self.logger.info("거래 조건 미충족 - HOLD 유지")
+                    # 3. 다층 전략 분석 실행 (통합된 시스템)
+                    self.logger.info("🎯 다층 전략 분석 실행 중...")
+                    try:
+                        # MultiTierStrategyEngine을 직접 호출하여 분석 및 기록
+                        from core.multi_tier_strategy_engine import multi_tier_engine
+                        multi_tier_decision = multi_tier_engine.analyze()
+                        
+                        if multi_tier_decision:
+                            self.logger.info(
+                                f"다층 분석 완료: {multi_tier_decision.final_action.upper()} "
+                                f"(신뢰도: {multi_tier_decision.confidence:.3f})")
+                            
+                            # 거래 조건 확인 및 신호 생성
+                            if multi_tier_decision.final_action in ['buy', 'sell'] and multi_tier_decision.confidence > 0.6:
+                                # ConsolidatedSignal로 변환
+                                consolidated_signal = self.trading_engine._convert_multitier_to_consolidated(multi_tier_decision)
+                                if consolidated_signal and self.trading_engine:
+                                    self.logger.info(f"거래 신호 생성: {consolidated_signal.action}")
+                                    self.trading_engine._process_consolidated_signal(consolidated_signal)
                             else:
-                                self.logger.warning("투표 분석 결과가 없습니다")
+                                self.logger.info("거래 조건 미충족 - HOLD 유지")
+                        else:
+                            self.logger.warning("다층 전략 분석 결과가 없습니다")
+                            
+                    except Exception as mte:
+                        self.logger.error(f"다층 전략 실행 오류: {mte}")
+                        import traceback
+                        self.logger.error(f"스택 트레이스: {traceback.format_exc()}")
 
-                        except Exception as ve:
-                            self.logger.error(f"투표 엔진 실행 오류: {ve}")
-                            import traceback
-                            self.logger.error(
-                                f"스택 트레이스: {traceback.format_exc()}")
-                    else:
-                        self.logger.warning("VotingEngine을 사용할 수 없습니다.")
-
-                    # 3-1. 기존 시간별 전략 (병행 실행 - 추후 단계적 교체)
-                    legacy_strategies_enabled = config_manager.get_config(
-                        'strategies.legacy_enabled', False)
-                    if legacy_strategies_enabled:
-                        self.logger.info("📊 기존 시간별 전략 실행 중...")
-                        self.trading_engine.execute_hourly_strategies()
+                    # 3-1. 기존 시간별 전략 (비활성화 - AutoTrader에서 직접 처리)
+                    # legacy_strategies_enabled = config_manager.get_config(
+                    #     'strategies.legacy_enabled', False)
+                    # if legacy_strategies_enabled:
+                    #     self.logger.info("📊 기존 시간별 전략 실행 중...")
+                    #     self.trading_engine.execute_hourly_strategies()
 
                     # 4. 포지션 모니터링 (개선된 로깅)
                     self.logger.info("📈 포지션 모니터링 중...")
