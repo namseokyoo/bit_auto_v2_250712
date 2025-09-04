@@ -360,22 +360,27 @@ class AutoTrader:
             multi_tier_decision = None
             
             try:
-                # 전략 분석은 거래 조건과 무관하게 항상 실행
-                self.logger.info("🎯 다층 전략 분석 실행 중...")
-                from core.multi_tier_strategy_engine import multi_tier_engine
-                multi_tier_decision = multi_tier_engine.analyze()
+                # VotingEngine을 사용한 10개 전략 투표 시스템
+                self.logger.info("🗳️ 투표 기반 전략 분석 실행 중...")
+                voting_result = self.voting_engine.analyze()
                 
-                if multi_tier_decision:
+                if voting_result:
+                    decision = voting_result.decision
                     self.logger.info(
-                        f"다층 분석 완료: {multi_tier_decision.final_action.upper()} "
-                        f"(신뢰도: {multi_tier_decision.confidence:.3f})")
-                else:
-                    self.logger.warning("다층 전략 분석 결과가 없습니다")
+                        f"투표 결과: {decision.final_signal.value.upper()} "
+                        f"(신뢰도: {decision.confidence:.3f}, 투표수: {decision.total_votes})")
                     
-            except Exception as mte:
-                self.logger.error(f"다층 전략 실행 오류: {mte}")
+                    # MultiTierDecision 형식으로 변환 (기존 로직과 호환)
+                    multi_tier_decision = self._convert_voting_to_multitier(voting_result)
+                else:
+                    self.logger.warning("투표 전략 분석 결과가 없습니다")
+                    multi_tier_decision = None
+                    
+            except Exception as ve:
+                self.logger.error(f"투표 전략 실행 오류: {ve}")
                 import traceback
                 self.logger.error(f"스택 트레이스: {traceback.format_exc()}")
+                multi_tier_decision = None
 
             # 2. 거래 실행 여부 판단 (별도 체크)
             can_trade = True
@@ -607,6 +612,27 @@ class AutoTrader:
 
         except Exception as e:
             self.logger.error(f"리스크 체크 오류: {e}")
+
+    def _convert_voting_to_multitier(self, voting_result):
+        """VotingResult를 MultiTierDecision 형식으로 변환"""
+        try:
+            from types import SimpleNamespace
+            
+            decision = voting_result.decision
+            
+            # MultiTierDecision과 호환되는 객체 생성
+            multi_tier_decision = SimpleNamespace()
+            multi_tier_decision.final_action = decision.final_signal.value  # buy/sell/hold
+            multi_tier_decision.confidence = decision.confidence
+            multi_tier_decision.reasoning = decision.reasoning
+            multi_tier_decision.total_votes = decision.total_votes
+            multi_tier_decision.strategy_type = "voting_engine"
+            
+            return multi_tier_decision
+            
+        except Exception as e:
+            self.logger.error(f"VotingResult 변환 오류: {e}")
+            return None
 
     def get_status(self) -> Dict[str, Any]:
         """현재 상태 반환"""
