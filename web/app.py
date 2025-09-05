@@ -19,6 +19,8 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from dotenv import load_dotenv
 import sys
 import os
+import psutil
+import subprocess
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # .env 파일 로드를 가장 먼저 수행
@@ -31,6 +33,67 @@ KST = pytz.timezone('Asia/Seoul')
 def now_kst():
     """KST 시간으로 현재 시간 반환"""
     return datetime.now(KST)
+
+
+def check_auto_trader_process():
+    """AutoTrader 프로세스 상태 확인"""
+    try:
+        # main.py 프로세스 찾기
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = proc.info['cmdline']
+                if cmdline and len(cmdline) > 0:
+                    # main.py가 포함된 프로세스 찾기
+                    if 'main.py' in ' '.join(cmdline) and 'auto_trader' in ' '.join(cmdline).lower():
+                        return {
+                            'running': True,
+                            'pid': proc.info['pid'],
+                            'status': proc.status(),
+                            'cpu_percent': proc.cpu_percent(),
+                            'memory_mb': round(proc.memory_info().rss / 1024 / 1024, 2),
+                            'create_time': datetime.fromtimestamp(proc.create_time()).isoformat()
+                        }
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        return {'running': False, 'reason': '프로세스를 찾을 수 없음'}
+        
+    except Exception as e:
+        logger.error(f"프로세스 상태 확인 오류: {e}")
+        return {'running': False, 'reason': f'확인 오류: {str(e)}'}
+
+
+def get_system_process_status():
+    """시스템 전체 프로세스 상태 확인"""
+    try:
+        # Python 프로세스들 확인
+        python_procs = []
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'status']):
+            try:
+                if proc.info['name'] and 'python' in proc.info['name'].lower():
+                    cmdline = proc.info['cmdline']
+                    if cmdline and len(cmdline) > 0:
+                        cmd_str = ' '.join(cmdline)
+                        if 'main.py' in cmd_str or 'app.py' in cmd_str:
+                            python_procs.append({
+                                'pid': proc.info['pid'],
+                                'name': proc.info['name'],
+                                'status': proc.info['status'],
+                                'cmdline': cmd_str[:100] + '...' if len(cmd_str) > 100 else cmd_str
+                            })
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        return {
+            'python_processes': python_procs,
+            'total_processes': len(python_procs),
+            'system_load': psutil.cpu_percent(interval=1),
+            'memory_percent': psutil.virtual_memory().percent
+        }
+        
+    except Exception as e:
+        logger.error(f"시스템 프로세스 상태 확인 오류: {e}")
+        return {'error': str(e)}
 
 
 app = Flask(__name__)
@@ -689,14 +752,68 @@ def api_ai_scheduler_config():
 
 @app.route('/api/system/status')
 def api_system_status():
-    """시스템 상태 API"""
-    # 최신 상태 즉시 반영
-    return jsonify({
-        'system_enabled': config_manager.is_system_enabled(),
-        'trading_enabled': config_manager.is_trading_enabled(),
-        'mode': config_manager.get_config('system.mode'),
-        'last_updated': datetime.now().isoformat()
-    })
+    """시스템 상태 API (프로세스 상태 포함)"""
+    try:
+        # 기본 시스템 상태
+        basic_status = {
+            'system_enabled': config_manager.is_system_enabled(),
+            'trading_enabled': config_manager.is_trading_enabled(),
+            'mode': config_manager.get_config('system.mode'),
+            'last_updated': now_kst().isoformat()
+        }
+        
+        # AutoTrader 프로세스 상태 확인
+        process_status = check_auto_trader_process()
+        
+        # AutoTrader 내부 상태 (가능한 경우)
+        auto_trader_status = {'running': False, 'error': 'AutoTrader 모듈 접근 불가'}
+        try:
+            from core.auto_trader import get_auto_trading_status
+            auto_trader_status = get_auto_trading_status()
+        except Exception as e:
+            auto_trader_status = {'running': False, 'error': str(e)}
+        
+        # 통합 상태
+        return jsonify({
+            **basic_status,
+            'process_status': process_status,
+            'auto_trader_status': auto_trader_status,
+            'process_running': process_status.get('running', False),
+            'auto_trader_running': auto_trader_status.get('running', False)
+        })
+        
+    except Exception as e:
+        logger.error(f"시스템 상태 API 오류: {e}")
+        return jsonify({
+            'error': str(e),
+            'system_enabled': False,
+            'trading_enabled': False,
+            'process_running': False,
+            'auto_trader_running': False
+        }), 500
+
+
+@app.route('/api/system/process_status')
+def api_process_status():
+    """프로세스 상태 상세 API"""
+    try:
+        auto_trader_process = check_auto_trader_process()
+        system_status = get_system_process_status()
+        
+        return jsonify({
+            'success': True,
+            'auto_trader_process': auto_trader_process,
+            'system_status': system_status,
+            'timestamp': now_kst().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"프로세스 상태 API 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': now_kst().isoformat()
+        }), 500
 
 
 @app.route('/api/market/current_price')
