@@ -251,8 +251,8 @@ class AutoTrader:
                 self.logger.error("초기화 실패로 시작할 수 없습니다.")
                 return False
 
-        self.state.running = True
-        self.state.last_started_at = time.time()
+            self.state.running = True
+            self.state.last_started_at = time.time()
 
             # 5분 캔들 데이터 수집 시작
             self.data_scheduler.start()
@@ -268,7 +268,7 @@ class AutoTrader:
 
             # 메인 루프 스레드 시작
             self._thread = threading.Thread(target=self._main_loop, daemon=True)
-        self._thread.start()
+            self._thread.start()
 
             # 스케줄러 스레드 시작
             self._schedule_thread = threading.Thread(target=self._schedule_loop, daemon=True)
