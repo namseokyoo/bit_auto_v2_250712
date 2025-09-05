@@ -476,9 +476,8 @@ class AutoTrader:
             # 에러 로그 기록
             db.insert_log('ERROR', 'AutoTrader', '자동거래 실행 실패', str(e))
         
-        finally:
-            # 중복 실행 방지 플래그 해제
-            self.state.is_executing = False
+        # 중복 실행 방지 플래그 해제
+        self.state.is_executing = False
 
     def _is_market_active(self) -> bool:
         """시장 활성도 체크"""
