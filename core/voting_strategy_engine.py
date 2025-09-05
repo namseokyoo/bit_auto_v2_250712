@@ -21,6 +21,9 @@ from core.phase2_strategies import (
 from core.upbit_api import UpbitAPI
 from core.signal_manager import TradingSignal
 from core.strategy_execution_tracker import execution_tracker, StrategyExecution
+from core.regime_detector import RegimeDetector
+from core.dynamic_threshold_manager import DynamicThresholdManager
+from core.strategy_adapter import StrategyAdapter
 from config.config_manager import config_manager
 
 
@@ -58,13 +61,18 @@ class VotingStrategyEngine:
         # 독립 전략 엔진 초기화
         self.engine = IndependentStrategyEngine(upbit_api)
 
+        # 체제 기반 동적 임계값 시스템 초기화
+        self.regime_detector = RegimeDetector(upbit_api)
+        self.threshold_manager = DynamicThresholdManager()
+        self.strategy_adapter = StrategyAdapter(self.regime_detector, self.threshold_manager)
+
         # 전략 등록
         self._register_strategies()
 
         # 설정 로드
         self._load_config()
 
-        self.logger.info("VotingStrategyEngine 초기화 완료")
+        self.logger.info("VotingStrategyEngine 초기화 완료 (체제 기반 동적 임계값 통합)")
 
     def _register_strategies(self):
         """전략들 등록"""
@@ -118,11 +126,11 @@ class VotingStrategyEngine:
             return None
 
         try:
-            # 0) 레짐 기반 동적 가중치 적용 (가용 시)
+            # 0) 체제 기반 동적 임계값 적용
             try:
-                self._apply_regime_based_weights()
+                self._apply_regime_based_thresholds()
             except Exception as e:
-                self.logger.error(f"레짐 가중치 적용 오류: {e}")
+                self.logger.error(f"체제 기반 임계값 적용 오류: {e}")
 
             # 독립 전략 엔진으로 분석
             decision = self.engine.analyze_market()
@@ -153,6 +161,77 @@ class VotingStrategyEngine:
         except Exception as e:
             self.logger.error(f"분석 오류: {e}")
             return None
+
+    def _apply_regime_based_thresholds(self):
+        """체제 기반 동적 임계값 적용"""
+        try:
+            # 현재 시장 체제 감지
+            regime_result = self.regime_detector.detect_regime()
+            if not regime_result:
+                self.logger.warning("체제 감지 실패, 기본 임계값 사용")
+                return
+            
+            # 체제 정보 로깅
+            self.logger.info(f"🔍 시장 체제 감지: {regime_result.primary_regime.value} "
+                           f"(신뢰도: {regime_result.confidence:.3f})")
+            self.logger.info(f"📊 판단 근거: {regime_result.reasoning}")
+            
+            # 모든 전략의 동적 임계값 계산
+            all_thresholds = self.threshold_manager.get_all_strategy_thresholds(regime_result)
+            
+            if all_thresholds:
+                self.logger.info(f"🎯 {len(all_thresholds)}개 전략에 동적 임계값 적용")
+                
+                # 임계값 변경사항 로깅
+                self.threshold_manager.log_threshold_changes(regime_result)
+                
+                # 전략 어댑터에 체제 정보 업데이트
+                self.strategy_adapter.force_regime_update()
+                
+            else:
+                self.logger.warning("동적 임계값 계산 실패, 기본 임계값 사용")
+                
+        except Exception as e:
+            self.logger.error(f"체제 기반 임계값 적용 중 오류: {e}")
+            raise
+
+    def get_regime_info(self) -> Dict[str, Any]:
+        """현재 체제 정보 반환"""
+        try:
+            regime_result = self.regime_detector.detect_regime()
+            if not regime_result:
+                return {"status": "unavailable", "message": "체제 감지 불가"}
+            
+            return {
+                "status": "active",
+                "regime": regime_result.primary_regime.value,
+                "secondary_regime": regime_result.secondary_regime.value if regime_result.secondary_regime else None,
+                "confidence": regime_result.confidence,
+                "reasoning": regime_result.reasoning,
+                "timestamp": regime_result.timestamp.isoformat(),
+                "metrics": {
+                    "rsi": regime_result.metrics.rsi,
+                    "atr": regime_result.metrics.atr,
+                    "volume_ratio": regime_result.metrics.volume_ratio,
+                    "price_vs_ema50": regime_result.metrics.price_vs_ema50,
+                    "price_vs_ema200": regime_result.metrics.price_vs_ema200
+                }
+            }
+        except Exception as e:
+            self.logger.error(f"체제 정보 조회 오류: {e}")
+            return {"status": "error", "message": str(e)}
+
+    def get_threshold_adjustments(self) -> Dict[str, Any]:
+        """현재 적용된 임계값 조정사항 반환"""
+        try:
+            regime_result = self.regime_detector.detect_regime()
+            if not regime_result:
+                return {"status": "unavailable", "message": "체제 감지 불가"}
+            
+            return self.threshold_manager.get_adjustment_summary(regime_result)
+        except Exception as e:
+            self.logger.error(f"임계값 조정사항 조회 오류: {e}")
+            return {"status": "error", "message": str(e)}
 
     def should_execute_trade(self, result: VotingResult) -> bool:
         """거래 실행 여부 판단"""

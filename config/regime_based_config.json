@@ -1,0 +1,344 @@
+{
+  "regime_detection": {
+    "enabled": true,
+    "update_interval_minutes": 5,
+    "confidence_threshold": 0.6,
+    "market": "KRW-BTC",
+    "indicators": {
+      "trend_indicators": {
+        "ema_periods": [9, 21, 50, 200],
+        "macd_fast": 12,
+        "macd_slow": 26,
+        "macd_signal": 9
+      },
+      "momentum_indicators": {
+        "rsi_period": 14,
+        "stochastic_k_period": 14,
+        "stochastic_d_period": 3,
+        "williams_r_period": 14
+      },
+      "volatility_indicators": {
+        "atr_period": 14,
+        "bollinger_period": 20,
+        "bollinger_std": 2.0
+      },
+      "volume_indicators": {
+        "volume_avg_period": 20,
+        "volume_trend_period": 10
+      }
+    },
+    "thresholds": {
+      "trend_strength": 0.02,
+      "volatility_high": 0.03,
+      "volatility_low": 0.01,
+      "volume_surge": 1.5,
+      "rsi_overbought": 70,
+      "rsi_oversold": 30,
+      "confidence_min": 0.6
+    }
+  },
+  
+  "base_thresholds": {
+    "rsi_momentum": {
+      "rsi_period": 14,
+      "oversold": 30,
+      "overbought": 70,
+      "momentum_threshold": 0.002
+    },
+    "bollinger_squeeze": {
+      "bb_period": 20,
+      "bb_std": 2.0,
+      "squeeze_threshold": 0.01
+    },
+    "support_resistance": {
+      "lookback_period": 20,
+      "touch_tolerance": 0.005
+    },
+    "ema_crossover": {
+      "fast_ema": 12,
+      "slow_ema": 26,
+      "signal_ema": 9,
+      "trend_ema": 50,
+      "volume_threshold": 1.2,
+      "min_crossover_strength": 0.001
+    },
+    "macd_signal": {
+      "fast_period": 12,
+      "slow_period": 26,
+      "signal_period": 9,
+      "histogram_threshold": 0.0001,
+      "signal_crossover_strength": 0.0005,
+      "zero_line_threshold": 0.0002
+    },
+    "stochastic_oscillator": {
+      "k_period": 14,
+      "d_period": 3,
+      "smooth_k": 3,
+      "overbought": 80,
+      "oversold": 20,
+      "crossover_threshold": 5
+    },
+    "williams_r": {
+      "period": 14,
+      "overbought": -20,
+      "oversold": -80
+    },
+    "cci_oscillator": {
+      "period": 20,
+      "overbought": 100,
+      "oversold": -100
+    },
+    "volume_surge": {
+      "volume_threshold": 1.5,
+      "momentum_period": 10
+    },
+    "price_action": {
+      "pattern_threshold": 0.3,
+      "min_touches": 2
+    }
+  },
+  
+  "regime_adjustments": {
+    "bull_market": {
+      "description": "강한 상승 트렌드 시장 - 더 공격적인 매수, 더 오래 보유",
+      "strategies": {
+        "rsi_momentum": {
+          "oversold": 0.8,
+          "overbought": 1.1,
+          "momentum_threshold": 0.7
+        },
+        "bollinger_squeeze": {
+          "squeeze_threshold": 0.8
+        },
+        "ema_crossover": {
+          "min_crossover_strength": 0.5,
+          "volume_threshold": 0.8
+        },
+        "macd_signal": {
+          "histogram_threshold": 0.5,
+          "signal_crossover_strength": 0.5
+        },
+        "stochastic_oscillator": {
+          "overbought": 1.1,
+          "oversold": 0.8,
+          "crossover_threshold": 0.8
+        },
+        "williams_r": {
+          "overbought": 1.1,
+          "oversold": 0.8
+        }
+      }
+    },
+    
+    "bear_market": {
+      "description": "강한 하락 트렌드 시장 - 더 신중한 매수, 빠른 매도",
+      "strategies": {
+        "rsi_momentum": {
+          "oversold": 1.2,
+          "overbought": 0.9,
+          "momentum_threshold": 1.3
+        },
+        "bollinger_squeeze": {
+          "squeeze_threshold": 1.2
+        },
+        "ema_crossover": {
+          "min_crossover_strength": 1.5,
+          "volume_threshold": 1.3
+        },
+        "macd_signal": {
+          "histogram_threshold": 1.5,
+          "signal_crossover_strength": 1.5
+        },
+        "stochastic_oscillator": {
+          "overbought": 0.9,
+          "oversold": 1.2,
+          "crossover_threshold": 1.2
+        },
+        "williams_r": {
+          "overbought": 0.9,
+          "oversold": 1.2
+        }
+      }
+    },
+    
+    "high_volatility": {
+      "description": "고변동성 시장 - 더 보수적인 접근, 강한 신호 요구",
+      "strategies": {
+        "rsi_momentum": {
+          "oversold": 1.1,
+          "overbought": 0.9,
+          "momentum_threshold": 1.2
+        },
+        "bollinger_squeeze": {
+          "bb_std": 1.2,
+          "squeeze_threshold": 1.3
+        },
+        "ema_crossover": {
+          "min_crossover_strength": 1.3,
+          "volume_threshold": 1.2
+        },
+        "macd_signal": {
+          "histogram_threshold": 1.3,
+          "signal_crossover_strength": 1.3
+        },
+        "stochastic_oscillator": {
+          "overbought": 0.9,
+          "oversold": 1.1,
+          "crossover_threshold": 1.2
+        },
+        "williams_r": {
+          "overbought": 0.9,
+          "oversold": 1.1
+        }
+      }
+    },
+    
+    "low_volatility": {
+      "description": "저변동성 시장 - 더 공격적인 접근, 민감한 신호",
+      "strategies": {
+        "rsi_momentum": {
+          "oversold": 0.9,
+          "overbought": 1.1,
+          "momentum_threshold": 0.8
+        },
+        "bollinger_squeeze": {
+          "bb_std": 0.8,
+          "squeeze_threshold": 0.7
+        },
+        "ema_crossover": {
+          "min_crossover_strength": 0.7,
+          "volume_threshold": 0.9
+        },
+        "macd_signal": {
+          "histogram_threshold": 0.7,
+          "signal_crossover_strength": 0.7
+        },
+        "stochastic_oscillator": {
+          "overbought": 1.1,
+          "oversold": 0.9,
+          "crossover_threshold": 0.8
+        },
+        "williams_r": {
+          "overbought": 1.1,
+          "oversold": 0.9
+        }
+      }
+    },
+    
+    "sideways": {
+      "description": "횡보장 - 중립적 접근, 범위 거래 최적화",
+      "strategies": {
+        "rsi_momentum": {
+          "oversold": 0.8,
+          "overbought": 1.1,
+          "momentum_threshold": 0.7
+        },
+        "bollinger_squeeze": {
+          "squeeze_threshold": 0.8
+        },
+        "ema_crossover": {
+          "min_crossover_strength": 0.8,
+          "volume_threshold": 0.9
+        },
+        "macd_signal": {
+          "histogram_threshold": 0.8,
+          "signal_crossover_strength": 0.8
+        },
+        "stochastic_oscillator": {
+          "overbought": 1.1,
+          "oversold": 0.8,
+          "crossover_threshold": 0.8
+        },
+        "williams_r": {
+          "overbought": 1.1,
+          "oversold": 0.8
+        }
+      }
+    },
+    
+    "trending_up": {
+      "description": "상승 트렌드 - 트렌드 추종 전략 강화",
+      "strategies": {
+        "rsi_momentum": {
+          "oversold": 0.8,
+          "overbought": 1.1,
+          "momentum_threshold": 0.7
+        },
+        "ema_crossover": {
+          "min_crossover_strength": 0.7,
+          "volume_threshold": 0.8
+        },
+        "macd_signal": {
+          "histogram_threshold": 0.7,
+          "signal_crossover_strength": 0.7
+        }
+      }
+    },
+    
+    "trending_down": {
+      "description": "하락 트렌드 - 역추세 전략 강화",
+      "strategies": {
+        "rsi_momentum": {
+          "oversold": 1.1,
+          "overbought": 0.9,
+          "momentum_threshold": 1.2
+        },
+        "ema_crossover": {
+          "min_crossover_strength": 1.3,
+          "volume_threshold": 1.2
+        },
+        "macd_signal": {
+          "histogram_threshold": 1.3,
+          "signal_crossover_strength": 1.3
+        }
+      }
+    }
+  },
+  
+  "risk_management": {
+    "position_sizing": {
+      "bull_market": 1.2,
+      "bear_market": 0.8,
+      "high_volatility": 0.6,
+      "low_volatility": 1.1,
+      "sideways": 1.0,
+      "trending_up": 1.1,
+      "trending_down": 0.9
+    },
+    "stop_loss_adjustment": {
+      "bull_market": 1.2,
+      "bear_market": 0.8,
+      "high_volatility": 0.7,
+      "low_volatility": 1.3,
+      "sideways": 1.0,
+      "trending_up": 1.1,
+      "trending_down": 0.9
+    },
+    "take_profit_adjustment": {
+      "bull_market": 0.8,
+      "bear_market": 1.2,
+      "high_volatility": 1.1,
+      "low_volatility": 0.9,
+      "sideways": 1.0,
+      "trending_up": 0.9,
+      "trending_down": 1.1
+    }
+  },
+  
+  "monitoring": {
+    "log_level": "INFO",
+    "log_regime_changes": true,
+    "log_threshold_adjustments": true,
+    "performance_tracking": true,
+    "alert_on_regime_change": true,
+    "alert_threshold_confidence": 0.8
+  },
+  
+  "backtesting": {
+    "enabled": true,
+    "test_period_days": 365,
+    "regime_accuracy_threshold": 0.7,
+    "performance_comparison": true,
+    "save_results": true
+  }
+}
