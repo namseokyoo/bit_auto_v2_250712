@@ -30,7 +30,6 @@ class AutoTraderState:
     total_executions: int = 0
     successful_executions: int = 0
     failed_executions: int = 0
-    is_executing: bool = False  # 중복 실행 방지
 
 
 class AutoTrader:
@@ -348,12 +347,6 @@ class AutoTrader:
         if not self.state.running:
             return
 
-        # 중복 실행 방지
-        if self.state.is_executing:
-            self.logger.warning("이전 실행이 아직 진행 중입니다. 중복 실행을 건너뜁니다.")
-            return
-
-        self.state.is_executing = True
         
         try:
             self.logger.info("=" * 50)
@@ -476,8 +469,6 @@ class AutoTrader:
             # 에러 로그 기록
             db.insert_log('ERROR', 'AutoTrader', '자동거래 실행 실패', str(e))
         
-        # 중복 실행 방지 플래그 해제
-        self.state.is_executing = False
 
     def _is_market_active(self) -> bool:
         """시장 활성도 체크"""
