@@ -19,8 +19,6 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from dotenv import load_dotenv
 import sys
 import os
-import psutil
-import subprocess
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # .env 파일 로드를 가장 먼저 수행
@@ -36,43 +34,12 @@ def now_kst():
 
 
 def check_auto_trader_process():
-    """AutoTrader 프로세스 상태 확인"""
+    """AutoTrader 프로세스 상태 확인 (임시 비활성화)"""
     try:
-        # Python 프로세스들 중에서 AutoTrader 관련 프로세스 찾기
-        python_procs = []
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'status']):
-            try:
-                cmdline = proc.info['cmdline']
-                if cmdline and len(cmdline) > 0:
-                    cmd_str = ' '.join(cmdline).lower()
-                    # Python 프로세스이고 main.py 또는 auto_trader 관련 프로세스 찾기
-                    if 'python' in proc.info['name'].lower() and ('main.py' in cmd_str or 'auto_trader' in cmd_str):
-                        python_procs.append({
-                            'pid': proc.info['pid'],
-                            'name': proc.info['name'],
-                            'cmdline': ' '.join(cmdline),
-                            'status': proc.status()
-                        })
-                        
-                        # AutoTrader 관련 프로세스인지 더 정확히 확인
-                        if 'main.py' in cmd_str and ('auto_trader' in cmd_str or 'trading' in cmd_str):
-                            return {
-                                'running': True,
-                                'pid': proc.info['pid'],
-                                'status': proc.status(),
-                                'cpu_percent': proc.cpu_percent(),
-                                'memory_mb': round(proc.memory_info().rss / 1024 / 1024, 2),
-                                'create_time': datetime.fromtimestamp(proc.create_time()).isoformat(),
-                                'cmdline': ' '.join(cmdline)
-                            }
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                continue
-        
-        # 디버깅을 위해 찾은 Python 프로세스들 반환
+        # psutil 패키지 문제로 임시 비활성화
         return {
             'running': False, 
-            'reason': 'AutoTrader 프로세스를 찾을 수 없음',
-            'found_python_procs': python_procs[:5]  # 최대 5개만 반환
+            'reason': '프로세스 모니터링 임시 비활성화'
         }
         
     except Exception as e:
@@ -81,31 +48,15 @@ def check_auto_trader_process():
 
 
 def get_system_process_status():
-    """시스템 전체 프로세스 상태 확인"""
+    """시스템 전체 프로세스 상태 확인 (임시 비활성화)"""
     try:
-        # Python 프로세스들 확인
-        python_procs = []
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'status']):
-            try:
-                if proc.info['name'] and 'python' in proc.info['name'].lower():
-                    cmdline = proc.info['cmdline']
-                    if cmdline and len(cmdline) > 0:
-                        cmd_str = ' '.join(cmdline)
-                        if 'main.py' in cmd_str or 'app.py' in cmd_str:
-                            python_procs.append({
-                                'pid': proc.info['pid'],
-                                'name': proc.info['name'],
-                                'status': proc.info['status'],
-                                'cmdline': cmd_str[:100] + '...' if len(cmd_str) > 100 else cmd_str
-                            })
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                continue
-        
+        # psutil 패키지 문제로 임시 비활성화
         return {
-            'python_processes': python_procs,
-            'total_processes': len(python_procs),
-            'system_load': psutil.cpu_percent(interval=1),
-            'memory_percent': psutil.virtual_memory().percent
+            'python_processes': [],
+            'total_processes': 0,
+            'system_load': 0,
+            'memory_percent': 0,
+            'status': '프로세스 모니터링 임시 비활성화'
         }
         
     except Exception as e:
