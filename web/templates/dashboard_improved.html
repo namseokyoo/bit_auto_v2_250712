@@ -132,13 +132,9 @@
                         <small class="text-muted">다음 실행:</small>
                         <span id="next-execution" class="fw-bold text-primary">계산중...</span>
                     </div>
-                    <div class="me-4">
+                    <div>
                         <small class="text-muted">성공률:</small>
                         <span id="success-rate-display" class="fw-bold text-success">0.0%</span>
-                    </div>
-                    <div>
-                        <small class="text-muted">프로세스:</small>
-                        <span id="process-status-badge" class="badge bg-secondary">확인중...</span>
                     </div>
                 </div>
             </div>
@@ -731,9 +727,9 @@
             console.log('다음 실행 시간 업데이트 시도...');
             updateAutoTraderStatus(autoTraderData);
             
-            // 프로세스 상태 업데이트
-            console.log('프로세스 상태 업데이트 시도...');
-            updateProcessStatus();
+            // 시스템 상태에 프로세스 상태 통합 업데이트
+            console.log('시스템 상태 통합 업데이트 시도...');
+            updateSystemStatusWithProcess();
 
             // 나머지 API들은 잠시 주석 처리
             /*
@@ -819,62 +815,63 @@
         }
     }
 
-    // 프로세스 상태 업데이트 함수
-    async function updateProcessStatus() {
+    // 시스템 상태 배지에 프로세스 상태 통합 업데이트
+    async function updateSystemStatusWithProcess() {
         try {
             const response = await fetch('/api/system/process_status');
             const data = await response.json();
             
-            const processBadge = document.getElementById('process-status-badge');
-            if (!processBadge) return;
+            const sysBadge = document.getElementById('system-enabled-badge');
+            if (!sysBadge) return;
 
             if (data.success && data.auto_trader_process) {
                 const process = data.auto_trader_process;
                 
                 if (process.running) {
-                    processBadge.className = 'badge bg-success';
+                    // 프로세스가 실행 중이면 시스템 상태를 활성화로 표시
+                    sysBadge.className = 'badge bg-success';
+                    sysBadge.textContent = '활성화';
                     
-                    // 내부 상태와 외부 프로세스 정보를 모두 표시
                     if (process.detection_method === 'internal') {
                         const internal = process.internal_status;
-                        processBadge.textContent = `실행중 (내부)`;
-                        processBadge.title = `내부 스레드 실행중 - 총 실행: ${internal.total_executions || 0}회`;
+                        sysBadge.title = `시스템 활성화 + 프로세스 실행중 (내부) - 총 실행: ${internal.total_executions || 0}회`;
                     } else {
                         const external = process.external_process;
-                        processBadge.textContent = `실행중 (PID: ${external.pid})`;
-                        processBadge.title = `외부 프로세스 - CPU: ${external.cpu_percent}%, 메모리: ${external.memory_mb}MB`;
+                        sysBadge.title = `시스템 활성화 + 프로세스 실행중 (PID: ${external.pid}) - CPU: ${external.cpu_percent}%, 메모리: ${external.memory_mb}MB`;
                     }
                 } else {
-                    processBadge.className = 'badge bg-danger';
+                    // 프로세스가 중단되었으면 경고 상태로 표시
+                    sysBadge.className = 'badge bg-warning';
+                    sysBadge.textContent = '프로세스 중단';
+                    
                     const internal = process.internal_status;
                     const external = process.external_process;
                     
                     if (internal && !internal.running && external && !external.running) {
-                        processBadge.textContent = `중단됨`;
-                        processBadge.title = `내부: ${internal.reason}, 외부: ${external.reason}`;
+                        sysBadge.title = `시스템은 활성화되어 있지만 프로세스가 중단됨 - 내부: ${internal.reason}, 외부: ${external.reason}`;
                     } else if (internal && !internal.running) {
-                        processBadge.textContent = `중단됨 (내부)`;
-                        processBadge.title = `내부 상태: ${internal.reason}`;
+                        sysBadge.title = `시스템은 활성화되어 있지만 내부 프로세스 중단: ${internal.reason}`;
                     } else {
-                        processBadge.textContent = `중단됨 (외부)`;
-                        processBadge.title = `외부 프로세스: ${external.reason}`;
+                        sysBadge.title = `시스템은 활성화되어 있지만 외부 프로세스 중단: ${external.reason}`;
                     }
                 }
             } else {
-                processBadge.className = 'badge bg-warning';
-                processBadge.textContent = '확인불가';
-                processBadge.title = '프로세스 상태를 확인할 수 없습니다.';
+                // API 오류 시 기본 상태 유지
+                sysBadge.className = 'badge bg-secondary';
+                sysBadge.textContent = '확인불가';
+                sysBadge.title = '프로세스 상태를 확인할 수 없습니다.';
             }
         } catch (error) {
-            console.error('프로세스 상태 업데이트 오류:', error);
-            const processBadge = document.getElementById('process-status-badge');
-            if (processBadge) {
-                processBadge.className = 'badge bg-warning';
-                processBadge.textContent = '오류';
-                processBadge.title = '프로세스 상태 확인 중 오류가 발생했습니다.';
+            console.error('시스템 상태 업데이트 오류:', error);
+            const sysBadge = document.getElementById('system-enabled-badge');
+            if (sysBadge) {
+                sysBadge.className = 'badge bg-warning';
+                sysBadge.textContent = '오류';
+                sysBadge.title = '시스템 상태 확인 중 오류가 발생했습니다.';
             }
         }
     }
+
 
     // AutoTrader 상태 업데이트
     function updateAutoTraderStatus(data) {
