@@ -812,14 +812,31 @@ def api_system_status():
 
 @app.route('/api/system/process_status')
 def api_process_status():
-    """프로세스 상태 상세 API"""
+    """프로세스 상태 상세 API (웹 앱 내부 상태 우선 확인)"""
     try:
-        auto_trader_process = check_auto_trader_process()
+        # 먼저 웹 애플리케이션 내부의 AutoTrader 상태 확인
+        internal_status = {'running': False, 'reason': '내부 상태 확인 불가'}
+        try:
+            from core.auto_trader import get_auto_trading_status
+            internal_status = get_auto_trading_status()
+        except Exception as e:
+            internal_status = {'running': False, 'reason': f'내부 상태 오류: {str(e)}'}
+        
+        # 외부 프로세스 상태 확인
+        external_process = check_auto_trader_process()
         system_status = get_system_process_status()
+        
+        # 통합 상태 결정
+        is_running = internal_status.get('running', False) or external_process.get('running', False)
         
         return jsonify({
             'success': True,
-            'auto_trader_process': auto_trader_process,
+            'auto_trader_process': {
+                'running': is_running,
+                'internal_status': internal_status,
+                'external_process': external_process,
+                'detection_method': 'internal' if internal_status.get('running') else 'external'
+            },
             'system_status': system_status,
             'timestamp': now_kst().isoformat()
         })

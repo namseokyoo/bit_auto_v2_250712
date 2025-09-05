@@ -833,12 +833,32 @@
                 
                 if (process.running) {
                     processBadge.className = 'badge bg-success';
-                    processBadge.textContent = `실행중 (PID: ${process.pid})`;
-                    processBadge.title = `CPU: ${process.cpu_percent}%, 메모리: ${process.memory_mb}MB`;
+                    
+                    // 내부 상태와 외부 프로세스 정보를 모두 표시
+                    if (process.detection_method === 'internal') {
+                        const internal = process.internal_status;
+                        processBadge.textContent = `실행중 (내부)`;
+                        processBadge.title = `내부 스레드 실행중 - 총 실행: ${internal.total_executions || 0}회`;
+                    } else {
+                        const external = process.external_process;
+                        processBadge.textContent = `실행중 (PID: ${external.pid})`;
+                        processBadge.title = `외부 프로세스 - CPU: ${external.cpu_percent}%, 메모리: ${external.memory_mb}MB`;
+                    }
                 } else {
                     processBadge.className = 'badge bg-danger';
-                    processBadge.textContent = `중단됨 (${process.reason})`;
-                    processBadge.title = 'AutoTrader 프로세스가 중단되었습니다. 재시작이 필요합니다.';
+                    const internal = process.internal_status;
+                    const external = process.external_process;
+                    
+                    if (internal && !internal.running && external && !external.running) {
+                        processBadge.textContent = `중단됨`;
+                        processBadge.title = `내부: ${internal.reason}, 외부: ${external.reason}`;
+                    } else if (internal && !internal.running) {
+                        processBadge.textContent = `중단됨 (내부)`;
+                        processBadge.title = `내부 상태: ${internal.reason}`;
+                    } else {
+                        processBadge.textContent = `중단됨 (외부)`;
+                        processBadge.title = `외부 프로세스: ${external.reason}`;
+                    }
                 }
             } else {
                 processBadge.className = 'badge bg-warning';
