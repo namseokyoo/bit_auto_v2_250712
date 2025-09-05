@@ -2037,6 +2037,40 @@ def api_data_collection_status():
         }), 500
 
 
+@app.route('/api/regime/status')
+def api_regime_status():
+    """체제 기반 동적 임계값 시스템 상태 API"""
+    try:
+        from core.voting_strategy_engine import VotingStrategyEngine
+        from core.upbit_api import UpbitAPI
+        
+        # VotingStrategyEngine 인스턴스 생성
+        upbit_api = UpbitAPI()
+        voting_engine = VotingStrategyEngine(upbit_api)
+        
+        # 체제 정보 조회
+        regime_info = voting_engine.get_regime_info()
+        
+        # 임계값 조정사항 조회
+        threshold_adjustments = voting_engine.get_threshold_adjustments()
+        
+        return jsonify({
+            'success': True,
+            'regime_info': regime_info,
+            'threshold_adjustments': threshold_adjustments,
+            'timestamp': now_kst().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"체제 상태 API 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'regime_info': {'status': 'error', 'message': str(e)},
+            'threshold_adjustments': {'status': 'error', 'message': str(e)}
+        }), 500
+
+
 @app.route('/api/trading_config')
 def api_trading_config():
     """거래 설정 조회 API"""

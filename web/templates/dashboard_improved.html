@@ -245,6 +245,54 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-chart-area text-info"></i> 시장 체제</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="mb-2">
+                            <small class="text-muted">현재 체제</small>
+                            <div id="current-regime" class="fw-bold text-primary">감지 중...</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mb-2">
+                            <small class="text-muted">신뢰도</small>
+                            <div id="regime-confidence" class="fw-bold text-success">-</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">판단 근거:</small>
+                    <div id="regime-reasoning" class="small text-muted">-</div>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">주요 지표:</small>
+                    <div class="row small">
+                        <div class="col-4 text-center">
+                            <div class="text-muted">RSI</div>
+                            <div id="regime-rsi" class="fw-bold">-</div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div class="text-muted">ATR</div>
+                            <div id="regime-atr" class="fw-bold">-</div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div class="text-muted">거래량</div>
+                            <div id="regime-volume" class="fw-bold">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 추가 정보 섹션 -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-light">
                 <h5 class="mb-0"><i class="fas fa-bitcoin text-warning"></i> 현재 가격</h5>
             </div>
             <div class="card-body">
@@ -708,6 +756,107 @@
         console.log('자동 업데이트 타이머 설정 완료');
     });
 
+    // 체제 정보 업데이트
+    async function updateRegimeStatus() {
+        try {
+            const response = await fetch('/api/regime/status');
+            const data = await response.json();
+            
+            if (data.success && data.regime_info.status === 'active') {
+                const regimeInfo = data.regime_info;
+                
+                // 현재 체제 표시
+                const regimeElement = document.getElementById('current-regime');
+                if (regimeElement) {
+                    const regimeText = getRegimeDisplayName(regimeInfo.regime);
+                    regimeElement.textContent = regimeText;
+                    regimeElement.className = 'fw-bold ' + getRegimeColorClass(regimeInfo.regime);
+                }
+                
+                // 신뢰도 표시
+                const confidenceElement = document.getElementById('regime-confidence');
+                if (confidenceElement) {
+                    const confidence = (regimeInfo.confidence * 100).toFixed(1);
+                    confidenceElement.textContent = confidence + '%';
+                    confidenceElement.className = 'fw-bold ' + getConfidenceColorClass(regimeInfo.confidence);
+                }
+                
+                // 판단 근거 표시
+                const reasoningElement = document.getElementById('regime-reasoning');
+                if (reasoningElement) {
+                    reasoningElement.textContent = regimeInfo.reasoning || '-';
+                }
+                
+                // 주요 지표 표시
+                if (regimeInfo.metrics) {
+                    const rsiElement = document.getElementById('regime-rsi');
+                    if (rsiElement) {
+                        rsiElement.textContent = regimeInfo.metrics.rsi ? regimeInfo.metrics.rsi.toFixed(1) : '-';
+                    }
+                    
+                    const atrElement = document.getElementById('regime-atr');
+                    if (atrElement) {
+                        atrElement.textContent = regimeInfo.metrics.atr ? (regimeInfo.metrics.atr / 1000000).toFixed(2) + 'M' : '-';
+                    }
+                    
+                    const volumeElement = document.getElementById('regime-volume');
+                    if (volumeElement) {
+                        volumeElement.textContent = regimeInfo.metrics.volume_ratio ? regimeInfo.metrics.volume_ratio.toFixed(2) + 'x' : '-';
+                    }
+                }
+                
+                console.log('체제 정보 업데이트 완료:', regimeInfo.regime);
+            } else {
+                console.warn('체제 정보 업데이트 실패:', data);
+                // 오류 상태 표시
+                const regimeElement = document.getElementById('current-regime');
+                if (regimeElement) {
+                    regimeElement.textContent = '오류';
+                    regimeElement.className = 'fw-bold text-danger';
+                }
+            }
+        } catch (error) {
+            console.error('체제 정보 업데이트 오류:', error);
+        }
+    }
+    
+    // 체제 표시명 변환
+    function getRegimeDisplayName(regime) {
+        const regimeNames = {
+            'bull_market': '상승장',
+            'bear_market': '하락장',
+            'sideways': '횡보장',
+            'high_volatility': '고변동성',
+            'low_volatility': '저변동성',
+            'trending_up': '상승 트렌드',
+            'trending_down': '하락 트렌드',
+            'unknown': '불명확'
+        };
+        return regimeNames[regime] || regime;
+    }
+    
+    // 체제별 색상 클래스
+    function getRegimeColorClass(regime) {
+        const colorClasses = {
+            'bull_market': 'text-success',
+            'bear_market': 'text-danger',
+            'sideways': 'text-warning',
+            'high_volatility': 'text-danger',
+            'low_volatility': 'text-info',
+            'trending_up': 'text-success',
+            'trending_down': 'text-danger',
+            'unknown': 'text-secondary'
+        };
+        return colorClasses[regime] || 'text-primary';
+    }
+    
+    // 신뢰도별 색상 클래스
+    function getConfidenceColorClass(confidence) {
+        if (confidence >= 0.8) return 'text-success';
+        if (confidence >= 0.6) return 'text-warning';
+        return 'text-danger';
+    }
+
     // 통합 대시보드 업데이트
     async function updateDashboard() {
         console.log('=== updateDashboard 함수 시작 ===');
@@ -730,6 +879,10 @@
             // 시스템 상태에 프로세스 상태 통합 업데이트
             console.log('시스템 상태 통합 업데이트 시도...');
             updateSystemStatusWithProcess();
+            
+            // 체제 정보 업데이트
+            console.log('체제 정보 업데이트 시도...');
+            updateRegimeStatus();
 
             // 나머지 API들은 잠시 주석 처리
             /*
