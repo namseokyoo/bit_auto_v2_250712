@@ -30,6 +30,7 @@ class AutoTraderState:
     total_executions: int = 0
     successful_executions: int = 0
     failed_executions: int = 0
+    is_executing: bool = False  # 중복 실행 방지
 
 
 class AutoTrader:
@@ -251,8 +252,8 @@ class AutoTrader:
                 self.logger.error("초기화 실패로 시작할 수 없습니다.")
                 return False
 
-            self.state.running = True
-            self.state.last_started_at = time.time()
+        self.state.running = True
+        self.state.last_started_at = time.time()
 
             # 5분 캔들 데이터 수집 시작
             self.data_scheduler.start()
@@ -268,7 +269,7 @@ class AutoTrader:
 
             # 메인 루프 스레드 시작
             self._thread = threading.Thread(target=self._main_loop, daemon=True)
-            self._thread.start()
+        self._thread.start()
 
             # 스케줄러 스레드 시작
             self._schedule_thread = threading.Thread(target=self._schedule_loop, daemon=True)
@@ -347,6 +348,13 @@ class AutoTrader:
         if not self.state.running:
             return
 
+        # 중복 실행 방지
+        if self.state.is_executing:
+            self.logger.warning("이전 실행이 아직 진행 중입니다. 중복 실행을 건너뜁니다.")
+            return
+
+        self.state.is_executing = True
+        
         try:
             self.logger.info("=" * 50)
             self.logger.info(f"🤖 자동거래 실행 시작 - {datetime.now(self.kst)}")
@@ -464,9 +472,13 @@ class AutoTrader:
 
             # 실패 메트릭 기록
             self._log_execution_metrics(success=False, error=str(e))
-
+            
             # 에러 로그 기록
             db.insert_log('ERROR', 'AutoTrader', '자동거래 실행 실패', str(e))
+        
+        finally:
+            # 중복 실행 방지 플래그 해제
+            self.state.is_executing = False
 
     def _is_market_active(self) -> bool:
         """시장 활성도 체크"""
