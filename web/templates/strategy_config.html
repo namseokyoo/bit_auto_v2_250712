@@ -405,6 +405,134 @@
         </div>
     </div>
 
+    <!-- 파라미터 조정 로그 섹션 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-history text-info"></i> 파라미터 조정 로그</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="refreshParameterLogs()">
+                                <i class="fas fa-sync-alt"></i> 새로고침
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportParameterLogs()">
+                                <i class="fas fa-download"></i> 내보내기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- 필터 옵션 -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label for="log-period">조회 기간:</label>
+                            <select class="form-select" id="log-period" onchange="updateParameterLogs()">
+                                <option value="1">최근 1시간</option>
+                                <option value="6">최근 6시간</option>
+                                <option value="24" selected>최근 24시간</option>
+                                <option value="72">최근 3일</option>
+                                <option value="168">최근 1주일</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="log-strategy">전략 필터:</label>
+                            <select class="form-select" id="log-strategy" onchange="updateParameterLogs()">
+                                <option value="">모든 전략</option>
+                                <option value="rsi_momentum">RSI 모멘텀</option>
+                                <option value="bollinger_squeeze">볼린저 밴드</option>
+                                <option value="ema_crossover">EMA 크로스오버</option>
+                                <option value="macd_signal">MACD 신호</option>
+                                <option value="stochastic_oscillator">스토캐스틱</option>
+                                <option value="williams_r">윌리엄스 %R</option>
+                                <option value="cci_oscillator">CCI 오실레이터</option>
+                                <option value="volume_surge">거래량 급증</option>
+                                <option value="price_action">가격 액션</option>
+                                <option value="support_resistance">지지/저항</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="log-regime">체제 필터:</label>
+                            <select class="form-select" id="log-regime" onchange="updateParameterLogs()">
+                                <option value="">모든 체제</option>
+                                <option value="bull_market">상승장</option>
+                                <option value="bear_market">하락장</option>
+                                <option value="sideways">횡보장</option>
+                                <option value="high_volatility">고변동성</option>
+                                <option value="low_volatility">저변동성</option>
+                                <option value="trending_up">상승 트렌드</option>
+                                <option value="trending_down">하락 트렌드</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="log-sort">정렬:</label>
+                            <select class="form-select" id="log-sort" onchange="updateParameterLogs()">
+                                <option value="newest">최신순</option>
+                                <option value="oldest">오래된순</option>
+                                <option value="strategy">전략별</option>
+                                <option value="regime">체제별</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 요약 정보 -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="alert alert-info">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <strong>총 조정:</strong> <span id="total-adjustments">-</span>개
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>영향받은 전략:</strong> <span id="affected-strategies">-</span>개
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>체제 변경:</strong> <span id="regime-changes">-</span>회
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>마지막 업데이트:</strong> <span id="last-update">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 로그 테이블 -->
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>시간</th>
+                                    <th>체제</th>
+                                    <th>전략</th>
+                                    <th>파라미터</th>
+                                    <th>기본값</th>
+                                    <th>조정값</th>
+                                    <th>변화율</th>
+                                    <th>신뢰도</th>
+                                    <th>조정 이유</th>
+                                </tr>
+                            </thead>
+                            <tbody id="parameter-logs-table">
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin"></i> 로그를 불러오는 중...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 페이지네이션 -->
+                    <nav aria-label="파라미터 로그 페이지네이션">
+                        <ul class="pagination justify-content-center" id="log-pagination">
+                            <!-- 동적으로 생성됨 -->
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- JavaScript -->
@@ -412,9 +540,19 @@
 let configCache = {};
 let isLoading = false;
 
+// 파라미터 로그 관련 변수
+let parameterLogsCache = [];
+let currentLogPage = 1;
+let logPageSize = 20;
+
 // 페이지 로드 시 초기화
 document.addEventListener('DOMContentLoaded', function() {
+    // 파라미터 로그 초기 로드
+    updateParameterLogs();
     loadCurrentConfig();
+    
+    // 파라미터 로그 자동 새로고침 (5분마다)
+    setInterval(updateParameterLogs, 300000);
     
     // 가중치 변경 감지
     ['scalping-weight', 'trend-weight', 'macro-weight'].forEach(id => {
@@ -762,6 +900,244 @@ function showAlert(message, type) {
             alertElement.remove();
         }
     }, 3000);
+}
+
+// 파라미터 로그 관련 함수들
+async function updateParameterLogs() {
+    try {
+        const hours = document.getElementById('log-period').value;
+        const response = await fetch(`/api/parameter_logs/recent?hours=${hours}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            parameterLogsCache = data.adjustments;
+            updateLogSummary(data);
+            renderParameterLogsTable();
+            updateLogPagination();
+        } else {
+            showAlert('error', '파라미터 로그를 불러오는데 실패했습니다: ' + data.error);
+        }
+    } catch (error) {
+        console.error('파라미터 로그 업데이트 오류:', error);
+        showAlert('error', '파라미터 로그를 불러오는데 실패했습니다.');
+    }
+}
+
+function updateLogSummary(data) {
+    const adjustments = data.adjustments;
+    const uniqueStrategies = new Set(adjustments.map(adj => adj.strategy_name));
+    const uniqueRegimes = new Set(adjustments.map(adj => adj.regime));
+    
+    document.getElementById('total-adjustments').textContent = adjustments.length;
+    document.getElementById('affected-strategies').textContent = uniqueStrategies.size;
+    document.getElementById('regime-changes').textContent = uniqueRegimes.size;
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+}
+
+function renderParameterLogsTable() {
+    const tbody = document.getElementById('parameter-logs-table');
+    const strategyFilter = document.getElementById('log-strategy').value;
+    const regimeFilter = document.getElementById('log-regime').value;
+    const sortOrder = document.getElementById('log-sort').value;
+    
+    // 필터링
+    let filteredLogs = parameterLogsCache.filter(log => {
+        const strategyMatch = !strategyFilter || log.strategy_name === strategyFilter;
+        const regimeMatch = !regimeFilter || log.regime === regimeFilter;
+        return strategyMatch && regimeMatch;
+    });
+    
+    // 정렬
+    filteredLogs.sort((a, b) => {
+        switch (sortOrder) {
+            case 'newest':
+                return new Date(b.timestamp) - new Date(a.timestamp);
+            case 'oldest':
+                return new Date(a.timestamp) - new Date(b.timestamp);
+            case 'strategy':
+                return a.strategy_name.localeCompare(b.strategy_name);
+            case 'regime':
+                return a.regime.localeCompare(b.regime);
+            default:
+                return 0;
+        }
+    });
+    
+    // 페이지네이션
+    const startIndex = (currentLogPage - 1) * logPageSize;
+    const endIndex = startIndex + logPageSize;
+    const pageLogs = filteredLogs.slice(startIndex, endIndex);
+    
+    if (pageLogs.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center text-muted">
+                    <i class="fas fa-info-circle"></i> 조정 내역이 없습니다.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = pageLogs.map(log => {
+        const timestamp = new Date(log.timestamp).toLocaleString();
+        const regimeDisplay = getRegimeDisplayName(log.regime);
+        const strategyDisplay = getStrategyDisplayName(log.strategy_name);
+        const changePercent = ((log.adjustment_factor - 1) * 100).toFixed(1);
+        const changeClass = log.adjustment_factor > 1 ? 'text-danger' : 
+                           log.adjustment_factor < 1 ? 'text-success' : 'text-muted';
+        const confidencePercent = (log.regime_confidence * 100).toFixed(1);
+        
+        return `
+            <tr>
+                <td><small>${timestamp}</small></td>
+                <td><span class="badge bg-${getRegimeColor(log.regime)}">${regimeDisplay}</span></td>
+                <td><small>${strategyDisplay}</small></td>
+                <td><code>${log.parameter_name}</code></td>
+                <td><strong>${log.base_value.toFixed(4)}</strong></td>
+                <td><strong class="${changeClass}">${log.adjusted_value.toFixed(4)}</strong></td>
+                <td><span class="${changeClass}">${changePercent > 0 ? '+' : ''}${changePercent}%</span></td>
+                <td><span class="badge bg-info">${confidencePercent}%</span></td>
+                <td><small class="text-muted">${log.adjustment_reason}</small></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function updateLogPagination() {
+    const pagination = document.getElementById('log-pagination');
+    const strategyFilter = document.getElementById('log-strategy').value;
+    const regimeFilter = document.getElementById('log-regime').value;
+    
+    // 필터링된 로그 수 계산
+    const filteredLogs = parameterLogsCache.filter(log => {
+        const strategyMatch = !strategyFilter || log.strategy_name === strategyFilter;
+        const regimeMatch = !regimeFilter || log.regime === regimeFilter;
+        return strategyMatch && regimeMatch;
+    });
+    
+    const totalPages = Math.ceil(filteredLogs.length / logPageSize);
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '';
+    
+    // 이전 페이지
+    if (currentLogPage > 1) {
+        paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="changeLogPage(${currentLogPage - 1})">이전</a></li>`;
+    }
+    
+    // 페이지 번호들
+    const startPage = Math.max(1, currentLogPage - 2);
+    const endPage = Math.min(totalPages, currentLogPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const activeClass = i === currentLogPage ? 'active' : '';
+        paginationHTML += `<li class="page-item ${activeClass}"><a class="page-link" href="#" onclick="changeLogPage(${i})">${i}</a></li>`;
+    }
+    
+    // 다음 페이지
+    if (currentLogPage < totalPages) {
+        paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="changeLogPage(${currentLogPage + 1})">다음</a></li>`;
+    }
+    
+    pagination.innerHTML = paginationHTML;
+}
+
+function changeLogPage(page) {
+    currentLogPage = page;
+    renderParameterLogsTable();
+    updateLogPagination();
+}
+
+function refreshParameterLogs() {
+    updateParameterLogs();
+    showAlert('success', '파라미터 로그가 새로고침되었습니다.');
+}
+
+function exportParameterLogs() {
+    const hours = document.getElementById('log-period').value;
+    const strategyFilter = document.getElementById('log-strategy').value;
+    const regimeFilter = document.getElementById('log-regime').value;
+    
+    // 필터링된 로그
+    let filteredLogs = parameterLogsCache.filter(log => {
+        const strategyMatch = !strategyFilter || log.strategy_name === strategyFilter;
+        const regimeMatch = !regimeFilter || log.regime === regimeFilter;
+        return strategyMatch && regimeMatch;
+    });
+    
+    // CSV 형태로 변환
+    const csvContent = [
+        '시간,체제,전략,파라미터,기본값,조정값,변화율,신뢰도,조정이유',
+        ...filteredLogs.map(log => {
+            const timestamp = new Date(log.timestamp).toLocaleString();
+            const changePercent = ((log.adjustment_factor - 1) * 100).toFixed(1);
+            const confidencePercent = (log.regime_confidence * 100).toFixed(1);
+            return `"${timestamp}","${log.regime}","${log.strategy_name}","${log.parameter_name}","${log.base_value}","${log.adjusted_value}","${changePercent}%","${confidencePercent}%","${log.adjustment_reason}"`;
+        })
+    ].join('\n');
+    
+    // 파일 다운로드
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `parameter_logs_${hours}h_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showAlert('success', '파라미터 로그가 CSV 파일로 다운로드되었습니다.');
+}
+
+// 유틸리티 함수들
+function getRegimeDisplayName(regime) {
+    const regimeNames = {
+        'bull_market': '상승장',
+        'bear_market': '하락장',
+        'sideways': '횡보장',
+        'high_volatility': '고변동성',
+        'low_volatility': '저변동성',
+        'trending_up': '상승 트렌드',
+        'trending_down': '하락 트렌드',
+        'unknown': '불명확'
+    };
+    return regimeNames[regime] || regime;
+}
+
+function getStrategyDisplayName(strategy) {
+    const strategyNames = {
+        'rsi_momentum': 'RSI 모멘텀',
+        'bollinger_squeeze': '볼린저 밴드',
+        'ema_crossover': 'EMA 크로스오버',
+        'macd_signal': 'MACD 신호',
+        'stochastic_oscillator': '스토캐스틱',
+        'williams_r': '윌리엄스 %R',
+        'cci_oscillator': 'CCI 오실레이터',
+        'volume_surge': '거래량 급증',
+        'price_action': '가격 액션',
+        'support_resistance': '지지/저항'
+    };
+    return strategyNames[strategy] || strategy;
+}
+
+function getRegimeColor(regime) {
+    const colors = {
+        'bull_market': 'success',
+        'bear_market': 'danger',
+        'sideways': 'warning',
+        'high_volatility': 'danger',
+        'low_volatility': 'info',
+        'trending_up': 'success',
+        'trending_down': 'danger',
+        'unknown': 'secondary'
+    };
+    return colors[regime] || 'primary';
 }
 </script>
 
