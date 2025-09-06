@@ -237,7 +237,13 @@ class PositionManager:
         
         # 실제 매도 주문 실행 (모의거래에서는 시뮬레이션)
         if position.side == 'long':
-            # 매도 주문
+            # 매도 주문 - 시장가 매도
+            # 최소 주문 수량 확인
+            min_btc_volume = 0.0001
+            if position.size < min_btc_volume:
+                self.logger.warning(f"포지션 크기({position.size:.8f})가 최소 주문 수량({min_btc_volume})보다 작습니다")
+                return False
+            
             result = self.api.place_sell_order(position.symbol, position.current_price, position.size)
         else:
             # 숏 포지션 청산 (매수)

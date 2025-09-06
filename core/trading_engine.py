@@ -1273,18 +1273,35 @@ class TradingEngine:
             self.logger.error(f"매수 주문 실행 오류: {e}")
 
     def execute_sell_order(self, signal: TradingSignal):
-        """매도 주문 실행"""
+        """매도 주문 실행 - 시장가 매도"""
         try:
-            btc_balance = self.api.get_balance("BTC")
-            if btc_balance < 0.0001:  # 최소 거래 단위
+            # 실제 매도 가능한 잔고 확인 (balance 필드만)
+            accounts = self.api.get_accounts()
+            available_btc = 0
+            if accounts:
+                for account in accounts:
+                    if account['currency'] == 'BTC':
+                        available_btc = float(account['balance'])
+                        break
+            
+            if available_btc < 0.00001:  # 최소 거래 단위
                 self.logger.warning("매도할 BTC 잔고 부족")
                 return
             
-            # 주문 실행
-            result = self.api.place_sell_order("KRW-BTC", signal.price, btc_balance)
+            # 최소 주문 수량 확인 (Upbit 최소 주문: 0.0001 BTC)
+            min_btc_volume = 0.0001
+            if available_btc < min_btc_volume:
+                self.logger.warning(f"보유 BTC({available_btc:.8f})가 최소 주문 수량({min_btc_volume})보다 작습니다")
+                return
+            
+            # 시장가 매도 (수량 기준)
+            sell_volume = available_btc
+            self.logger.info(f"자동거래 매도: {sell_volume:.8f} BTC")
+            
+            result = self.api.place_sell_order("KRW-BTC", signal.price, sell_volume)
             
             if result.success:
-                self.logger.info(f"매도 주문 성공: {result.order_id} - {btc_balance:.8f}BTC")
+                self.logger.info(f"매도 주문 성공: {result.order_id} - {sell_volume:.8f}BTC")
                 
             else:
                 self.logger.error(f"매도 주문 실패: {result.message}")
