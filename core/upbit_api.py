@@ -82,29 +82,12 @@ class UpbitAPI:
             f"API 키 상태 - Access: {has_access_key}, Secret: {has_secret_key}")
 
         if not has_access_key or not has_secret_key:
-            if paper_trading:
-                self.logger.warning("API 키가 없거나 기본값이어서 모의투자 모드로 전환됩니다.")
-                self.paper_trading = True
-            else:
-                self.logger.error("Upbit API 키가 설정되지 않았습니다.")
-                # 실거래 모드에서도 일단 paper_trading으로 설정하여 에러 방지
-                self.paper_trading = True
-                self.logger.warning("API 키 없음 - 임시로 모의투자 모드로 설정")
-        else:
-            self.paper_trading = paper_trading
+            raise ValueError("Upbit API 키가 설정되지 않았습니다. 실거래를 위해서는 유효한 API 키가 필요합니다.")
 
         self.base_url = "https://api.upbit.com"
         self.rate_limiter = RateLimiter()
 
-        # Paper trading용 가상 잔고
-        self.paper_balance = {
-            'KRW': 1000000,  # 초기 원화 100만원
-            'BTC': 0
-        }
-        self.paper_orders = []
-
-        self.logger.info(
-            f"Upbit API 초기화 완료 - {'모의투자' if self.paper_trading else '실거래'} 모드")
+        self.logger.info("Upbit API 초기화 완료 - 실거래 모드")
 
     def _setup_logger(self) -> logging.Logger:
         logger = logging.getLogger('UpbitAPI')
@@ -264,10 +247,6 @@ class UpbitAPI:
 
     def get_current_price(self, market: str = "KRW-BTC") -> Optional[float]:
         """현재가 조회"""
-        if self.paper_trading:
-            # 모의투자 모드에서는 가상의 가격 반환
-            return 155000000.0  # 약 1억 5천만원으로 고정
-        
         result = self._make_request('GET', '/v1/ticker', {'markets': market})
         if result and len(result) > 0:
             return float(result[0]['trade_price'])
@@ -325,9 +304,6 @@ class UpbitAPI:
         if not volume and not amount:
             return OrderResult(False, message="거래량 또는 거래금액을 지정해야 합니다")
 
-        if self.paper_trading:
-            return self._paper_buy_order(market, price, volume, amount)
-
         # 틱사이즈 보정 및 최소 주문 보정
         price = self._round_tick(price)
         amount, volume = self._ensure_min_order(amount, volume, price)
@@ -361,8 +337,6 @@ class UpbitAPI:
 
     def place_sell_order(self, market: str, price: float, volume: float) -> OrderResult:
         """매도 주문 (틱사이즈/재시도 포함)"""
-        if self.paper_trading:
-            return self._paper_sell_order(market, price, volume)
 
         price = self._round_tick(price)
         params = {
@@ -380,58 +354,9 @@ class UpbitAPI:
             time.sleep(0.5 * (attempt + 1))
         return OrderResult(False, message="매도 주문 실패")
 
-    def _paper_buy_order(self, market: str, price: float, volume: float = None, amount: float = None) -> OrderResult:
-        """모의 매수 주문"""
-        if amount:
-            if self.paper_balance['KRW'] < amount:
-                return OrderResult(False, message="잔고 부족")
-            volume = amount / price
-            self.paper_balance['KRW'] -= amount
-            self.paper_balance['BTC'] += volume * 0.9995
-        else:
-            total_amount = price * volume
-            if self.paper_balance['KRW'] < total_amount:
-                return OrderResult(False, message="잔고 부족")
-            self.paper_balance['KRW'] -= total_amount
-            self.paper_balance['BTC'] += volume * 0.9995
-
-        order_id = str(uuid.uuid4())
-        order_data = {
-            'uuid': order_id,
-            'market': market,
-            'side': 'bid',
-            'volume': str(volume),
-            'price': str(price),
-            'timestamp': datetime.now().isoformat()
-        }
-        self.paper_orders.append(order_data)
-        self.logger.info(f"모의 매수 완료: {volume:.8f} BTC @ {price:,.0f} KRW")
-        return OrderResult(True, order_id, "모의 매수 성공", order_data)
-
-    def _paper_sell_order(self, market: str, price: float, volume: float) -> OrderResult:
-        """모의 매도 주문"""
-        if self.paper_balance['BTC'] < volume:
-            return OrderResult(False, message="BTC 잔고 부족")
-        total_amount = price * volume * 0.9995
-        self.paper_balance['BTC'] -= volume
-        self.paper_balance['KRW'] += total_amount
-        order_id = str(uuid.uuid4())
-        order_data = {
-            'uuid': order_id,
-            'market': market,
-            'side': 'ask',
-            'volume': str(volume),
-            'price': str(price),
-            'timestamp': datetime.now().isoformat()
-        }
-        self.paper_orders.append(order_data)
-        self.logger.info(f"모의 매도 완료: {volume:.8f} BTC @ {price:,.0f} KRW")
-        return OrderResult(True, order_id, "모의 매도 성공", order_data)
 
     def get_balance(self, currency: str = "KRW") -> float:
         """특정 통화 잔고 조회"""
-        if self.paper_trading:
-            return self.paper_balance.get(currency, 0)
         accounts = self.get_accounts()
         if accounts:
             for account in accounts:
@@ -441,19 +366,11 @@ class UpbitAPI:
 
     def get_order_status(self, order_id: str) -> Optional[Dict]:
         """주문 상태 조회"""
-        if self.paper_trading:
-            for order in self.paper_orders:
-                if order['uuid'] == order_id:
-                    order['state'] = 'done'  # 모의거래는 즉시 체결
-                    return order
-            return None
         params = {'uuid': order_id}
         return self._make_request('GET', '/v1/order', params)
 
     def cancel_order(self, order_id: str) -> OrderResult:
         """주문 취소"""
-        if self.paper_trading:
-            return OrderResult(True, message="모의거래에서는 주문 취소가 즉시 처리됩니다")
         params = {'uuid': order_id}
         result = self._make_request('DELETE', '/v1/order', params)
         if result:
@@ -463,7 +380,7 @@ class UpbitAPI:
 
 
 if __name__ == "__main__":
-    api = UpbitAPI(paper_trading=True)
+    api = UpbitAPI(paper_trading=False)
     current_price = api.get_current_price("KRW-BTC")
     print(
         f"현재 BTC 가격: {current_price:,.0f} KRW" if current_price else "가격 조회 실패")
