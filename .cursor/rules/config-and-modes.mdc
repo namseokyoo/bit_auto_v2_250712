@@ -1,8 +1,0 @@
----
-alwaysApply: true
----
-# Config & Modes
-- Live/paper mode is stored in `system.mode` of [config/trading_config.json](mdc:config/trading_config.json). Use `config_manager.get_mode()`/`set_mode()`.
-- Do not use `trading.mode`. The engine listens to `system.mode` changes.
-- Handy getters: `get_trading_config`, `get_monitoring_config`, `get_risk_management_config`.
-- System/trading toggles: `config_manager.enable_system/disable_system`, `enable_trading/disable_trading`.
