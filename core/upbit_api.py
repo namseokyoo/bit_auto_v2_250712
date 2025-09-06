@@ -351,7 +351,13 @@ class UpbitAPI:
 
         except Exception as e:
             self.logger.error(f"매수 주문 오류: {e}")
-            return OrderResult(False, message=f"매수 주문 오류: {str(e)}")
+            error_msg = str(e)
+            if "InsufficientFundsBid" in error_msg:
+                return OrderResult(False, message="잔고가 부족합니다. 충전 후 다시 시도해주세요.")
+            elif "UnderMinTotalBid" in error_msg:
+                return OrderResult(False, message="최소 주문 금액(5,000원) 이상으로 주문해주세요.")
+            else:
+                return OrderResult(False, message=f"매수 주문 오류: {error_msg}")
 
     def place_sell_order(self, market: str, price: float, volume: float) -> OrderResult:
         """매도 주문 (pyupbit 사용)"""
