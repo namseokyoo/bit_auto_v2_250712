@@ -89,7 +89,8 @@ class UpbitAPI:
             f"API 키 상태 - Access: {has_access_key}, Secret: {has_secret_key}")
 
         if not has_access_key or not has_secret_key:
-            raise ValueError("Upbit API 키가 설정되지 않았습니다. 실거래를 위해서는 유효한 API 키가 필요합니다.")
+            raise ValueError(
+                "Upbit API 키가 설정되지 않았습니다. 실거래를 위해서는 유효한 API 키가 필요합니다.")
 
         self.base_url = "https://api.upbit.com"
         self.rate_limiter = RateLimiter()
@@ -117,7 +118,8 @@ class UpbitAPI:
             'nonce': str(uuid.uuid4()),
         }
 
-        if query_string:
+        # 쿼리 스트링이 있고 비어있지 않을 때만 해시 추가
+        if query_string and query_string.strip():
             m = hashlib.sha512()
             m.update(query_string.encode())
             query_hash = m.hexdigest()
@@ -352,7 +354,6 @@ class UpbitAPI:
                 return OrderResult(True, result.get('uuid'), "매도 주문 성공", result)
             time.sleep(0.5 * (attempt + 1))
         return OrderResult(False, message="매도 주문 실패")
-
 
     def get_balance(self, currency: str = "KRW") -> float:
         """특정 통화 잔고 조회"""
