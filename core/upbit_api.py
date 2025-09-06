@@ -360,16 +360,15 @@ class UpbitAPI:
                 return OrderResult(False, message=f"매수 주문 오류: {error_msg}")
 
     def place_sell_order(self, market: str, price: float, volume: float) -> OrderResult:
-        """매도 주문 (pyupbit 사용)"""
+        """매도 주문 (pyupbit 사용) - 시장가 매도"""
         try:
             # pyupbit 사용
             import pyupbit
             upbit = pyupbit.Upbit(self.access_key, self.secret_key)
 
-            price = self._round_tick(price)
-            self.logger.info(f"지정가 매도 주문: {market}, 가격: {price}, 수량: {volume}")
+            self.logger.info(f"시장가 매도 주문: {market}, 수량: {volume}")
 
-            result = upbit.sell_limit_order(market, int(price), volume)
+            result = upbit.sell_market_order(market, volume)
 
             if result:
                 self.logger.info(f"매도 주문 성공: {result.get('uuid')}")
@@ -382,12 +381,14 @@ class UpbitAPI:
             return OrderResult(False, message=f"매도 주문 오류: {str(e)}")
 
     def get_balance(self, currency: str = "KRW") -> float:
-        """특정 통화 잔고 조회"""
+        """특정 통화 잔고 조회 (사용가능 + 주문중)"""
         accounts = self.get_accounts()
         if accounts:
             for account in accounts:
                 if account['currency'] == currency:
-                    return float(account['balance'])
+                    balance = float(account['balance'])
+                    locked = float(account['locked'])
+                    return balance + locked
         return 0
 
     def get_order_status(self, order_id: str) -> Optional[Dict]:
