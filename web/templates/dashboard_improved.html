@@ -762,14 +762,20 @@
         console.log('새로운 함수 테스트...');
         updateNextExecutionOnly();
 
+        // 체제 정보 업데이트
+        console.log('체제 정보 업데이트 시작...');
+        updateRegimeStatus();
+
         setTimeout(() => {
             console.log('2초 후 재실행...');
             updateNextExecutionOnly();
+            updateRegimeStatus();
         }, 2000);
 
         // 30초마다 자동 업데이트 (새로운 함수 사용)
         try {
             setInterval(updateNextExecutionOnly, 30000);
+            setInterval(updateRegimeStatus, 30000);
             console.log('30초 자동 업데이트 타이머 설정 완료');
         } catch (e) {
             console.error('자동 업데이트 타이머 설정 실패:', e);
