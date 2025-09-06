@@ -2661,7 +2661,7 @@ def api_manual_execute():
 
             result = api.place_buy_order(
                 "KRW-BTC", current_price, amount=amount)
-            
+
             if result.success:
                 message = f"수동 매수 성공: 주문 ID {result.order_id}"
             else:
@@ -2700,18 +2700,35 @@ def api_manual_execute():
             # 강제 매도 (기준금액에 따른 부분 매도 또는 전량)
             from core.upbit_api import UpbitAPI
             api = UpbitAPI()  # 실거래 모드
-            btc_balance = api.get_balance("BTC")
+
+            # 실제 매도 가능한 잔고 확인 (balance 필드만)
+            accounts = api.get_accounts()
+            available_btc = 0
+            if accounts:
+                for account in accounts:
+                    if account['currency'] == 'BTC':
+                        available_btc = float(account['balance'])
+                        break
+
             current_price = api.get_current_price("KRW-BTC")
             amount = data.get('amount', 5000)  # 기준금액
 
-            if btc_balance > 0.0001:
+            if available_btc > 0.00001:
                 # 기준금액에 따른 매도 수량 계산
-                sell_amount_krw = min(amount, btc_balance * current_price)
+                sell_amount_krw = min(amount, available_btc * current_price)
                 sell_volume = sell_amount_krw / current_price
                 
+                # 최소 주문 수량 확인 (Upbit 최소 주문: 0.0001 BTC)
+                min_btc_volume = 0.0001
+                if sell_volume < min_btc_volume:
+                    # 최소 수량으로 매도
+                    sell_volume = min(min_btc_volume, available_btc)
+                    sell_amount_krw = sell_volume * current_price
+                    logger.info(f"최소 주문 수량으로 조정: {sell_volume} BTC ({sell_amount_krw:,.0f}원)")
+
                 result = api.place_sell_order(
                     "KRW-BTC", current_price, sell_volume)
-                
+
                 if result.success:
                     message = f"수동 매도 성공: 주문 ID {result.order_id}"
                 else:
@@ -2724,8 +2741,8 @@ def api_manual_execute():
                         'side': 'sell',
                         'entry_time': datetime.now(),
                         'entry_price': current_price,
-                        'quantity': btc_balance,
-                        'amount': current_price * btc_balance,
+                        'quantity': available_btc,
+                        'amount': current_price * available_btc,
                         'fees': 0,
                         'pnl': None,
                         'status': 'closed' if result.success else 'failed',
@@ -2758,7 +2775,7 @@ def api_manual_execute():
                 action=action,
                 symbol="KRW-BTC",
                 amount=data.get(
-                    'amount', 0) if action == 'buy' else btc_balance if action == 'sell' else 0,
+                    'amount', 0) if action == 'buy' else available_btc if action == 'sell' else 0,
                 price=current_price if 'current_price' in locals() else 0,
                 strategy="manual",
                 success=result.success,
