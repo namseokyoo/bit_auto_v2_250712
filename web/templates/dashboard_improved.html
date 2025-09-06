@@ -103,12 +103,25 @@
         transition: all 0.3s ease;
     }
 
-    /* 카드 제목 텍스트 색상 강제 설정 */
-    .card-header h5 {
+    /* 카드 제목 텍스트 색상 강제 설정 - 모든 경우 커버 */
+    .card-header h5,
+    .card-header h5.mb-0,
+    .card-header h5.text-dark,
+    .card-header .mb-0,
+    .card-header .mb-0.text-dark {
+        color: #212529 !important;
+        font-weight: 600 !important;
+    }
+    
+    /* bg-light 헤더의 모든 텍스트 강제 어둡게 */
+    .card-header.bg-light h5,
+    .card-header.bg-light .mb-0,
+    .card-header.bg-light * {
         color: #212529 !important;
     }
     
-    .card-header h5.text-dark {
+    /* 인라인 스타일로도 강제 적용 */
+    .card-header.bg-light h5[style] {
         color: #212529 !important;
     }
 </style>
@@ -225,7 +238,7 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light">
-                <h5 class="mb-0 text-dark"><i class="fas fa-hand-paper text-primary"></i> 빠른 거래</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-hand-paper text-primary"></i> 빠른 거래</h5>
             </div>
             <div class="card-body">
                 <div class="row text-center">
@@ -254,7 +267,7 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light">
-                <h5 class="mb-0 text-dark"><i class="fas fa-chart-area text-info"></i> 시장 체제</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-chart-area text-info"></i> 시장 체제</h5>
             </div>
             <div class="card-body">
                 <div class="row text-center">
@@ -302,7 +315,7 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light">
-                <h5 class="mb-0 text-dark"><i class="fas fa-bitcoin text-warning"></i> 현재 가격</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-bitcoin text-warning"></i> 현재 가격</h5>
             </div>
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
@@ -325,7 +338,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark"><i class="fas fa-chart-bar text-success"></i> 전략 성과 (최근 24시간)</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-chart-bar text-success"></i> 전략 성과 (최근 24시간)</h5>
                 <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/strategy_analytics'">
                     상세 분석
                 </button>
@@ -400,7 +413,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark"><i class="fas fa-robot text-primary"></i> AI 분석 및 조언</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-robot text-primary"></i> AI 분석 및 조언</h5>
                 <div>
                     <button class="btn btn-sm btn-outline-primary me-2" onclick="executeAIAnalysis()">
                         <i class="fas fa-brain"></i> AI 분석
@@ -522,7 +535,7 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark"><i class="fas fa-history text-info"></i> 최근 거래</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-history text-info"></i> 최근 거래</h5>
                 <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/trades'">
                     전체 보기
                 </button>
@@ -540,7 +553,7 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark"><i class="fas fa-bell text-warning"></i> 시스템 로그</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-bell text-warning"></i> 시스템 로그</h5>
                 <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/logs'">
                     전체 보기
                 </button>
