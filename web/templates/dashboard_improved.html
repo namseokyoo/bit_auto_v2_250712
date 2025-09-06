@@ -784,7 +784,7 @@
             const response = await fetch('/api/regime/status');
             const data = await response.json();
             
-            if (data.success && data.regime_info.status === 'active') {
+            if (data.success && data.regime_info) {
                 const regimeInfo = data.regime_info;
                 
                 // 현재 체제 표시
