@@ -121,7 +121,9 @@ class UpbitAPI:
         # 쿼리 스트링이 있고 비어있지 않을 때만 해시 추가
         if query_string and query_string.strip():
             m = hashlib.sha512()
-            m.update(query_string.encode())
+            # pyupbit 방식: urlencode 후 배열 파라미터 처리
+            processed_query = query_string.replace("%5B%5D=", "[]=")
+            m.update(processed_query.encode())
             query_hash = m.hexdigest()
             payload['query_hash'] = query_hash
             payload['query_hash_alg'] = 'SHA512'
@@ -161,9 +163,11 @@ class UpbitAPI:
                 self.logger.info(f"POST 요청 파라미터: {params}")
                 self.logger.info(f"POST 요청 헤더: {headers}")
                 
-                # POST 요청 시에도 쿼리 스트링 형태로 데이터 전송
+                # pyupbit 방식: JSON 데이터로 전송
+                import json
+                json_data = json.dumps(params)
                 response = requests.post(
-                    url, data=params, headers=headers, timeout=10)
+                    url, data=json_data, headers=headers, timeout=10)
             elif method_upper == 'DELETE':
                 response = requests.delete(
                     url, params=params, headers=headers, timeout=10)
