@@ -2661,7 +2661,11 @@ def api_manual_execute():
 
             result = api.place_buy_order(
                 "KRW-BTC", current_price, amount=amount)
-            message = f"수동 매수 {'성공' if result.success else '실패'}: {result.message}"
+            
+            if result.success:
+                message = f"수동 매수 성공: 주문 ID {result.order_id}"
+            else:
+                message = f"수동 매수 실패: {result.message}"
             # 거래 기록 (성공/실패 모두 기록하여 추적)
             try:
                 trade_data = {
@@ -2702,7 +2706,11 @@ def api_manual_execute():
             if btc_balance > 0.0001:
                 result = api.place_sell_order(
                     "KRW-BTC", current_price, btc_balance)
-                message = f"수동 매도 {'성공' if result.success else '실패'}: {result.message}"
+                
+                if result.success:
+                    message = f"수동 매도 성공: 주문 ID {result.order_id}"
+                else:
+                    message = f"수동 매도 실패: {result.message}"
                 try:
                     trade_data = {
                         'strategy_id': 'manual',
