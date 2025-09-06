@@ -16,7 +16,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('/opt/bitcoin_auto_trading/logs/backup.log'),
+        logging.FileHandler('/home/ubuntu/bit_auto_v2/logs/backup.log'),
         logging.StreamHandler()
     ]
 )
@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 def backup_database():
     """데이터베이스 백업"""
     try:
-        source_db = '/opt/bitcoin_auto_trading/data/trading_data.db'
-        backup_dir = '/opt/bitcoin_auto_trading/backups/db'
+        source_db = '/home/ubuntu/bit_auto_v2/data/trading_data.db'
+        backup_dir = '/home/ubuntu/bit_auto_v2/backups/db'
         os.makedirs(backup_dir, exist_ok=True)
         
         # 백업 파일명 (날짜 포함)
@@ -51,8 +51,8 @@ def backup_database():
 def backup_logs():
     """로그 파일 백업"""
     try:
-        source_dir = '/opt/bitcoin_auto_trading/logs'
-        backup_dir = '/opt/bitcoin_auto_trading/backups/logs'
+        source_dir = '/home/ubuntu/bit_auto_v2/logs'
+        backup_dir = '/home/ubuntu/bit_auto_v2/backups/logs'
         os.makedirs(backup_dir, exist_ok=True)
         
         # 날짜별 백업 디렉토리
@@ -77,8 +77,8 @@ def backup_logs():
 def backup_config():
     """설정 파일 백업"""
     try:
-        source_file = '/opt/bitcoin_auto_trading/config/trading_config.json'
-        backup_dir = '/opt/bitcoin_auto_trading/backups/config'
+        source_file = '/home/ubuntu/bit_auto_v2/config/trading_config.json'
+        backup_dir = '/home/ubuntu/bit_auto_v2/backups/config'
         os.makedirs(backup_dir, exist_ok=True)
         
         # 백업 파일명
@@ -133,9 +133,9 @@ def create_backup_report():
         
         # 백업 크기 계산
         backup_dirs = [
-            '/opt/bitcoin_auto_trading/backups/db',
-            '/opt/bitcoin_auto_trading/backups/logs',
-            '/opt/bitcoin_auto_trading/backups/config'
+            '/home/ubuntu/bit_auto_v2/backups/db',
+            '/home/ubuntu/bit_auto_v2/backups/logs',
+            '/home/ubuntu/bit_auto_v2/backups/config'
         ]
         
         for backup_dir in backup_dirs:
@@ -148,7 +148,7 @@ def create_backup_report():
                 report['backup_sizes'][os.path.basename(backup_dir)] = total_size
         
         # 보고서 저장
-        report_path = '/opt/bitcoin_auto_trading/backups/backup_report.json'
+        report_path = '/home/ubuntu/bit_auto_v2/backups/backup_report.json'
         with open(report_path, 'w') as f:
             json.dump(report, f, indent=2)
         
@@ -162,7 +162,7 @@ def main():
     logger.info("=== 자동 백업 시작 ===")
     
     # 백업 디렉토리 생성
-    os.makedirs('/opt/bitcoin_auto_trading/backups', exist_ok=True)
+    os.makedirs('/home/ubuntu/bit_auto_v2/backups', exist_ok=True)
     
     # 각종 백업 실행
     backup_database()

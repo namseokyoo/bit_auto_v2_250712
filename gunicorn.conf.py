@@ -16,8 +16,8 @@ keepalive = 2
 proc_name = "bitcoin_auto_trading"
 
 # 로그 설정
-accesslog = "/opt/bitcoin_auto_trading/logs/gunicorn_access.log"
-errorlog = "/opt/bitcoin_auto_trading/logs/gunicorn_error.log"
+accesslog = "/home/ubuntu/bit_auto_v2/logs/gunicorn_access.log"
+errorlog = "/home/ubuntu/bit_auto_v2/logs/gunicorn_error.log"
 loglevel = "info"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 
