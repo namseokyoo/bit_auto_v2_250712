@@ -33,7 +33,7 @@ jobs:
         
         # Git을 통한 최신 코드 가져오기
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 $USER@$HOST "
-          cd /opt/bitcoin_auto_trading && 
+          cd /home/ubuntu/bit_auto_v2 && 
           git fetch origin main && 
           git reset --hard origin/main &&
           echo '최신 코드 업데이트 완료'
@@ -41,7 +41,7 @@ jobs:
         
         # Python 패키지 업데이트 (필요시)
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 $USER@$HOST "
-          cd /opt/bitcoin_auto_trading && 
+          cd /home/ubuntu/bit_auto_v2 && 
           source venv/bin/activate && 
           pip install -r requirements.txt --quiet &&
           echo 'Python 패키지 업데이트 완료'
@@ -59,4 +59,5 @@ jobs:
         USER: ${{ secrets.ORACLE_USER }}
       run: |
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST "ps aux | grep -E 'gunicorn|bitcoin-trading' | grep -v grep || echo 'No processes found'"
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST "curl -s -o /dev/null -w '%{http_code}' http://localhost:9000/health" || echo "Dashboard not accessible"
+
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $USER@$HOST "curl -s -o /dev/null -w '%{http_code}' http://localhost:9000/health || echo 'Dashboard not accessible'"
