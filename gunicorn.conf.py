@@ -4,7 +4,7 @@ import multiprocessing
 import os
 
 # 서버 설정
-bind = "0.0.0.0:9000"
+bind = "0.0.0.0:8080"
 # 설정 변경의 일관된 반영을 위해 워커 수를 1로 제한하고 preload를 비활성화
 workers = 1
 worker_class = "sync"
