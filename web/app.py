@@ -1839,8 +1839,14 @@ def api_trading_activity():
                 }
                 activities.append(activity)
 
-        # 시간순 정렬 (최신 순)
-        activities.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        # 시간순 정렬 (최신 순) - None 값 처리
+        def safe_timestamp_sort_key(x):
+            timestamp = x.get('timestamp')
+            if timestamp is None:
+                return ''  # None 값은 빈 문자열로 처리
+            return str(timestamp)
+        
+        activities.sort(key=safe_timestamp_sort_key, reverse=True)
 
         # 제한 적용
         activities = activities[:limit]
