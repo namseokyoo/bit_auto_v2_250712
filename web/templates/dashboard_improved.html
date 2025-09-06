@@ -200,7 +200,7 @@
             <div class="card-body">
                 <i class="fas fa-wallet text-primary mb-2" style="font-size: 2rem;"></i>
                 <h6 class="text-muted">총 자산</h6>
-                <div id="total-balance" class="big-number text-primary">₩ 186,901</div>
+                <div id="total-balance" class="big-number text-primary">로딩중...</div>
             </div>
         </div>
     </div>
@@ -209,7 +209,8 @@
             <div class="card-body">
                 <i class="fab fa-bitcoin text-warning mb-2" style="font-size: 2rem;"></i>
                 <h6 class="text-muted">보유 BTC</h6>
-                <div id="btc-balance" class="big-number text-warning">0.00000000 BTC</div>
+                <div id="btc-balance" class="big-number text-warning">로딩중...</div>
+                <div id="btc-krw-value" class="small text-muted">-</div>
             </div>
         </div>
     </div>
@@ -798,6 +799,11 @@
         // 체제 정보 업데이트
         console.log('체제 정보 업데이트 시작...');
         updateRegimeStatus();
+        
+        // 즉시 BTC 잔고 및 총자산 업데이트
+        console.log('즉시 잔고 정보 업데이트 시작...');
+        updateBtcBalance();
+        updateTotalBalance();
 
         setTimeout(() => {
             console.log('2초 후 재실행...');
@@ -949,9 +955,10 @@
             console.log('체제 정보 업데이트 시도...');
             updateRegimeStatus();
 
-            // BTC 잔고 업데이트
+            // BTC 잔고 및 총자산 업데이트
             console.log('BTC 잔고 업데이트 시도...');
             updateBtcBalance();
+            updateTotalBalance();
 
             // 나머지 API들은 잠시 주석 처리
             /*
@@ -2041,12 +2048,24 @@
                 console.log('Balance API 응답:', data);
                 if (data.success !== false && data.balances) {
                     const btcBalance = data.balances.BTC || 0;
+                    const currentPrice = data.current_price || 0;
+                    const btcKrwValue = btcBalance * currentPrice;
+                    
                     const btcElement = document.getElementById('btc-balance');
+                    const btcKrwElement = document.getElementById('btc-krw-value');
+                    
                     if (btcElement) {
                         btcElement.textContent = `${btcBalance.toFixed(8)} BTC`;
                         console.log('BTC 잔고 업데이트 완료:', btcBalance);
                     } else {
                         console.error('BTC 잔고 요소를 찾을 수 없습니다');
+                    }
+                    
+                    if (btcKrwElement) {
+                        btcKrwElement.textContent = `₩ ${btcKrwValue.toLocaleString()}`;
+                        console.log('BTC KRW 가치 업데이트 완료:', btcKrwValue);
+                    } else {
+                        console.error('BTC KRW 가치 요소를 찾을 수 없습니다');
                     }
                 } else {
                     console.error('Balance API 응답 오류:', data);
@@ -2054,6 +2073,32 @@
             })
             .catch(error => {
                 console.error('BTC 잔고 업데이트 오류:', error);
+            });
+    }
+
+    // 총자산 업데이트 함수
+    function updateTotalBalance() {
+        console.log('총자산 업데이트 시작...');
+        fetch('/api/balance')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Balance API 응답:', data);
+                if (data.success !== false && data.total_value) {
+                    const totalValue = data.total_value;
+                    const totalElement = document.getElementById('total-balance');
+                    
+                    if (totalElement) {
+                        totalElement.textContent = `₩ ${totalValue.toLocaleString()}`;
+                        console.log('총자산 업데이트 완료:', totalValue);
+                    } else {
+                        console.error('총자산 요소를 찾을 수 없습니다');
+                    }
+                } else {
+                    console.error('Balance API 응답 오류:', data);
+                }
+            })
+            .catch(error => {
+                console.error('총자산 업데이트 오류:', error);
             });
     }
 
@@ -2085,9 +2130,10 @@
                     // 알림 표시
                     if (data.success) {
                         showAlert('success', data.message);
-                        // 거래 성공 시 BTC 잔고 즉시 업데이트
+                        // 거래 성공 시 BTC 잔고 및 총자산 즉시 업데이트
                         setTimeout(() => {
                             updateBtcBalance();
+                            updateTotalBalance();
                         }, 1000);
                         updateDashboard();
                     } else {
