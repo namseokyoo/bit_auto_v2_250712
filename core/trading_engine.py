@@ -88,24 +88,27 @@ class RiskManager:
         return True, "거래 가능"
 
     def calculate_position_size(self, signal: TradingSignal, balance: float) -> float:
-        """포지션 크기 계산"""
-        max_trade_amount = self.config.get_trade_amount_limit()
+        """포지션 크기 계산 - 하이브리드 방식 사용"""
+        from core.hybrid_position_sizer import HybridPositionSizer
         
-        # 잔고의 일정 비율로 제한
-        max_position_percent = self.config.get_config('risk_management.max_position_size_percent') / 100
-        max_by_balance = balance * max_position_percent
+        # 하이브리드 포지션 크기 결정기 사용
+        position_sizer = HybridPositionSizer(self.config)
         
-        # 신호 강도에 따른 조정
-        confidence_multiplier = signal.confidence
+        # 신호를 딕셔너리로 변환
+        signal_dict = {
+            'confidence': signal.confidence,
+            'price': signal.price,
+            'suggested_amount': getattr(signal, 'suggested_amount', 5000)
+        }
         
-        # 최종 거래 금액 결정
-        trade_amount = min(
-            max_trade_amount,
-            max_by_balance,
-            signal.suggested_amount
-        ) * confidence_multiplier
+        # 포지션 크기 계산
+        result = position_sizer.calculate_position_size(signal_dict, balance)
         
-        return max(trade_amount, 10000)  # 최소 거래 금액
+        # 로그 출력
+        self.logger.info(f"포지션 크기 계산: {result.reason}")
+        self.logger.info(f"방법: {result.method}, 리스크: {result.risk_level}")
+        
+        return result.amount
 
     def get_total_loss(self) -> float:
         """총 손실 계산 (임시 구현)"""
@@ -121,6 +124,14 @@ class RiskManager:
             self.consecutive_losses += 1
         else:
             self.consecutive_losses = 0
+        
+        # 하이브리드 포지션 크기 결정기에도 결과 전달
+        try:
+            from core.hybrid_position_sizer import HybridPositionSizer
+            position_sizer = HybridPositionSizer(self.config)
+            position_sizer.update_trade_result(pnl)
+        except Exception as e:
+            self.logger.warning(f"포지션 크기 결정기 업데이트 실패: {e}")
         
         self.logger.info(f"거래 결과 업데이트: PnL={pnl:,.0f}, 일일PnL={self.daily_pnl:,.0f}")
 

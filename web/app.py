@@ -3597,6 +3597,54 @@ def api_debug_config_sync():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/position_sizing/performance')
+def api_position_sizing_performance():
+    """포지션 크기 결정 성과 조회"""
+    try:
+        from core.hybrid_position_sizer import HybridPositionSizer
+        
+        position_sizer = HybridPositionSizer(config_manager)
+        performance = position_sizer.get_performance_summary()
+        
+        return jsonify(performance)
+    except Exception as e:
+        logger.error(f"포지션 크기 성과 조회 오류: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/position_sizing/simulate', methods=['POST'])
+def api_position_sizing_simulate():
+    """포지션 크기 시뮬레이션"""
+    try:
+        data = request.get_json()
+        signal_confidence = data.get('confidence', 0.5)
+        balance = data.get('balance', 100000)
+        current_price = data.get('price', 50000000)
+        
+        from core.hybrid_position_sizer import HybridPositionSizer
+        
+        position_sizer = HybridPositionSizer(config_manager)
+        
+        signal_dict = {
+            'confidence': signal_confidence,
+            'price': current_price,
+            'suggested_amount': 5000
+        }
+        
+        result = position_sizer.calculate_position_size(signal_dict, balance)
+        
+        return jsonify({
+            'amount': result.amount,
+            'method': result.method,
+            'confidence': result.confidence,
+            'risk_level': result.risk_level,
+            'reason': result.reason
+        })
+        
+    except Exception as e:
+        logger.error(f"포지션 크기 시뮬레이션 오류: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     # 템플릿 디렉토리 생성
     os.makedirs('web/templates', exist_ok=True)
