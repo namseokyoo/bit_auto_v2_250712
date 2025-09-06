@@ -2657,7 +2657,7 @@ def api_manual_execute():
             from core.upbit_api import UpbitAPI
             api = UpbitAPI(paper_trading=False)  # 실거래 모드
             current_price = api.get_current_price("KRW-BTC")
-            amount = data.get('amount', 50000)  # 기본 5만원
+            amount = data.get('amount', 10000)  # 기본 1만원
 
             result = api.place_buy_order(
                 "KRW-BTC", current_price, amount=amount)
