@@ -16,6 +16,13 @@ from datetime import datetime
 from dataclasses import dataclass
 import threading
 
+# .env 파일 로드
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 @dataclass
 class OrderResult:
