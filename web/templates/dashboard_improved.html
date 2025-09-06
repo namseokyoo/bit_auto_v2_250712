@@ -799,7 +799,7 @@
         // 체제 정보 업데이트
         console.log('체제 정보 업데이트 시작...');
         updateRegimeStatus();
-        
+
         // 즉시 BTC 잔고 및 총자산 업데이트
         console.log('즉시 잔고 정보 업데이트 시작...');
         updateBtcBalance();
@@ -1142,21 +1142,29 @@
         });
 
         if (isRunning) {
-            statusIndicator.className = 'status-indicator status-active pulse-animation';
-            statusBadge.className = 'badge bg-success';
-            statusBadge.textContent = '실행중';
-            button.className = 'btn btn-warning control-btn';
-            btnIcon.className = 'fas fa-pause me-2';
-            btnText.textContent = '정지';
-            button.setAttribute('data-running', 'true');
+            if (statusIndicator) statusIndicator.className = 'status-indicator status-active pulse-animation';
+            if (statusBadge) {
+                statusBadge.className = 'badge bg-success';
+                statusBadge.textContent = '실행중';
+            }
+            if (button) {
+                button.className = 'btn btn-warning control-btn';
+                button.setAttribute('data-running', 'true');
+            }
+            if (btnIcon) btnIcon.className = 'fas fa-pause me-2';
+            if (btnText) btnText.textContent = '정지';
         } else {
-            statusIndicator.className = 'status-indicator status-inactive';
-            statusBadge.className = 'badge bg-secondary';
-            statusBadge.textContent = '정지됨';
-            button.className = 'btn btn-primary control-btn';
-            btnIcon.className = 'fas fa-play me-2';
-            btnText.textContent = '시작';
-            button.setAttribute('data-running', 'false');
+            if (statusIndicator) statusIndicator.className = 'status-indicator status-inactive';
+            if (statusBadge) {
+                statusBadge.className = 'badge bg-secondary';
+                statusBadge.textContent = '정지됨';
+            }
+            if (button) {
+                button.className = 'btn btn-primary control-btn';
+                button.setAttribute('data-running', 'false');
+            }
+            if (btnIcon) btnIcon.className = 'fas fa-play me-2';
+            if (btnText) btnText.textContent = '시작';
         }
 
         // 다음 실행 시간 업데이트
@@ -2050,17 +2058,17 @@
                     const btcBalance = data.balances.BTC || 0;
                     const currentPrice = data.current_price || 0;
                     const btcKrwValue = btcBalance * currentPrice;
-                    
+
                     const btcElement = document.getElementById('btc-balance');
                     const btcKrwElement = document.getElementById('btc-krw-value');
-                    
+
                     if (btcElement) {
                         btcElement.textContent = `${btcBalance.toFixed(8)} BTC`;
                         console.log('BTC 잔고 업데이트 완료:', btcBalance);
                     } else {
                         console.error('BTC 잔고 요소를 찾을 수 없습니다');
                     }
-                    
+
                     if (btcKrwElement) {
                         btcKrwElement.textContent = `₩ ${btcKrwValue.toLocaleString()}`;
                         console.log('BTC KRW 가치 업데이트 완료:', btcKrwValue);
@@ -2086,7 +2094,7 @@
                 if (data.success !== false && data.total_value) {
                     const totalValue = data.total_value;
                     const totalElement = document.getElementById('total-balance');
-                    
+
                     if (totalElement) {
                         totalElement.textContent = `₩ ${totalValue.toLocaleString()}`;
                         console.log('총자산 업데이트 완료:', totalValue);
