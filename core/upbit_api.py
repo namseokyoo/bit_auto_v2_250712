@@ -264,6 +264,10 @@ class UpbitAPI:
 
     def get_current_price(self, market: str = "KRW-BTC") -> Optional[float]:
         """현재가 조회"""
+        if self.paper_trading:
+            # 모의투자 모드에서는 가상의 가격 반환
+            return 155000000.0  # 약 1억 5천만원으로 고정
+        
         result = self._make_request('GET', '/v1/ticker', {'markets': market})
         if result and len(result) > 0:
             return float(result[0]['trade_price'])

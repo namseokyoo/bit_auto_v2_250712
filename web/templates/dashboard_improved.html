@@ -112,14 +112,14 @@
         color: #212529 !important;
         font-weight: 600 !important;
     }
-    
+
     /* bg-light 헤더의 모든 텍스트 강제 어둡게 */
     .card-header.bg-light h5,
     .card-header.bg-light .mb-0,
     .card-header.bg-light * {
         color: #212529 !important;
     }
-    
+
     /* 인라인 스타일로도 강제 적용 */
     .card-header.bg-light h5[style] {
         color: #212529 !important;
@@ -238,7 +238,8 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-hand-paper text-primary"></i> 빠른 거래</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i
+                        class="fas fa-hand-paper text-primary"></i> 빠른 거래</h5>
             </div>
             <div class="card-body">
                 <div class="row text-center">
@@ -267,7 +268,8 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-chart-area text-info"></i> 시장 체제</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i
+                        class="fas fa-chart-area text-info"></i> 시장 체제</h5>
             </div>
             <div class="card-body">
                 <div class="row text-center">
@@ -315,7 +317,8 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-bitcoin text-warning"></i> 현재 가격</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i
+                        class="fas fa-bitcoin text-warning"></i> 현재 가격</h5>
             </div>
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
@@ -338,7 +341,8 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-chart-bar text-success"></i> 전략 성과 (최근 24시간)</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i
+                        class="fas fa-chart-bar text-success"></i> 전략 성과 (최근 24시간)</h5>
                 <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/strategy_analytics'">
                     상세 분석
                 </button>
@@ -413,7 +417,8 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-robot text-primary"></i> AI 분석 및 조언</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-robot text-primary"></i>
+                    AI 분석 및 조언</h5>
                 <div>
                     <button class="btn btn-sm btn-outline-primary me-2" onclick="executeAIAnalysis()">
                         <i class="fas fa-brain"></i> AI 분석
@@ -535,7 +540,8 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-history text-info"></i> 최근 거래</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-history text-info"></i>
+                    최근 거래</h5>
                 <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/trades'">
                     전체 보기
                 </button>
@@ -553,7 +559,8 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-bell text-warning"></i> 시스템 로그</h5>
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-bell text-warning"></i>
+                    시스템 로그</h5>
                 <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/logs'">
                     전체 보기
                 </button>
@@ -789,13 +796,13 @@
         try {
             const response = await fetch('/api/regime/status?' + Date.now());
             const data = await response.json();
-            
+
             console.log('체제 API 응답:', data);
-            
+
             if (data.success && data.regime_info) {
                 const regimeInfo = data.regime_info;
                 console.log('체제 정보:', regimeInfo);
-                
+
                 // 현재 체제 표시
                 const regimeElement = document.getElementById('current-regime');
                 if (regimeElement) {
@@ -804,7 +811,7 @@
                     regimeElement.className = 'fw-bold ' + getRegimeColorClass(regimeInfo.regime);
                     console.log('체제 표시 완료:', regimeText);
                 }
-                
+
                 // 신뢰도 표시
                 const confidenceElement = document.getElementById('regime-confidence');
                 if (confidenceElement) {
@@ -812,31 +819,31 @@
                     confidenceElement.textContent = confidence + '%';
                     confidenceElement.className = 'fw-bold ' + getConfidenceColorClass(regimeInfo.confidence);
                 }
-                
+
                 // 판단 근거 표시
                 const reasoningElement = document.getElementById('regime-reasoning');
                 if (reasoningElement) {
                     reasoningElement.textContent = regimeInfo.reasoning || '-';
                 }
-                
+
                 // 주요 지표 표시
                 if (regimeInfo.metrics) {
                     const rsiElement = document.getElementById('regime-rsi');
                     if (rsiElement) {
                         rsiElement.textContent = regimeInfo.metrics.rsi ? regimeInfo.metrics.rsi.toFixed(1) : '-';
                     }
-                    
+
                     const atrElement = document.getElementById('regime-atr');
                     if (atrElement) {
                         atrElement.textContent = regimeInfo.metrics.atr ? (regimeInfo.metrics.atr / 1000000).toFixed(2) + 'M' : '-';
                     }
-                    
+
                     const volumeElement = document.getElementById('regime-volume');
                     if (volumeElement) {
                         volumeElement.textContent = regimeInfo.metrics.volume_ratio ? regimeInfo.metrics.volume_ratio.toFixed(2) + 'x' : '-';
                     }
                 }
-                
+
                 console.log('체제 정보 업데이트 완료:', regimeInfo.regime);
             } else {
                 console.warn('체제 정보 업데이트 실패:', data);
@@ -851,7 +858,7 @@
             console.error('체제 정보 업데이트 오류:', error);
         }
     }
-    
+
     // 체제 표시명 변환
     function getRegimeDisplayName(regime) {
         const regimeNames = {
@@ -866,7 +873,7 @@
         };
         return regimeNames[regime] || regime;
     }
-    
+
     // 체제별 색상 클래스
     function getRegimeColorClass(regime) {
         const colorClasses = {
@@ -881,7 +888,7 @@
         };
         return colorClasses[regime] || 'text-primary';
     }
-    
+
     // 신뢰도별 색상 클래스
     function getConfidenceColorClass(confidence) {
         if (confidence >= 0.8) return 'text-success';
@@ -907,11 +914,11 @@
             // 다음 실행 시간 업데이트 (최우선)
             console.log('다음 실행 시간 업데이트 시도...');
             updateAutoTraderStatus(autoTraderData);
-            
+
             // 시스템 상태에 프로세스 상태 통합 업데이트
             console.log('시스템 상태 통합 업데이트 시도...');
             updateSystemStatusWithProcess();
-            
+
             // 체제 정보 업데이트
             console.log('체제 정보 업데이트 시도...');
             updateRegimeStatus();
@@ -1005,18 +1012,18 @@
         try {
             const response = await fetch('/api/system/process_status');
             const data = await response.json();
-            
+
             const sysBadge = document.getElementById('system-enabled-badge');
             if (!sysBadge) return;
 
             if (data.success && data.auto_trader_process) {
                 const process = data.auto_trader_process;
-                
+
                 if (process.running) {
                     // 프로세스가 실행 중이면 시스템 상태를 활성화로 표시
                     sysBadge.className = 'badge bg-success';
                     sysBadge.textContent = '활성화';
-                    
+
                     if (process.detection_method === 'internal') {
                         const internal = process.internal_status;
                         sysBadge.title = `시스템 활성화 + 프로세스 실행중 (내부) - 총 실행: ${internal.total_executions || 0}회`;
@@ -1028,10 +1035,10 @@
                     // 프로세스가 중단되었으면 경고 상태로 표시
                     sysBadge.className = 'badge bg-warning';
                     sysBadge.textContent = '프로세스 중단';
-                    
+
                     const internal = process.internal_status;
                     const external = process.external_process;
-                    
+
                     if (internal && !internal.running && external && !external.running) {
                         sysBadge.title = `시스템은 활성화되어 있지만 프로세스가 중단됨 - 내부: ${internal.reason}, 외부: ${external.reason}`;
                     } else if (internal && !internal.running) {
@@ -1862,16 +1869,16 @@
                 </div>
             </div>
         `;
-        
+
         // 기존 모달 제거
         const existingModal = document.getElementById('votingAnalysisModal');
         if (existingModal) {
             existingModal.remove();
         }
-        
+
         // 새 모달 추가
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
+
         // 모달 표시
         const modal = new bootstrap.Modal(document.getElementById('votingAnalysisModal'));
         modal.show();
@@ -1880,7 +1887,7 @@
     function executeVotingSignal(signal) {
         const action = signal === 'BUY' ? 'buy' : 'sell';
         manualExecute(action);
-        
+
         // 모달 닫기
         const modal = bootstrap.Modal.getInstance(document.getElementById('votingAnalysisModal'));
         modal.hide();
@@ -1985,6 +1992,12 @@
     function manualExecute(action) {
         const actionText = action === 'buy' ? '매수' : '매도';
         if (confirm(`정말로 ${actionText}를 실행하시겠습니까?`)) {
+            // 버튼 비활성화
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 실행 중...';
+            
             fetch('/api/manual_trading/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1992,12 +2005,24 @@
             })
                 .then(response => response.json())
                 .then(data => {
-                    showAlert(data.success ? 'success' : 'danger', data.message);
-                    if (data.success) updateDashboard();
+                    console.log(`${actionText} API 응답:`, data);
+                    
+                    // 알림 표시
+                    if (data.success) {
+                        showAlert('success', data.message);
+                        updateDashboard();
+                    } else {
+                        showAlert('danger', data.message);
+                    }
                 })
                 .catch(error => {
                     console.error('Error:', error);
                     showAlert('danger', `${actionText} 실행 중 오류가 발생했습니다.`);
+                })
+                .finally(() => {
+                    // 버튼 복원
+                    button.disabled = false;
+                    button.innerHTML = originalText;
                 });
         }
     }
