@@ -809,7 +809,6 @@
         try {
             setInterval(updateNextExecutionOnly, 30000);
             setInterval(updateRegimeStatus, 30000);
-            setInterval(updateDashboard, 30000); // BTC 잔고 등 전체 대시보드 업데이트
             console.log('30초 자동 업데이트 타이머 설정 완료');
         } catch (e) {
             console.error('자동 업데이트 타이머 설정 실패:', e);
@@ -998,6 +997,9 @@
             }
         }
     }
+
+    // updateDashboard 함수 정의 후에 setInterval 추가
+    setInterval(updateDashboard, 30000); // BTC 잔고 등 전체 대시보드 업데이트
 
     function updateSystemTradingBadges(systemData) {
         const sysBadge = document.getElementById('system-enabled-badge');
