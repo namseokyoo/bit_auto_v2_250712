@@ -156,8 +156,9 @@ class UpbitAPI:
                 response = requests.get(
                     url, params=params, headers=headers, timeout=10)
             elif method_upper == 'POST':
+                # POST 요청 시에도 쿼리 스트링 형태로 데이터 전송
                 response = requests.post(
-                    url, json=params, headers=headers, timeout=10)
+                    url, data=params, headers=headers, timeout=10)
             elif method_upper == 'DELETE':
                 response = requests.delete(
                     url, params=params, headers=headers, timeout=10)
