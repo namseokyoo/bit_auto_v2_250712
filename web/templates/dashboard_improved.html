@@ -1707,10 +1707,10 @@
         })
             .then(response => response.json())
             .then(data => {
-                if (data.success && data.result) {
-                    showVotingAnalysisResults(data.message, data.result);
+                if (data.success) {
+                    showVotingAnalysisResults('투표 기반 전략 분석이 완료되었습니다.', data);
                 } else {
-                    showAlert(data.success ? 'success' : 'danger', data.message);
+                    showAlert('danger', data.message || '분석 실행 중 오류가 발생했습니다.');
                 }
                 if (data.success) updateDashboard();
             })
@@ -1735,14 +1735,14 @@
                                 <i class="fas fa-info-circle"></i> ${message}
                             </div>
                             
-                            ${result.final_signal ? `
+                            ${result.decision ? `
                                 <div class="row mb-3">
                                     <div class="col-md-4">
                                         <div class="card text-center">
                                             <div class="card-body">
                                                 <h6 class="card-title">최종 신호</h6>
-                                                <span class="badge bg-${result.final_signal.signal === 'BUY' ? 'success' : result.final_signal.signal === 'SELL' ? 'danger' : 'warning'} fs-6">
-                                                    ${result.final_signal.signal}
+                                                <span class="badge bg-${result.decision.signal === 'buy' ? 'success' : result.decision.signal === 'sell' ? 'danger' : 'warning'} fs-6">
+                                                    ${result.decision.signal.toUpperCase()}
                                                 </span>
                                             </div>
                                         </div>
@@ -1751,7 +1751,7 @@
                                         <div class="card text-center">
                                             <div class="card-body">
                                                 <h6 class="card-title">신뢰도</h6>
-                                                <span class="badge bg-info fs-6">${(result.final_signal.confidence * 100).toFixed(1)}%</span>
+                                                <span class="badge bg-info fs-6">${(result.decision.confidence * 100).toFixed(1)}%</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1759,22 +1759,22 @@
                                         <div class="card text-center">
                                             <div class="card-body">
                                                 <h6 class="card-title">투표 수</h6>
-                                                <span class="badge bg-primary fs-6">${result.vote_summary.total_votes}개</span>
+                                                <span class="badge bg-primary fs-6">${result.decision.total_votes}개</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             ` : ''}
                             
-                            ${result.vote_summary ? `
+                            ${result.decision && result.decision.vote_distribution ? `
                                 <h6><i class="fas fa-chart-pie"></i> 투표 요약</h6>
                                 <div class="row mb-3">
                                     <div class="col-md-4">
                                         <div class="card text-center">
                                             <div class="card-body">
                                                 <h6 class="card-title text-success">매수</h6>
-                                                <span class="badge bg-success fs-5">${result.vote_summary.buy_votes}</span>
-                                                <small class="d-block text-muted">${(result.vote_summary.buy_weight * 100).toFixed(1)}%</small>
+                                                <span class="badge bg-success fs-5">${result.decision.vote_distribution.buy}</span>
+                                                <small class="d-block text-muted">${(result.decision.vote_distribution.buy / result.decision.total_votes * 100).toFixed(1)}%</small>
                                             </div>
                                         </div>
                                     </div>
@@ -1782,8 +1782,8 @@
                                         <div class="card text-center">
                                             <div class="card-body">
                                                 <h6 class="card-title text-danger">매도</h6>
-                                                <span class="badge bg-danger fs-5">${result.vote_summary.sell_votes}</span>
-                                                <small class="d-block text-muted">${(result.vote_summary.sell_weight * 100).toFixed(1)}%</small>
+                                                <span class="badge bg-danger fs-5">${result.decision.vote_distribution.sell}</span>
+                                                <small class="d-block text-muted">${(result.decision.vote_distribution.sell / result.decision.total_votes * 100).toFixed(1)}%</small>
                                             </div>
                                         </div>
                                     </div>
@@ -1791,15 +1791,15 @@
                                         <div class="card text-center">
                                             <div class="card-body">
                                                 <h6 class="card-title text-warning">홀드</h6>
-                                                <span class="badge bg-warning fs-5">${result.vote_summary.hold_votes}</span>
-                                                <small class="d-block text-muted">${(result.vote_summary.hold_weight * 100).toFixed(1)}%</small>
+                                                <span class="badge bg-warning fs-5">${result.decision.vote_distribution.hold}</span>
+                                                <small class="d-block text-muted">${(result.decision.vote_distribution.hold / result.decision.total_votes * 100).toFixed(1)}%</small>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             ` : ''}
                             
-                            ${result.individual_votes ? `
+                            ${result.strategies ? `
                                 <h6><i class="fas fa-list"></i> 개별 전략 투표</h6>
                                 <div class="table-responsive">
                                     <table class="table table-sm">
@@ -1808,22 +1808,22 @@
                                                 <th>전략</th>
                                                 <th>신호</th>
                                                 <th>신뢰도</th>
-                                                <th>가중치</th>
-                                                <th>기여도</th>
+                                                <th>강도</th>
+                                                <th>근거</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            ${result.individual_votes.map(vote => `
+                                            ${result.strategies.map(strategy => `
                                                 <tr>
-                                                    <td><small>${vote.strategy_name}</small></td>
+                                                    <td><small>${strategy.strategy_name}</small></td>
                                                     <td>
-                                                        <span class="badge bg-${vote.signal === 'BUY' ? 'success' : vote.signal === 'SELL' ? 'danger' : 'warning'}">
-                                                            ${vote.signal}
+                                                        <span class="badge bg-${strategy.signal === 'buy' ? 'success' : strategy.signal === 'sell' ? 'danger' : 'warning'}">
+                                                            ${strategy.signal.toUpperCase()}
                                                         </span>
                                                     </td>
-                                                    <td>${(vote.confidence * 100).toFixed(1)}%</td>
-                                                    <td>${vote.weight.toFixed(3)}</td>
-                                                    <td>${(vote.contribution * 100).toFixed(1)}%</td>
+                                                    <td>${(strategy.confidence * 100).toFixed(1)}%</td>
+                                                    <td>${strategy.strength.toFixed(2)}</td>
+                                                    <td><small class="text-muted">${strategy.reasoning}</small></td>
                                                 </tr>
                                             `).join('')}
                                         </tbody>
@@ -1831,33 +1831,30 @@
                                 </div>
                             ` : ''}
                             
-                            ${result.market_regime ? `
-                                <h6><i class="fas fa-chart-area"></i> 시장 체제</h6>
+                            ${result.decision && result.decision.reasoning ? `
+                                <h6><i class="fas fa-lightbulb"></i> 분석 근거</h6>
                                 <div class="alert alert-light">
-                                    <strong>현재 체제:</strong> 
-                                    <span class="badge bg-info">${result.market_regime.regime}</span>
-                                    <br>
-                                    <strong>신뢰도:</strong> ${(result.market_regime.confidence * 100).toFixed(1)}%
-                                    <br>
-                                    <strong>판단 근거:</strong> ${result.market_regime.reasoning}
+                                    <strong>판단 근거:</strong> ${result.decision.reasoning}
                                 </div>
                             ` : ''}
                             
-                            ${result.threshold_adjustments ? `
-                                <h6><i class="fas fa-cogs"></i> 동적 임계값 조정</h6>
+                            ${result.market_summary ? `
+                                <h6><i class="fas fa-chart-line"></i> 시장 요약</h6>
                                 <div class="alert alert-light">
-                                    <strong>조정된 전략:</strong> ${result.threshold_adjustments.adjusted_strategies}개
+                                    <strong>현재 가격:</strong> ₩${result.market_summary.current_price.toLocaleString()}
                                     <br>
-                                    <strong>총 조정:</strong> ${result.threshold_adjustments.total_adjustments}개 파라미터
+                                    <strong>변화율:</strong> ${(result.market_summary.change_rate * 100).toFixed(2)}%
+                                    <br>
+                                    <strong>거래량:</strong> ${result.market_summary.volume.toFixed(2)} BTC
                                 </div>
                             ` : ''}
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
-                            ${result.final_signal && result.final_signal.signal !== 'HOLD' ? `
-                                <button type="button" class="btn btn-${result.final_signal.signal === 'BUY' ? 'success' : 'danger'}" 
-                                        onclick="executeVotingSignal('${result.final_signal.signal}')">
-                                    <i class="fas fa-play"></i> ${result.final_signal.signal} 실행
+                            ${result.decision && result.decision.signal !== 'hold' ? `
+                                <button type="button" class="btn btn-${result.decision.signal === 'buy' ? 'success' : 'danger'}" 
+                                        onclick="executeVotingSignal('${result.decision.signal}')">
+                                    <i class="fas fa-play"></i> ${result.decision.signal.toUpperCase()} 실행
                                 </button>
                             ` : ''}
                         </div>
