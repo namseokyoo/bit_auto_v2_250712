@@ -128,6 +128,30 @@
 {% endblock %}
 
 {% block content %}
+<!-- 현재 가격 카드 (최상단) -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i
+                        class="fas fa-bitcoin text-warning"></i> 현재 가격</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h3 id="btc-price" class="text-warning mb-0">₩ 로딩중...</h3>
+                        <small id="price-change" class="text-muted">비트코인 (BTC)</small>
+                    </div>
+                    <div class="chart-mini" onclick="showRealtimeChart()" style="cursor: pointer;">
+                        <i class="fas fa-chart-area me-2"></i>
+                        실시간 차트
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 상단 제어 패널 -->
 <div class="card mb-4" style="border-left: 5px solid #007bff;">
     <div class="card-body">
@@ -340,28 +364,6 @@
 </div>
 
 <!-- 추가 정보 섹션 -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-light">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i
-                        class="fas fa-bitcoin text-warning"></i> 현재 가격</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h3 id="btc-price" class="text-warning mb-0">₩ 로딩중...</h3>
-                        <small id="price-change" class="text-muted">비트코인 (BTC)</small>
-                    </div>
-                    <div class="chart-mini" onclick="showRealtimeChart()" style="cursor: pointer;">
-                        <i class="fas fa-chart-area me-2"></i>
-                        실시간 차트
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- 전략 성과 모니터링 -->
 <div class="row mb-4">
@@ -563,49 +565,13 @@
 </div>
 
 <!-- 최근 활동 -->
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-history text-info"></i>
-                    최근 거래</h5>
-                <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/trades'">
-                    전체 보기
-                </button>
-            </div>
-            <div class="card-body">
-                <div id="recent-trades">
-                    <div class="text-center text-muted py-4">
-                        <i class="fas fa-inbox fa-2x mb-2"></i>
-                        <div>거래 내역이 없습니다</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-dark" style="color: #212529 !important;"><i class="fas fa-bell text-warning"></i>
-                    시스템 로그</h5>
-                <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/logs'">
-                    전체 보기
-                </button>
-            </div>
-            <div class="card-body">
-                <div id="recent-logs">
-                    <div class="text-center text-muted py-4">
-                        <i class="fas fa-file-alt fa-2x mb-2"></i>
-                        <div>로그를 불러오는 중...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- 실시간 업데이트를 위한 JavaScript -->
 <script>
+    // 간단한 실시간 차트 함수
+    function showRealtimeChart() {
+        alert('실시간 차트 기능은 준비 중입니다.');
+    }
     // 다음 실행 시간 포맷팅 함수 (서버 시간 기준)
     function updateNextExecutionTime(nextExecutionStr, isRunning, element, serverTimeStr) {
         if (!element) {

@@ -2,7 +2,7 @@
   "system": {
     "enabled": true,
     "mode": "paper_trading",
-    "last_updated": "2025-09-01T00:04:15.715171",
+    "last_updated": "2025-09-06T04:11:29.864310",
     "version": "2.0"
   },
   "trading": {
@@ -12,7 +12,7 @@
     "daily_loss_limit": 50000,
     "max_positions": 3,
     "auto_trade_enabled": true,
-    "trade_interval_minutes": 1,
+    "trade_interval_minutes": 10,
     "market": "KRW-BTC",
     "ai_analysis": {
       "enabled": false,
