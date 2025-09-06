@@ -311,13 +311,15 @@ class UpbitAPI:
         if not volume and not amount:
             return OrderResult(False, message="거래량 또는 거래금액을 지정해야 합니다")
 
-        # 틱사이즈 보정 및 최소 주문 보정
-        price = self._round_tick(price)
-        amount, volume = self._ensure_min_order(amount, volume, price)
-
         # 금액(amount) 지정 시: 업비트 규격 - 시장가 매수 (ord_type='price', price=금액)
         # 수량(volume) 지정 시: 지정가 매수 (ord_type='limit', price=가격, volume=수량)
         if amount and not volume:
+            # 시장가 매수: pyupbit 방식
+            # 최소 주문 금액 보정
+            min_krw = 5000.0
+            if amount < min_krw:
+                amount = min_krw
+            
             params = {
                 'market': market,
                 'side': 'bid',
@@ -325,6 +327,10 @@ class UpbitAPI:
                 'price': str(int(amount))  # 정수로 변환
             }
         else:
+            # 지정가 매수
+            price = self._round_tick(price)
+            amount, volume = self._ensure_min_order(amount, volume, price)
+            
             params = {
                 'market': market,
                 'side': 'bid',
