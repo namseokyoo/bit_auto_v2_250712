@@ -781,11 +781,14 @@
     // 체제 정보 업데이트
     async function updateRegimeStatus() {
         try {
-            const response = await fetch('/api/regime/status');
+            const response = await fetch('/api/regime/status?' + Date.now());
             const data = await response.json();
+            
+            console.log('체제 API 응답:', data);
             
             if (data.success && data.regime_info) {
                 const regimeInfo = data.regime_info;
+                console.log('체제 정보:', regimeInfo);
                 
                 // 현재 체제 표시
                 const regimeElement = document.getElementById('current-regime');
@@ -793,6 +796,7 @@
                     const regimeText = getRegimeDisplayName(regimeInfo.regime);
                     regimeElement.textContent = regimeText;
                     regimeElement.className = 'fw-bold ' + getRegimeColorClass(regimeInfo.regime);
+                    console.log('체제 표시 완료:', regimeText);
                 }
                 
                 // 신뢰도 표시
@@ -833,7 +837,7 @@
                 // 오류 상태 표시
                 const regimeElement = document.getElementById('current-regime');
                 if (regimeElement) {
-                    regimeElement.textContent = '오류';
+                    regimeElement.textContent = 'API 오류';
                     regimeElement.className = 'fw-bold text-danger';
                 }
             }
