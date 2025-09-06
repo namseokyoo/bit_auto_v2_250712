@@ -256,7 +256,8 @@
                     <div class="col-12">
                         <div class="input-group">
                             <span class="input-group-text">기준금액</span>
-                            <input type="number" id="trade-amount" class="form-control" value="5000" min="5000" step="1000" placeholder="거래 금액 (KRW)">
+                            <input type="number" id="trade-amount" class="form-control" value="5000" min="5000"
+                                step="1000" placeholder="거래 금액 (KRW)">
                             <span class="input-group-text">KRW</span>
                             <button class="btn btn-outline-secondary" type="button" onclick="setTradeAmount()">
                                 <i class="fas fa-check"></i> 설정
@@ -265,7 +266,7 @@
                         <small class="text-muted">최소 5,000원 이상 설정해주세요</small>
                     </div>
                 </div>
-                
+
                 <!-- 거래 버튼 -->
                 <div class="row text-center">
                     <div class="col-4">
@@ -808,6 +809,7 @@
         try {
             setInterval(updateNextExecutionOnly, 30000);
             setInterval(updateRegimeStatus, 30000);
+            setInterval(updateDashboard, 30000); // BTC 잔고 등 전체 대시보드 업데이트
             console.log('30초 자동 업데이트 타이머 설정 완료');
         } catch (e) {
             console.error('자동 업데이트 타이머 설정 실패:', e);
@@ -2030,12 +2032,22 @@
 
     // BTC 잔고 업데이트 함수
     function updateBtcBalance() {
+        console.log('BTC 잔고 업데이트 시작...');
         fetch('/api/balance')
             .then(response => response.json())
             .then(data => {
-                if (data.success && data.balances) {
+                console.log('Balance API 응답:', data);
+                if (data.success !== false && data.balances) {
                     const btcBalance = data.balances.BTC || 0;
-                    document.getElementById('btc-balance').textContent = `${btcBalance.toFixed(8)} BTC`;
+                    const btcElement = document.getElementById('btc-balance');
+                    if (btcElement) {
+                        btcElement.textContent = `${btcBalance.toFixed(8)} BTC`;
+                        console.log('BTC 잔고 업데이트 완료:', btcBalance);
+                    } else {
+                        console.error('BTC 잔고 요소를 찾을 수 없습니다');
+                    }
+                } else {
+                    console.error('Balance API 응답 오류:', data);
                 }
             })
             .catch(error => {
@@ -2046,12 +2058,12 @@
     function manualExecute(action) {
         const actionText = action === 'buy' ? '매수' : '매도';
         const tradeAmount = document.getElementById('trade-amount').value;
-        
+
         if (!tradeAmount || tradeAmount < 5000) {
             showAlert('warning', '기준금액을 5,000원 이상으로 설정해주세요.');
             return;
         }
-        
+
         if (confirm(`정말로 ${actionText}를 실행하시겠습니까?\n거래금액: ${parseInt(tradeAmount).toLocaleString()}원`)) {
             // 버튼 비활성화
             const button = event.target;
@@ -2071,6 +2083,10 @@
                     // 알림 표시
                     if (data.success) {
                         showAlert('success', data.message);
+                        // 거래 성공 시 BTC 잔고 즉시 업데이트
+                        setTimeout(() => {
+                            updateBtcBalance();
+                        }, 1000);
                         updateDashboard();
                     } else {
                         showAlert('danger', data.message);
