@@ -110,8 +110,6 @@ def main():
                        help='실행 모드 선택 (기본값: both)')
     parser.add_argument('--init-db', action='store_true',
                        help='데이터베이스 초기화만 실행')
-    parser.add_argument('--paper-trading', action='store_true',
-                       help='모의거래 모드로 강제 실행')
     parser.add_argument('--config-check', action='store_true',
                        help='설정 파일 확인만 실행')
     
@@ -128,8 +126,9 @@ def main():
     
     # 환경 변수 확인
     if not check_environment():
-        print("📝 필수 키가 없어 모의거래 모드로 전환합니다.")
-        config_manager.set_mode('paper_trading')
+        print("❌ 필수 환경 변수가 설정되지 않았습니다.")
+        print("실거래를 위해서는 유효한 API 키가 필요합니다.")
+        return 1
     
     print("✅ 환경 변수 확인 완료")
     
@@ -152,10 +151,9 @@ def main():
         print(f"   활성 전략: {config_manager.get_active_strategies()}")
         return 0
     
-    # 모의거래 모드 강제 설정
-    if args.paper_trading:
-        config_manager.set_config('system.mode', 'paper_trading')
-        print("📝 모의거래 모드로 설정됨")
+    # 실거래 모드 강제 설정
+    config_manager.set_config('system.mode', 'live_trading')
+    print("🔥 실거래 모드로 설정됨")
     
     # 실행 모드에 따른 처리
     try:
