@@ -178,14 +178,6 @@ class UpbitAPI:
 
     def get_accounts(self) -> Optional[List[Dict]]:
         """계좌 정보 조회"""
-        if self.paper_trading:
-            return [
-                {'currency': 'KRW', 'balance': str(
-                    self.paper_balance['KRW']), 'locked': '0', 'avg_buy_price': '0'},
-                {'currency': 'BTC', 'balance': str(
-                    self.paper_balance['BTC']), 'locked': '0', 'avg_buy_price': '0'}
-            ]
-
         return self._make_request('GET', '/v1/accounts')
 
     def get_candles(
