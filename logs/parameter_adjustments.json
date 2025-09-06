@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": "2025-09-06T10:19:50.167113",
+    "regime": "sideways",
+    "regime_confidence": 0.95,
+    "regime_reasoning": "테스트용 횡보장 감지",
+    "strategy_name": "rsi_momentum",
+    "parameter_name": "overbought",
+    "base_value": 70.0,
+    "adjusted_value": 77.0,
+    "adjustment_factor": 1.1,
+    "adjustment_reason": "sideways 체제로 인해 overbought 강화 (70.000 -> 77.000)",
+    "market_data": {}
+  },
+  {
+    "timestamp": "2025-09-06T10:19:50.167384",
+    "regime": "sideways",
+    "regime_confidence": 0.95,
+    "regime_reasoning": "테스트용 횡보장 감지",
+    "strategy_name": "rsi_momentum",
+    "parameter_name": "overbought",
+    "base_value": 70.0,
+    "adjusted_value": 77.0,
+    "adjustment_factor": 1.1,
+    "adjustment_reason": "sideways 체제로 인해 overbought 강화 (70.000 -> 77.000)",
+    "market_data": {}
+  }
+]

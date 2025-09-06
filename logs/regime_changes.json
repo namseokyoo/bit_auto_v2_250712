@@ -1,0 +1,13 @@
+[
+  {
+    "timestamp": "2025-09-06T10:19:50.167587",
+    "previous_regime": null,
+    "current_regime": "sideways",
+    "confidence": 0.95,
+    "reasoning": "테스트용 횡보장 감지",
+    "affected_strategies": [
+      "rsi_momentum"
+    ],
+    "total_adjustments": 1
+  }
+]

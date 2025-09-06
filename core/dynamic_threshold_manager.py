@@ -30,10 +30,10 @@ class StrategyThresholds:
 
 class DynamicThresholdManager:
     """동적 임계값 관리자"""
-    
+
     def __init__(self):
         self.logger = logging.getLogger('DynamicThresholdManager')
-        
+
         # 기본 임계값 정의 (현재 설정에서 추출)
         self.base_thresholds = {
             "rsi_momentum": {
@@ -94,7 +94,7 @@ class DynamicThresholdManager:
                 "min_touches": 2
             }
         }
-        
+
         # 체제별 조정 규칙 정의
         self.regime_adjustments = {
             MarketRegime.BULL_MARKET: {
@@ -124,7 +124,7 @@ class DynamicThresholdManager:
                     "oversold": 0.8       # -80 -> -64 (더 공격적 매수)
                 }
             },
-            
+
             MarketRegime.BEAR_MARKET: {
                 "rsi_momentum": {
                     "oversold": 1.2,      # 30 -> 36 (더 신중한 매수)
@@ -152,7 +152,7 @@ class DynamicThresholdManager:
                     "oversold": 1.2        # -80 -> -96 (더 신중한 매수)
                 }
             },
-            
+
             MarketRegime.HIGH_VOLATILITY: {
                 "rsi_momentum": {
                     "oversold": 1.1,      # 더 신중한 매수
@@ -181,7 +181,7 @@ class DynamicThresholdManager:
                     "oversold": 1.1       # 더 신중한 매수
                 }
             },
-            
+
             MarketRegime.LOW_VOLATILITY: {
                 "rsi_momentum": {
                     "oversold": 0.9,      # 더 공격적 매수
@@ -210,7 +210,7 @@ class DynamicThresholdManager:
                     "oversold": 0.9       # 더 공격적 매수
                 }
             },
-            
+
             MarketRegime.SIDEWAYS: {
                 "rsi_momentum": {
                     "oversold": 0.8,      # 더 공격적 매수
@@ -238,7 +238,7 @@ class DynamicThresholdManager:
                     "oversold": 0.8       # 더 공격적 매수
                 }
             },
-            
+
             MarketRegime.TRENDING_UP: {
                 "rsi_momentum": {
                     "oversold": 0.8,      # 더 공격적 매수
@@ -254,7 +254,7 @@ class DynamicThresholdManager:
                     "signal_crossover_strength": 0.7
                 }
             },
-            
+
             MarketRegime.TRENDING_DOWN: {
                 "rsi_momentum": {
                     "oversold": 1.1,      # 더 신중한 매수
@@ -271,45 +271,46 @@ class DynamicThresholdManager:
                 }
             }
         }
-        
+
         self.logger.info("DynamicThresholdManager 초기화 완료")
-    
+
     def get_dynamic_thresholds(self, regime_result: RegimeResult, strategy_name: str) -> Optional[StrategyThresholds]:
         """체제에 따른 동적 임계값 계산"""
         try:
             if not regime_result:
                 self.logger.warning("체제 정보가 없습니다")
                 return None
-            
+
             regime = regime_result.primary_regime
             confidence = regime_result.confidence
-            
+
             # 기본 임계값 가져오기
             if strategy_name not in self.base_thresholds:
                 self.logger.warning(f"전략 {strategy_name}의 기본 임계값이 없습니다")
                 return None
-            
+
             base_thresholds = self.base_thresholds[strategy_name]
-            
+
             # 체제별 조정 규칙 가져오기
             if regime not in self.regime_adjustments:
                 self.logger.warning(f"체제 {regime.value}에 대한 조정 규칙이 없습니다")
                 return None
-            
+
             regime_rules = self.regime_adjustments[regime]
             if strategy_name not in regime_rules:
-                self.logger.warning(f"체제 {regime.value}에서 전략 {strategy_name}에 대한 조정 규칙이 없습니다")
+                self.logger.warning(
+                    f"체제 {regime.value}에서 전략 {strategy_name}에 대한 조정 규칙이 없습니다")
                 return None
-            
+
             strategy_rules = regime_rules[strategy_name]
-            
+
             # 임계값 조정 계산
             adjustments = {}
             for param_name, adjustment_factor in strategy_rules.items():
                 if param_name in base_thresholds:
                     base_value = base_thresholds[param_name]
                     adjusted_value = base_value * adjustment_factor
-                    
+
                     # 조정 이유 생성
                     if adjustment_factor < 1.0:
                         reason = f"{regime.value} 체제로 인해 {param_name} 완화 ({base_value:.3f} -> {adjusted_value:.3f})"
@@ -317,7 +318,7 @@ class DynamicThresholdManager:
                         reason = f"{regime.value} 체제로 인해 {param_name} 강화 ({base_value:.3f} -> {adjusted_value:.3f})"
                     else:
                         reason = f"{regime.value} 체제에서 {param_name} 유지 ({base_value:.3f})"
-                    
+
                     adjustments[param_name] = ThresholdAdjustment(
                         parameter_name=param_name,
                         base_value=base_value,
@@ -325,46 +326,48 @@ class DynamicThresholdManager:
                         adjustment_factor=adjustment_factor,
                         adjustment_reason=reason
                     )
-            
+
             result = StrategyThresholds(
                 strategy_name=strategy_name,
                 adjustments=adjustments,
                 regime=regime,
                 confidence=confidence
             )
-            
-            self.logger.info(f"전략 {strategy_name}의 동적 임계값 계산 완료 (체제: {regime.value}, 신뢰도: {confidence:.3f})")
+
+            self.logger.info(
+                f"전략 {strategy_name}의 동적 임계값 계산 완료 (체제: {regime.value}, 신뢰도: {confidence:.3f})")
             return result
-            
+
         except Exception as e:
             self.logger.error(f"동적 임계값 계산 오류: {e}")
             return None
-    
+
     def get_all_strategy_thresholds(self, regime_result: RegimeResult) -> Dict[str, StrategyThresholds]:
         """모든 전략의 동적 임계값 계산"""
         all_thresholds = {}
-        
+
         for strategy_name in self.base_thresholds.keys():
-            thresholds = self.get_dynamic_thresholds(regime_result, strategy_name)
+            thresholds = self.get_dynamic_thresholds(
+                regime_result, strategy_name)
             if thresholds:
                 all_thresholds[strategy_name] = thresholds
-        
+
         return all_thresholds
-    
+
     def get_adjusted_parameter(self, strategy_name: str, parameter_name: str, regime_result: RegimeResult) -> Optional[float]:
         """특정 파라미터의 조정된 값 반환"""
         thresholds = self.get_dynamic_thresholds(regime_result, strategy_name)
         if thresholds and parameter_name in thresholds.adjustments:
             return thresholds.adjustments[parameter_name].adjusted_value
         return None
-    
+
     def get_adjustment_summary(self, regime_result: RegimeResult) -> Dict[str, Any]:
         """조정 요약 정보 반환"""
         if not regime_result:
             return {}
-        
+
         all_thresholds = self.get_all_strategy_thresholds(regime_result)
-        
+
         summary = {
             "regime": regime_result.primary_regime.value,
             "confidence": regime_result.confidence,
@@ -372,14 +375,14 @@ class DynamicThresholdManager:
             "strategy_count": len(all_thresholds),
             "strategies": {}
         }
-        
+
         for strategy_name, thresholds in all_thresholds.items():
             strategy_summary = {
                 "regime": thresholds.regime.value,
                 "confidence": thresholds.confidence,
                 "adjustments": {}
             }
-            
+
             for param_name, adjustment in thresholds.adjustments.items():
                 strategy_summary["adjustments"][param_name] = {
                     "base_value": adjustment.base_value,
@@ -387,39 +390,42 @@ class DynamicThresholdManager:
                     "adjustment_factor": adjustment.adjustment_factor,
                     "reason": adjustment.adjustment_reason
                 }
-            
+
             summary["strategies"][strategy_name] = strategy_summary
-        
+
         return summary
-    
+
     def log_threshold_changes(self, regime_result: RegimeResult):
         """임계값 변경사항 로깅 (강화된 버전)"""
         if not regime_result:
             return
-        
+
         all_thresholds = self.get_all_strategy_thresholds(regime_result)
-        
+
         # 기존 로깅
-        self.logger.info(f"=== 동적 임계값 조정 ({regime_result.primary_regime.value}) ===")
+        self.logger.info(
+            f"=== 동적 임계값 조정 ({regime_result.primary_regime.value}) ===")
         self.logger.info(f"신뢰도: {regime_result.confidence:.3f}")
         self.logger.info(f"판단 근거: {regime_result.reasoning}")
-        
+
         for strategy_name, thresholds in all_thresholds.items():
             self.logger.info(f"\n📊 {strategy_name}:")
             for param_name, adjustment in thresholds.adjustments.items():
                 if adjustment.adjustment_factor != 1.0:
                     self.logger.info(f"  {param_name}: {adjustment.base_value:.3f} -> {adjustment.adjusted_value:.3f} "
-                                   f"(x{adjustment.adjustment_factor:.2f})")
+                                     f"(x{adjustment.adjustment_factor:.2f})")
                 else:
-                    self.logger.info(f"  {param_name}: {adjustment.base_value:.3f} (변경 없음)")
-        
+                    self.logger.info(
+                        f"  {param_name}: {adjustment.base_value:.3f} (변경 없음)")
+
         # 강화된 로깅 시스템 사용 (지연 import로 순환 import 방지)
         try:
             from core.parameter_logger import parameter_logger
-            parameter_logger.log_batch_adjustments(regime_result, all_thresholds)
+            parameter_logger.log_batch_adjustments(
+                regime_result, all_thresholds)
         except Exception as e:
             self.logger.error(f"강화된 로깅 시스템 오류: {e}")
-    
+
     def validate_thresholds(self, thresholds: StrategyThresholds) -> bool:
         """임계값 유효성 검증"""
         try:
@@ -427,21 +433,24 @@ class DynamicThresholdManager:
                 # 기본적인 범위 검증
                 if param_name in ["oversold", "overbought"]:
                     if adjustment.adjusted_value < 0 or adjustment.adjusted_value > 100:
-                        self.logger.warning(f"{param_name} 값이 범위를 벗어남: {adjustment.adjusted_value}")
+                        self.logger.warning(
+                            f"{param_name} 값이 범위를 벗어남: {adjustment.adjusted_value}")
                         return False
-                
+
                 elif param_name in ["rsi_period", "bb_period", "lookback_period"]:
                     if adjustment.adjusted_value < 1:
-                        self.logger.warning(f"{param_name} 값이 너무 작음: {adjustment.adjusted_value}")
+                        self.logger.warning(
+                            f"{param_name} 값이 너무 작음: {adjustment.adjusted_value}")
                         return False
-                
+
                 elif param_name in ["momentum_threshold", "squeeze_threshold"]:
                     if adjustment.adjusted_value < 0:
-                        self.logger.warning(f"{param_name} 값이 음수: {adjustment.adjusted_value}")
+                        self.logger.warning(
+                            f"{param_name} 값이 음수: {adjustment.adjusted_value}")
                         return False
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"임계값 검증 오류: {e}")
             return False

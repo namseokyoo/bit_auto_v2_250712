@@ -71,7 +71,7 @@ class RateLimiter:
 
 
 class UpbitAPI:
-    def __init__(self, access_key: str = None, secret_key: str = None, paper_trading: bool = False):
+    def __init__(self, access_key: str = None, secret_key: str = None):
         # 로거 먼저 설정
         self.logger = self._setup_logger()
 
@@ -162,7 +162,7 @@ class UpbitAPI:
                 self.logger.info(f"POST 요청 URL: {url}")
                 self.logger.info(f"POST 요청 파라미터: {params}")
                 self.logger.info(f"POST 요청 헤더: {headers}")
-                
+
                 # pyupbit 방식: JSON 데이터로 전송
                 import json
                 json_data = json.dumps(params)
@@ -319,16 +319,16 @@ class UpbitAPI:
             # pyupbit 사용
             import pyupbit
             upbit = pyupbit.Upbit(self.access_key, self.secret_key)
-            
+
             if amount and not volume:
                 # 시장가 매수: pyupbit 방식
                 min_krw = 5000.0
                 if amount < min_krw:
                     amount = min_krw
-                
+
                 self.logger.info(f"시장가 매수 주문: {market}, 금액: {amount}")
                 result = upbit.buy_market_order(market, int(amount))
-                
+
                 if result:
                     self.logger.info(f"매수 주문 성공: {result.get('uuid')}")
                     return OrderResult(True, result.get('uuid'), "매수 주문 성공", result)
@@ -338,16 +338,17 @@ class UpbitAPI:
                 # 지정가 매수
                 price = self._round_tick(price)
                 amount, volume = self._ensure_min_order(amount, volume, price)
-                
-                self.logger.info(f"지정가 매수 주문: {market}, 가격: {price}, 수량: {volume}")
+
+                self.logger.info(
+                    f"지정가 매수 주문: {market}, 가격: {price}, 수량: {volume}")
                 result = upbit.buy_limit_order(market, int(price), volume)
-                
+
                 if result:
                     self.logger.info(f"매수 주문 성공: {result.get('uuid')}")
                     return OrderResult(True, result.get('uuid'), "매수 주문 성공", result)
                 else:
                     return OrderResult(False, message="매수 주문 실패")
-                    
+
         except Exception as e:
             self.logger.error(f"매수 주문 오류: {e}")
             return OrderResult(False, message=f"매수 주문 오류: {str(e)}")
@@ -358,18 +359,18 @@ class UpbitAPI:
             # pyupbit 사용
             import pyupbit
             upbit = pyupbit.Upbit(self.access_key, self.secret_key)
-            
+
             price = self._round_tick(price)
             self.logger.info(f"지정가 매도 주문: {market}, 가격: {price}, 수량: {volume}")
-            
+
             result = upbit.sell_limit_order(market, int(price), volume)
-            
+
             if result:
                 self.logger.info(f"매도 주문 성공: {result.get('uuid')}")
                 return OrderResult(True, result.get('uuid'), "매도 주문 성공", result)
             else:
                 return OrderResult(False, message="매도 주문 실패")
-                
+
         except Exception as e:
             self.logger.error(f"매도 주문 오류: {e}")
             return OrderResult(False, message=f"매도 주문 오류: {str(e)}")

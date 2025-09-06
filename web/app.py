@@ -2655,7 +2655,7 @@ def api_manual_execute():
         elif action == 'buy':
             # 강제 매수
             from core.upbit_api import UpbitAPI
-            api = UpbitAPI(paper_trading=False)  # 실거래 모드
+            api = UpbitAPI()  # 실거래 모드
             current_price = api.get_current_price("KRW-BTC")
             amount = data.get('amount', 10000)  # 기본 1만원
 
@@ -2699,7 +2699,7 @@ def api_manual_execute():
         elif action == 'sell':
             # 강제 매도 (전량)
             from core.upbit_api import UpbitAPI
-            api = UpbitAPI(paper_trading=False)  # 실거래 모드
+            api = UpbitAPI()  # 실거래 모드
             btc_balance = api.get_balance("BTC")
             current_price = api.get_current_price("KRW-BTC")
 
