@@ -1,5 +1,178 @@
 // 대시보드 JavaScript 함수들
 
+// 실시간 차트 열기
+function openRealtimeChart() {
+    // 새 창에서 실시간 차트 열기
+    const chartWindow = window.open('', 'realtimeChart', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    
+    if (chartWindow) {
+        chartWindow.document.write(`
+            <!DOCTYPE html>
+            <html lang="ko">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>비트코인 실시간 차트</title>
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+                <style>
+                    body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f8f9fa; }
+                    .chart-container { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                    .header { text-align: center; margin-bottom: 20px; }
+                    .price-info { display: flex; justify-content: space-around; margin-bottom: 20px; }
+                    .price-item { text-align: center; }
+                    .price-value { font-size: 24px; font-weight: bold; color: #007bff; }
+                    .price-label { color: #6c757d; font-size: 14px; }
+                    .loading { text-align: center; padding: 50px; color: #6c757d; }
+                </style>
+            </head>
+            <body>
+                <div class="chart-container">
+                    <div class="header">
+                        <h1>비트코인 실시간 차트</h1>
+                        <p>업비트 KRW-BTC 실시간 가격 차트</p>
+                    </div>
+                    
+                    <div class="price-info">
+                        <div class="price-item">
+                            <div class="price-value" id="current-price">로딩중...</div>
+                            <div class="price-label">현재 가격</div>
+                        </div>
+                        <div class="price-item">
+                            <div class="price-value" id="price-change">로딩중...</div>
+                            <div class="price-label">24시간 변동률</div>
+                        </div>
+                        <div class="price-item">
+                            <div class="price-value" id="volume">로딩중...</div>
+                            <div class="price-label">24시간 거래량</div>
+                        </div>
+                    </div>
+                    
+                    <div style="position: relative; height: 400px;">
+                        <canvas id="priceChart"></canvas>
+                    </div>
+                    
+                    <div class="loading" id="loading">
+                        <p>차트 데이터를 불러오는 중...</p>
+                    </div>
+                </div>
+                
+                <script>
+                    let chart;
+                    let priceData = [];
+                    let maxDataPoints = 100;
+                    
+                    // 차트 초기화
+                    function initChart() {
+                        const ctx = document.getElementById('priceChart').getContext('2d');
+                        chart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: [],
+                                datasets: [{
+                                    label: 'BTC 가격 (KRW)',
+                                    data: [],
+                                    borderColor: '#007bff',
+                                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                                    borderWidth: 2,
+                                    fill: true,
+                                    tension: 0.4
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    x: {
+                                        type: 'time',
+                                        time: {
+                                            displayFormats: {
+                                                minute: 'HH:mm',
+                                                hour: 'MM-dd HH:mm'
+                                            }
+                                        }
+                                    },
+                                    y: {
+                                        beginAtZero: false,
+                                        ticks: {
+                                            callback: function(value) {
+                                                return '₩' + value.toLocaleString();
+                                            }
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    legend: {
+                                        display: true
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                return '가격: ₩' + context.parsed.y.toLocaleString();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    // 가격 데이터 업데이트
+                    function updatePriceData() {
+                        fetch('/api/current_price')
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success && data.price) {
+                                    const now = new Date();
+                                    const price = data.price;
+                                    
+                                    // 가격 데이터 추가
+                                    priceData.push({
+                                        x: now,
+                                        y: price
+                                    });
+                                    
+                                    // 최대 데이터 포인트 수 제한
+                                    if (priceData.length > maxDataPoints) {
+                                        priceData.shift();
+                                    }
+                                    
+                                    // 차트 업데이트
+                                    chart.data.labels = priceData.map(d => d.x);
+                                    chart.data.datasets[0].data = priceData.map(d => d.y);
+                                    chart.update('none');
+                                    
+                                    // 가격 정보 업데이트
+                                    document.getElementById('current-price').textContent = '₩' + price.toLocaleString();
+                                    
+                                    // 로딩 숨기기
+                                    document.getElementById('loading').style.display = 'none';
+                                }
+                            })
+                            .catch(error => {
+                                console.error('가격 데이터 로드 오류:', error);
+                                document.getElementById('loading').innerHTML = '<p style="color: red;">데이터 로드 오류</p>';
+                            });
+                    }
+                    
+                    // 초기화
+                    document.addEventListener('DOMContentLoaded', function() {
+                        initChart();
+                        updatePriceData();
+                        
+                        // 5초마다 데이터 업데이트
+                        setInterval(updatePriceData, 5000);
+                    });
+                </script>
+            </body>
+            </html>
+        `);
+        chartWindow.document.close();
+    } else {
+        alert('팝업이 차단되었습니다. 팝업 차단을 해제하고 다시 시도해주세요.');
+    }
+}
+
 // 자동 거래 토글 (새로운 버전)
 function toggleAutoTrading(enable) {
     const action = enable ? '활성화' : '비활성화';

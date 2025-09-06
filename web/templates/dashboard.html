@@ -10,6 +10,81 @@
     </div>
 </div>
 
+<!-- 현재 가격 카드 (최상단) -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-bitcoin"></i> 현재 가격</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="openRealtimeChart()">
+                    <i class="fas fa-chart-line"></i> 실시간 차트
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <div class="text-center">
+                            <h2 class="text-primary mb-2" id="current-price-display">
+                                {% if current_price %}
+                                    ₩ {{ "{:,.0f}".format(current_price) }}
+                                {% else %}
+                                    로딩중...
+                                {% endif %}
+                            </h2>
+                            <p class="text-muted mb-0">비트코인 (BTC)</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-center">
+                            <div class="h5 text-success mb-1" id="price-change-display">
+                                <i class="fas fa-arrow-up"></i> +0.00%
+                            </div>
+                            <p class="text-muted mb-0">24시간 변동률</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-wallet"></i> 보유 자산</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">총 자산</span>
+                        <span class="fw-bold" id="total-assets">
+                            {% if balances.total_value %}
+                                ₩ {{ "{:,.0f}".format(balances.total_value) }}
+                            {% else %}
+                                로딩중...
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">보유 BTC</span>
+                        <span class="fw-bold" id="btc-balance">
+                            {{ "{:.8f}".format(balances.BTC if balances.BTC else 0) }} BTC
+                        </span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">원화 잔고</span>
+                        <span class="fw-bold" id="krw-balance">
+                            ₩ {{ "{:,.0f}".format(balances.KRW if balances.KRW else 0) }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 시스템 상태 카드 -->
 <div class="row mb-4">
     <div class="col-md-6">
@@ -112,18 +187,6 @@
                 </div>
                 <hr>
                 <div class="row">
-                    <div class="col-6">
-                        <div class="mb-2">
-                            <label class="form-label">현재 BTC 가격</label>
-                            <div class="h6 text-info">
-                                {% if current_price %}
-                                    ₩ {{ "{:,.0f}".format(current_price) }}
-                                {% else %}
-                                    조회 중...
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
                     <div class="col-6">
                         <div class="mb-2">
                             <label class="form-label">총 평가금액</label>
@@ -291,78 +354,6 @@
     </div>
 </div>
 
-<!-- 최근 거래 내역 -->
-<div class="card">
-    <div class="card-header">
-        <h5><i class="fas fa-history"></i> 최근 거래 내역</h5>
-    </div>
-    <div class="card-body">
-        {% if dashboard_data.recent_trades %}
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>시간</th>
-                            <th>전략</th>
-                            <th>종목</th>
-                            <th>유형</th>
-                            <th>가격</th>
-                            <th>수익/손실</th>
-                            <th>상태</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for trade in dashboard_data.recent_trades %}
-                        <tr>
-                            <td>{{ trade.entry_time[:16] if trade.entry_time else '' }}</td>
-                            <td>
-                                <span class="badge bg-secondary">{{ trade.strategy_id }}</span>
-                            </td>
-                            <td>{{ trade.symbol }}</td>
-                            <td>
-                                {% if trade.side == 'buy' or trade.side == 'bid' %}
-                                    <span class="text-success">매수</span>
-                                {% else %}
-                                    <span class="text-danger">매도</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ "{:,.0f}".format(trade.entry_price) }}</td>
-                            <td>
-                                {% if trade.pnl %}
-                                    <span class="{{ 'profit' if trade.pnl >= 0 else 'loss' }}">
-                                        {{ "{:,.0f}".format(trade.pnl) }}
-                                    </span>
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if trade.status == 'open' %}
-                                    <span class="badge bg-warning">진행중</span>
-                                {% elif trade.status == 'closed' %}
-                                    <span class="badge bg-success">완료</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ trade.status }}</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% else %}
-            <div class="text-center text-muted py-4">
-                <i class="fas fa-info-circle"></i> 거래 내역이 없습니다.
-            </div>
-        {% endif %}
-        
-        <div class="text-center mt-3">
-            <a href="/trades" class="btn btn-outline-primary">
-                전체 거래 내역 보기 <i class="fas fa-arrow-right"></i>
-            </a>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
