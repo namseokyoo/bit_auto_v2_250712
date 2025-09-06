@@ -38,10 +38,10 @@ def check_auto_trader_process():
     try:
         # psutil 패키지 문제로 임시 비활성화
         return {
-            'running': False, 
+            'running': False,
             'reason': '프로세스 모니터링 임시 비활성화'
         }
-        
+
     except Exception as e:
         logger.error(f"프로세스 상태 확인 오류: {e}")
         return {'running': False, 'reason': f'확인 오류: {str(e)}'}
@@ -58,7 +58,7 @@ def get_system_process_status():
             'memory_percent': 0,
             'status': '프로세스 모니터링 임시 비활성화'
         }
-        
+
     except Exception as e:
         logger.error(f"시스템 프로세스 상태 확인 오류: {e}")
         return {'error': str(e)}
@@ -729,10 +729,10 @@ def api_system_status():
             'mode': config_manager.get_config('system.mode'),
             'last_updated': now_kst().isoformat()
         }
-        
+
         # AutoTrader 프로세스 상태 확인
         process_status = check_auto_trader_process()
-        
+
         # AutoTrader 내부 상태 (가능한 경우)
         auto_trader_status = {'running': False, 'error': 'AutoTrader 모듈 접근 불가'}
         try:
@@ -740,7 +740,7 @@ def api_system_status():
             auto_trader_status = get_auto_trading_status()
         except Exception as e:
             auto_trader_status = {'running': False, 'error': str(e)}
-        
+
         # 통합 상태
         return jsonify({
             **basic_status,
@@ -749,7 +749,7 @@ def api_system_status():
             'process_running': process_status.get('running', False),
             'auto_trader_running': auto_trader_status.get('running', False)
         })
-        
+
     except Exception as e:
         logger.error(f"시스템 상태 API 오류: {e}")
         return jsonify({
@@ -771,15 +771,17 @@ def api_process_status():
             from core.auto_trader import get_auto_trading_status
             internal_status = get_auto_trading_status()
         except Exception as e:
-            internal_status = {'running': False, 'reason': f'내부 상태 오류: {str(e)}'}
-        
+            internal_status = {'running': False,
+                               'reason': f'내부 상태 오류: {str(e)}'}
+
         # 외부 프로세스 상태 확인
         external_process = check_auto_trader_process()
         system_status = get_system_process_status()
-        
+
         # 통합 상태 결정
-        is_running = internal_status.get('running', False) or external_process.get('running', False)
-        
+        is_running = internal_status.get(
+            'running', False) or external_process.get('running', False)
+
         return jsonify({
             'success': True,
             'auto_trader_process': {
@@ -791,7 +793,7 @@ def api_process_status():
             'system_status': system_status,
             'timestamp': now_kst().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"프로세스 상태 API 오류: {e}")
         return jsonify({
@@ -1782,7 +1784,7 @@ def api_trading_activity():
             # indicators를 details로 파싱
             indicators_raw = exec_data.get('indicators', '{}')
             details = {}
-            
+
             try:
                 if isinstance(indicators_raw, str):
                     details = json.loads(indicators_raw)
@@ -2043,24 +2045,24 @@ def api_regime_status():
     try:
         from core.voting_strategy_engine import VotingStrategyEngine
         from core.upbit_api import UpbitAPI
-        
+
         # VotingStrategyEngine 인스턴스 생성
         upbit_api = UpbitAPI()
         voting_engine = VotingStrategyEngine(upbit_api)
-        
+
         # 체제 정보 조회
         regime_info = voting_engine.get_regime_info()
-        
+
         # 임계값 조정사항 조회
         threshold_adjustments = voting_engine.get_threshold_adjustments()
-        
+
         return jsonify({
             'success': True,
             'regime_info': regime_info,
             'threshold_adjustments': threshold_adjustments,
             'timestamp': now_kst().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"체제 상태 API 오류: {e}")
         return jsonify({
@@ -2076,10 +2078,10 @@ def api_parameter_logs_recent():
     """최근 파라미터 조정 로그 조회 API"""
     try:
         from core.parameter_logger import parameter_logger
-        
+
         hours = request.args.get('hours', 24, type=int)
         recent_adjustments = parameter_logger.get_recent_adjustments(hours)
-        
+
         return jsonify({
             'success': True,
             'adjustments': recent_adjustments,
@@ -2087,7 +2089,7 @@ def api_parameter_logs_recent():
             'period_hours': hours,
             'timestamp': now_kst().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"파라미터 로그 조회 오류: {e}")
         return jsonify({
@@ -2103,10 +2105,10 @@ def api_regime_history():
     """체제 변경 이력 조회 API"""
     try:
         from core.parameter_logger import parameter_logger
-        
+
         days = request.args.get('days', 7, type=int)
         regime_history = parameter_logger.get_regime_history(days)
-        
+
         return jsonify({
             'success': True,
             'regime_changes': regime_history,
@@ -2114,7 +2116,7 @@ def api_regime_history():
             'period_days': days,
             'timestamp': now_kst().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"체제 이력 조회 오류: {e}")
         return jsonify({
@@ -2130,15 +2132,15 @@ def api_parameter_logs_summary():
     """파라미터 조정 요약 리포트 API"""
     try:
         from core.parameter_logger import parameter_logger
-        
+
         summary_report = parameter_logger.generate_summary_report()
-        
+
         return jsonify({
             'success': True,
             'summary': summary_report,
             'timestamp': now_kst().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"파라미터 요약 리포트 오류: {e}")
         return jsonify({
@@ -2653,7 +2655,7 @@ def api_manual_execute():
         elif action == 'buy':
             # 강제 매수
             from core.upbit_api import UpbitAPI
-            api = UpbitAPI(paper_trading=False)
+            api = UpbitAPI(paper_trading=True)  # 모의투자 모드로 변경
             current_price = api.get_current_price("KRW-BTC")
             amount = data.get('amount', 50000)  # 기본 5만원
 
@@ -2693,7 +2695,7 @@ def api_manual_execute():
         elif action == 'sell':
             # 강제 매도 (전량)
             from core.upbit_api import UpbitAPI
-            api = UpbitAPI(paper_trading=False)
+            api = UpbitAPI(paper_trading=True)  # 모의투자 모드로 변경
             btc_balance = api.get_balance("BTC")
             current_price = api.get_current_price("KRW-BTC")
 
