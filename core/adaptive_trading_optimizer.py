@@ -296,7 +296,7 @@ class AdaptiveTradingOptimizer:
         """시장 데이터 수집"""
         try:
             from core.upbit_api import UpbitAPI
-            api = UpbitAPI(paper_trading=False)
+            api = UpbitAPI()
 
             # 다양한 시간대 캔들 데이터 수집
             candles_1h = api.get_candles(

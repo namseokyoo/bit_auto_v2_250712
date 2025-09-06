@@ -117,7 +117,7 @@ class IndependentStrategy(ABC):
             self.logger.info(f"캐시된 데이터 없음, UpbitAPI 직접 호출: {timeframe}={period}")
             from core.upbit_api import UpbitAPI
             
-            upbit_api = UpbitAPI(paper_trading=True)  # 안전한 모드로 호출
+            upbit_api = UpbitAPI()  # 안전한 모드로 호출
             
             if timeframe == "minutes":
                 candles = upbit_api.get_candles(market="KRW-BTC", timeframe="minutes", 

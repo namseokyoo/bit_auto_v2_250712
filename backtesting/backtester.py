@@ -87,7 +87,7 @@ class Backtester:
         """과거 데이터 로드 (실제 구현에서는 Upbit API나 저장된 데이터 사용)"""
         try:
             # 실제 API 호출로 과거 데이터 수집
-            api = UpbitAPI(paper_trading=True)
+            api = UpbitAPI()
             
             # 일간 캔들 데이터 수집
             days_diff = (end_date - start_date).days

@@ -400,7 +400,7 @@ class UpbitAPI:
 
 
 if __name__ == "__main__":
-    api = UpbitAPI(paper_trading=False)
+    api = UpbitAPI()
     current_price = api.get_current_price("KRW-BTC")
     print(
         f"현재 BTC 가격: {current_price:,.0f} KRW" if current_price else "가격 조회 실패")

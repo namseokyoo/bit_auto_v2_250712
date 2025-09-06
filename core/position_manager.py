@@ -361,7 +361,7 @@ if __name__ == "__main__":
     from config.config_manager import config_manager
     from core.upbit_api import UpbitAPI
     
-    api = UpbitAPI(paper_trading=False)
+    api = UpbitAPI()
     position_manager = PositionManager(config_manager, api)
     
     # 테스트 포지션 생성

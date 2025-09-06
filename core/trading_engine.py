@@ -127,7 +127,7 @@ class RiskManager:
 class TradingEngine:
     def __init__(self):
         self.config = config_manager
-        self.api = UpbitAPI(paper_trading=False)  # 초기에는 모의거래
+        self.api = UpbitAPI()  # 초기에는 모의거래
         self.strategy_manager = StrategyManager()
         self.risk_manager = RiskManager(self.config)
         self.advanced_risk_manager = AdvancedRiskManager(self.config)  # 고급 리스크 관리자 추가
@@ -191,10 +191,10 @@ class TradingEngine:
             elif key_path == 'system.mode':
                 if new_value == 'live_trading':
                     self.logger.critical("실거래 모드로 전환! 주의 필요")
-                    self.api = UpbitAPI(paper_trading=False)
+                    self.api = UpbitAPI()
                 else:
                     self.logger.info("모의거래 모드")
-                    self.api = UpbitAPI(paper_trading=True)
+                    self.api = UpbitAPI()
 
         self.config.register_callback(on_config_change)
 

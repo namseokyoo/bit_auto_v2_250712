@@ -137,8 +137,6 @@ class AutoTrader:
 
                 # UpbitAPI 인스턴스 생성 (설정에 따라)
                 upbit_api = UpbitAPI(
-                    paper_trading=config_manager.get_config(
-                        'system.mode') == 'paper_trading'
                 )
 
                 self._voting_engine = VotingStrategyEngine(upbit_api)

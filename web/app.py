@@ -137,7 +137,7 @@ def dashboard():
             is_paper_trading = (mode == 'paper_trading')
 
             # API 초기화 (.env 파일의 키 자동 사용)
-            api = UpbitAPI(paper_trading=is_paper_trading)
+            api = UpbitAPI()
 
             # 잔고 조회
             balances = {
@@ -1655,7 +1655,7 @@ def api_stop_auto_trader():
 def api_balance():
     """잔고 조회 API"""
     try:
-        api = UpbitAPI(paper_trading=False)
+        api = UpbitAPI()
         balances = {
             'KRW': api.get_balance('KRW'),
             'BTC': api.get_balance('BTC')
@@ -2271,7 +2271,7 @@ def api_manual_analyze():
         logger.info(f"활성 전략 수: {len(active_strategies)}")
 
         # API 인스턴스 생성 (실거래)
-        api = UpbitAPI(paper_trading=False)
+        api = UpbitAPI()
 
         # API 활용 여부 확인 (초기값 설정)
         api_status = "SIMULATION"  # 기본값
@@ -2928,7 +2928,7 @@ def api_strategy_details(strategy_id):
         from core.technical_indicators import TechnicalIndicators
 
         # API 인스턴스 생성
-        api = UpbitAPI(paper_trading=False)
+        api = UpbitAPI()
         real_signals = RealStrategySignals(api)
         indicators = TechnicalIndicators()
 

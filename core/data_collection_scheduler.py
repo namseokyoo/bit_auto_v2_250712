@@ -124,7 +124,7 @@ class DataCollectionScheduler:
             self.logger.info(f"{timeframe} 긴급 데이터 수집 시작")
 
             # Upbit API 직접 호출
-            api = UpbitAPI(paper_trading=False)
+            api = UpbitAPI()
 
             minutes_map = {'1m': 1, '5m': 5, '15m': 15, '1h': 60, '1d': 1440}
             minutes = minutes_map.get(timeframe)
@@ -183,7 +183,7 @@ class DataCollectionScheduler:
             self.logger.info("시간별 데이터 수집 시작")
 
             # 1시간 캔들 데이터 보완
-            api = UpbitAPI(paper_trading=False)
+            api = UpbitAPI()
             candles = api.get_candles(
                 "KRW-BTC", minutes=60, count=24)  # 최근 24시간
 
@@ -204,7 +204,7 @@ class DataCollectionScheduler:
             self.logger.info("일일 데이터 유지보수 시작")
 
             # 1. 일일 캔들 데이터 수집
-            api = UpbitAPI(paper_trading=False)
+            api = UpbitAPI()
             daily_candles = api.get_candles(
                 "KRW-BTC", minutes=1440, count=30)  # 최근 30일
 

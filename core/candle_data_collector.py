@@ -48,7 +48,7 @@ class CandleDataCollector:
 
     def __init__(self, db_path: str = "data/candle_data.db"):
         self.db_path = db_path
-        self.api = UpbitAPI(paper_trading=False)  # 공개 API는 인증 불필요
+        self.api = UpbitAPI()  # 공개 API는 인증 불필요
         self.logger = logging.getLogger('CandleDataCollector')
 
         # 실시간 수집 제어
