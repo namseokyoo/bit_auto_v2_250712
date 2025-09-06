@@ -393,12 +393,13 @@ class DynamicThresholdManager:
         return summary
     
     def log_threshold_changes(self, regime_result: RegimeResult):
-        """임계값 변경사항 로깅"""
+        """임계값 변경사항 로깅 (강화된 버전)"""
         if not regime_result:
             return
         
         all_thresholds = self.get_all_strategy_thresholds(regime_result)
         
+        # 기존 로깅
         self.logger.info(f"=== 동적 임계값 조정 ({regime_result.primary_regime.value}) ===")
         self.logger.info(f"신뢰도: {regime_result.confidence:.3f}")
         self.logger.info(f"판단 근거: {regime_result.reasoning}")
@@ -411,6 +412,13 @@ class DynamicThresholdManager:
                                    f"(x{adjustment.adjustment_factor:.2f})")
                 else:
                     self.logger.info(f"  {param_name}: {adjustment.base_value:.3f} (변경 없음)")
+        
+        # 강화된 로깅 시스템 사용 (지연 import로 순환 import 방지)
+        try:
+            from core.parameter_logger import parameter_logger
+            parameter_logger.log_batch_adjustments(regime_result, all_thresholds)
+        except Exception as e:
+            self.logger.error(f"강화된 로깅 시스템 오류: {e}")
     
     def validate_thresholds(self, thresholds: StrategyThresholds) -> bool:
         """임계값 유효성 검증"""

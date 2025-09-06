@@ -2071,6 +2071,83 @@ def api_regime_status():
         }), 500
 
 
+@app.route('/api/parameter_logs/recent')
+def api_parameter_logs_recent():
+    """최근 파라미터 조정 로그 조회 API"""
+    try:
+        from core.parameter_logger import parameter_logger
+        
+        hours = request.args.get('hours', 24, type=int)
+        recent_adjustments = parameter_logger.get_recent_adjustments(hours)
+        
+        return jsonify({
+            'success': True,
+            'adjustments': recent_adjustments,
+            'count': len(recent_adjustments),
+            'period_hours': hours,
+            'timestamp': now_kst().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"파라미터 로그 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'adjustments': [],
+            'count': 0
+        }), 500
+
+
+@app.route('/api/parameter_logs/regime_history')
+def api_regime_history():
+    """체제 변경 이력 조회 API"""
+    try:
+        from core.parameter_logger import parameter_logger
+        
+        days = request.args.get('days', 7, type=int)
+        regime_history = parameter_logger.get_regime_history(days)
+        
+        return jsonify({
+            'success': True,
+            'regime_changes': regime_history,
+            'count': len(regime_history),
+            'period_days': days,
+            'timestamp': now_kst().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"체제 이력 조회 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'regime_changes': [],
+            'count': 0
+        }), 500
+
+
+@app.route('/api/parameter_logs/summary')
+def api_parameter_logs_summary():
+    """파라미터 조정 요약 리포트 API"""
+    try:
+        from core.parameter_logger import parameter_logger
+        
+        summary_report = parameter_logger.generate_summary_report()
+        
+        return jsonify({
+            'success': True,
+            'summary': summary_report,
+            'timestamp': now_kst().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"파라미터 요약 리포트 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'summary': {}
+        }), 500
+
+
 @app.route('/api/trading_config')
 def api_trading_config():
     """거래 설정 조회 API"""
