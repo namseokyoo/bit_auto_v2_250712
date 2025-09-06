@@ -317,14 +317,14 @@ class UpbitAPI:
                 'market': market,
                 'side': 'bid',
                 'ord_type': 'price',
-                'price': str(amount)
+                'price': str(int(amount))  # 정수로 변환
             }
         else:
             params = {
                 'market': market,
                 'side': 'bid',
                 'ord_type': 'limit',
-                'price': str(price),
+                'price': str(int(price)),  # 정수로 변환
                 'volume': str(volume)
             }
 
@@ -345,7 +345,7 @@ class UpbitAPI:
             'market': market,
             'side': 'ask',
             'volume': str(volume),
-            'price': str(price),
+            'price': str(int(price)),  # 정수로 변환
             'ord_type': 'limit'
         }
         for attempt in range(3):
