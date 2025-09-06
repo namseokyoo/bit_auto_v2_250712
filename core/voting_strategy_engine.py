@@ -24,6 +24,7 @@ from core.strategy_execution_tracker import execution_tracker, StrategyExecution
 from core.regime_detector import RegimeDetector
 from core.dynamic_threshold_manager import DynamicThresholdManager
 from core.strategy_adapter import StrategyAdapter
+from core.adaptive_threshold_optimizer import adaptive_optimizer
 from config.config_manager import config_manager
 
 
@@ -72,7 +73,11 @@ class VotingStrategyEngine:
         # 설정 로드
         self._load_config()
 
-        self.logger.info("VotingStrategyEngine 초기화 완료 (체제 기반 동적 임계값 통합)")
+        # 적응형 최적화 초기화
+        self.last_optimization = datetime.now()
+        self.optimization_interval = 30  # 30분마다 최적화
+        
+        self.logger.info("VotingStrategyEngine 초기화 완료 (체제 기반 동적 임계값 + 적응형 최적화 통합)")
 
     def _register_strategies(self):
         """전략들 등록"""
@@ -126,13 +131,26 @@ class VotingStrategyEngine:
             return None
 
         try:
-            # 0) 체제 기반 동적 임계값 적용
+            # 0) 적응형 임계값 최적화 (30분마다 실행)
+            current_time = datetime.now()
+            if (current_time - self.last_optimization).total_seconds() > self.optimization_interval * 60:
+                try:
+                    market_data = self._get_market_data_for_optimization()
+                    if market_data:
+                        success = adaptive_optimizer.run_optimization(market_data)
+                        if success:
+                            self.last_optimization = current_time
+                            self.logger.info("🎯 적응형 임계값 최적화 완료")
+                except Exception as e:
+                    self.logger.error(f"적응형 최적화 오류: {e}")
+            
+            # 1) 체제 기반 동적 임계값 적용
             try:
                 self._apply_regime_based_thresholds()
             except Exception as e:
                 self.logger.error(f"체제 기반 임계값 적용 오류: {e}")
 
-            # 독립 전략 엔진으로 분석
+            # 2) 독립 전략 엔진으로 분석
             decision = self.engine.analyze_market()
 
             if not decision:
@@ -498,6 +516,24 @@ class VotingStrategyEngine:
         except Exception as e:
             self.logger.error(f"최근 결정 조회 오류: {e}")
             return []
+    
+    def _get_market_data_for_optimization(self) -> Optional[Dict[str, Any]]:
+        """최적화를 위한 시장 데이터 수집"""
+        try:
+            # 최근 100개 캔들 데이터 수집
+            candles_5m = self.upbit_api.get_candles("KRW-BTC", "5", 100)
+            
+            if not candles_5m:
+                return None
+            
+            return {
+                'candles_5m': candles_5m,
+                'timestamp': datetime.now()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"최적화용 시장 데이터 수집 오류: {e}")
+            return None
 
 
 # 전역 인스턴스 (필요시 사용)
