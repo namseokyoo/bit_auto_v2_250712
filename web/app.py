@@ -2697,15 +2697,20 @@ def api_manual_execute():
                               f'수동 매수 DB 기록 실패', str(e))
 
         elif action == 'sell':
-            # 강제 매도 (전량)
+            # 강제 매도 (기준금액에 따른 부분 매도 또는 전량)
             from core.upbit_api import UpbitAPI
             api = UpbitAPI()  # 실거래 모드
             btc_balance = api.get_balance("BTC")
             current_price = api.get_current_price("KRW-BTC")
+            amount = data.get('amount', 5000)  # 기준금액
 
             if btc_balance > 0.0001:
+                # 기준금액에 따른 매도 수량 계산
+                sell_amount_krw = min(amount, btc_balance * current_price)
+                sell_volume = sell_amount_krw / current_price
+                
                 result = api.place_sell_order(
-                    "KRW-BTC", current_price, btc_balance)
+                    "KRW-BTC", current_price, sell_volume)
                 
                 if result.success:
                     message = f"수동 매도 성공: 주문 ID {result.order_id}"

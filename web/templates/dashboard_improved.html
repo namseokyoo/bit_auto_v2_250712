@@ -207,6 +207,15 @@
     <div class="col-md-3 mb-3">
         <div class="card metric-card text-center">
             <div class="card-body">
+                <i class="fab fa-bitcoin text-warning mb-2" style="font-size: 2rem;"></i>
+                <h6 class="text-muted">보유 BTC</h6>
+                <div id="btc-balance" class="big-number text-warning">0.00000000 BTC</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card metric-card text-center">
+            <div class="card-body">
                 <i class="fas fa-chart-line text-success mb-2" style="font-size: 2rem;"></i>
                 <h6 class="text-muted">총 수익/손실</h6>
                 <div id="total-pnl" class="big-number text-success">+₩ 0</div>
@@ -242,6 +251,22 @@
                         class="fas fa-hand-paper text-primary"></i> 빠른 거래</h5>
             </div>
             <div class="card-body">
+                <!-- 기준금액 설정 -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="input-group">
+                            <span class="input-group-text">기준금액</span>
+                            <input type="number" id="trade-amount" class="form-control" value="5000" min="5000" step="1000" placeholder="거래 금액 (KRW)">
+                            <span class="input-group-text">KRW</span>
+                            <button class="btn btn-outline-secondary" type="button" onclick="setTradeAmount()">
+                                <i class="fas fa-check"></i> 설정
+                            </button>
+                        </div>
+                        <small class="text-muted">최소 5,000원 이상 설정해주세요</small>
+                    </div>
+                </div>
+                
+                <!-- 거래 버튼 -->
                 <div class="row text-center">
                     <div class="col-4">
                         <button class="btn btn-outline-primary w-100 mb-2" onclick="analyzeAndExecute()">
@@ -922,6 +947,10 @@
             // 체제 정보 업데이트
             console.log('체제 정보 업데이트 시도...');
             updateRegimeStatus();
+
+            // BTC 잔고 업데이트
+            console.log('BTC 잔고 업데이트 시도...');
+            updateBtcBalance();
 
             // 나머지 API들은 잠시 주석 처리
             /*
@@ -1989,9 +2018,41 @@
         showAlert('success', '분석 완료');
     }
 
+    // 기준금액 설정 함수
+    function setTradeAmount() {
+        const amount = document.getElementById('trade-amount').value;
+        if (amount < 5000) {
+            showAlert('warning', '최소 5,000원 이상으로 설정해주세요.');
+            return;
+        }
+        showAlert('success', `기준금액이 ${parseInt(amount).toLocaleString()}원으로 설정되었습니다.`);
+    }
+
+    // BTC 잔고 업데이트 함수
+    function updateBtcBalance() {
+        fetch('/api/balance')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.balances) {
+                    const btcBalance = data.balances.BTC || 0;
+                    document.getElementById('btc-balance').textContent = `${btcBalance.toFixed(8)} BTC`;
+                }
+            })
+            .catch(error => {
+                console.error('BTC 잔고 업데이트 오류:', error);
+            });
+    }
+
     function manualExecute(action) {
         const actionText = action === 'buy' ? '매수' : '매도';
-        if (confirm(`정말로 ${actionText}를 실행하시겠습니까?`)) {
+        const tradeAmount = document.getElementById('trade-amount').value;
+        
+        if (!tradeAmount || tradeAmount < 5000) {
+            showAlert('warning', '기준금액을 5,000원 이상으로 설정해주세요.');
+            return;
+        }
+        
+        if (confirm(`정말로 ${actionText}를 실행하시겠습니까?\n거래금액: ${parseInt(tradeAmount).toLocaleString()}원`)) {
             // 버튼 비활성화
             const button = event.target;
             const originalText = button.innerHTML;
@@ -2001,7 +2062,7 @@
             fetch('/api/manual_trading/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action })
+                body: JSON.stringify({ action, amount: parseInt(tradeAmount) })
             })
                 .then(response => response.json())
                 .then(data => {
