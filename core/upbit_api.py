@@ -156,6 +156,11 @@ class UpbitAPI:
                 response = requests.get(
                     url, params=params, headers=headers, timeout=10)
             elif method_upper == 'POST':
+                # 디버깅: POST 요청 로그
+                self.logger.info(f"POST 요청 URL: {url}")
+                self.logger.info(f"POST 요청 파라미터: {params}")
+                self.logger.info(f"POST 요청 헤더: {headers}")
+                
                 # POST 요청 시에도 쿼리 스트링 형태로 데이터 전송
                 response = requests.post(
                     url, data=params, headers=headers, timeout=10)
@@ -328,6 +333,9 @@ class UpbitAPI:
                 'volume': str(volume)
             }
 
+        # 디버깅: 파라미터 로그
+        self.logger.info(f"매수 주문 파라미터: {params}")
+        
         # 재시도 정책(최대 3회, 고정 백오프)
         for attempt in range(3):
             result = self._make_request('POST', '/v1/orders', params)
